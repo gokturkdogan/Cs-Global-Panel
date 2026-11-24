@@ -32,6 +32,7 @@
 - **BR-23** Evrak şablonu alanları: başlık, açıklama, talimat, zorunlu mu, sıra, aktif mi. Dosya tipi, boyut ve sayı **şablon alanı değildir** — tüm sistemde sabittir (BR-40, OD-16).
 - BR-24 — (kaldırıldı: dinamik boyut üst sınırı, OD-16)
 - **BR-25** Pasif evrak şablonu yeni başvurulara kopyalanmaz; mevcut snapshot'ları etkilemez.
+- *Uygulama notları (PHASE 05 — ürün kuralı eklemez):* Hizmet adı büyük/küçük harf duyarsız benzersizdir (`lower(name)` index'i; `İ/i` dahil). Evrak şablonları aktif ve pasif birlikte tek sıradadır; pasif evrak yerini korur. Şablon talimatları düz metindir. Pasifleştirme onaylıdır; silme yoktur. Aktif evrakı olmayan aktif hizmette uyarı gösterilir (BR-32 bilgilendirmesi). Ayrıntı: D-072…D-076.
 
 ## 4. Snapshot (zorunlu)
 

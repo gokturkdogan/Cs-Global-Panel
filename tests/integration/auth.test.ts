@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import { verifyPassword } from "better-auth/crypto";
-import type pg from "pg";
+import pg, { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -16,6 +17,7 @@ import {
   resetLoginAttempts,
 } from "@/server/auth/rate-limit";
 import { createDatabase } from "@/server/db/client";
+import * as schema from "@/server/db/schema";
 import {
   AccountError,
   bootstrapAccounts,
@@ -587,7 +589,15 @@ describe.runIf(hasRealAccounts)(
 );
 
 describe("giriş rate limiting (D-063, D-068)", () => {
-  const database = createDatabase(urls.runtime.connectionString);
+  // Uygulama havuzuyla aynı boyut (5); yalnızca bağlantı bekleme süresi uzun: eşzamanlı denemeler aynı
+  // satır kilidinde sıraya girer ve yüksek ağ gecikmesinde 10 sn'lik uygulama bekleme süresi aşılabilir
+  // (uygulamada bu durum fail-closed reddir — PROJECT_STATE "Ani yük"). Test atomik sayımı doğrular.
+  const pool = new Pool({
+    connectionString: urls.runtime.connectionString,
+    max: 5,
+    connectionTimeoutMillis: 120_000,
+  });
+  const database = { pool, db: drizzle({ client: pool, schema }) };
   const secret = `test-rl-${randomUUID()}`;
   const usernames: string[] = [];
   const newUsername = () => {
@@ -664,7 +674,7 @@ describe("giriş rate limiting (D-063, D-068)", () => {
     expect(results.filter((result) => result === "allowed")).toHaveLength(
       LOGIN_RATE_LIMIT_PER_USERNAME.max,
     );
-  });
+  }, 120_000);
 
   it("pencere dolunca sayaç sıfırlanır; anahtar kullanıcı adını düz metin içermez", async () => {
     await clearUnknownBucket();
@@ -677,7 +687,7 @@ describe("giriş rate limiting (D-063, D-068)", () => {
     const owner = await connectOwner();
     try {
       await owner.query(
-        "UPDATE rate_limit_buckets SET expires_at = now() - interval '1 second' WHERE key = $1",
+        "UPDATE rate_limit_buckets SET window_started_at = now() - interval '16 minutes', expires_at = now() - interval '1 second' WHERE key = $1",
         [key],
       );
     } finally {
@@ -714,7 +724,7 @@ describe("giriş rate limiting (D-063, D-068)", () => {
     } finally {
       await owner.end();
     }
-  });
+  }, 180_000);
 
   it("bilinmeyen ad limiti dolu olsa bile var olan hesabın girişi engellenmez (DoS azaltımı)", async ({
     skip,

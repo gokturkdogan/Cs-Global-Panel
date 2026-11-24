@@ -43,7 +43,7 @@
 - **Acceptance:** Bir ADMIN ve bir EMPLOYEE hesabı oluşturulabilir, üçüncüsü oluşturulamaz; iki hesap aynı kontrolden geçer; public kayıt/self-servis şifre işlemi mümkün değil; `sessions` satırlarında IP/UA NULL.
 - **DoD:** Ortak DoD.
 
-## PHASE 04 — Dashboard Foundation (tamamlandı — kullanıcı onayı bekliyor)
+## PHASE 04 — Dashboard Foundation (tamamlandı — onaylandı)
 - **Scope:** Her iki hesap için **aynı** dashboard layout (sidebar, header, breadcrumb, mobil drawer), aynı navigasyon ve menüler — rol bazlı UI farkı yok (OD-24); Ayarlar/Hesap/Çalışanlar sayfası yok; ortak bileşenler (DataTable, Pagination, EmptyState, ConfirmDialog, StatusBadge, Skeleton), hata/404 sayfaları.
 - **Deliverables:** Gezinilebilir panel iskeleti.
 - **Dependencies:** PHASE 03.
@@ -54,7 +54,7 @@
 - **Sonuç (2026-11-24):** Düzen, Genel Bakış (gerçek veri), bilgilendirme sayfaları, 404, P4-01/P4-02 çözüldü, P4-03 azaltıldı, P4-04 yapılandırma düzeyinde. DataTable, Pagination ve ConfirmDialog ilk kullanıldıkları fazlara (PHASE 05/06) bırakıldı (kullanılmayan bileşen üretilmez). axe taraması PHASE 12.
 - **DoD:** Ortak DoD.
 
-## PHASE 05 — Service & Document Template Management
+## PHASE 05 — Service & Document Template Management (tamamlandı — kullanıcı onayı bekliyor)
 - **Scope:** Hizmet CRUD (silme yok), aktif/pasif, sıralama; evrak şablonu CRUD (başlık, açıklama, talimat, zorunlu/isteğe bağlı, sıra, aktif/pasif). Dosya boyutu/sayısı/tipi alanı **yok**. Her iki hesap yönetebilir (OD-24).
 - **Deliverables:** `/dashboard/services*`.
 - **Dependencies:** PHASE 04.
@@ -62,6 +62,7 @@
 - **Test requirements:** Unit: şemalar. Integration: CRUD, oturumsuz erişim reddi, pasif hizmetin aktif listede olmaması. E2E: her iki hesap hizmet + şablon yönetir.
 - **Acceptance:** Pasif hizmet başvuru formunda listelenmez.
 - **DoD:** Ortak DoD.
+- **Sonuç (2026-11-24):** Hizmet CRUD (silme yok), aktif/pasif, evrak şablonu CRUD + sıralama, Türkçe arama/filtre, optimistic lock (migration 0004), audit, snapshot sözleşmesi (D-074). Hizmet sıralaması uygulanmadı (ada göre — D-072). Mutasyon E2E'si izole Docker veritabanında (D-077).
 
 ## PHASE 06 — Customer & Application Management
 - **Scope:** Başvuru formu (müşteri bilgileri her başvuruda yeniden girilir; eşleştirme yok), atomik oluşturma (numara, snapshot, token), sonuç ekranı (Kopyala, **kişiselleştirilmiş WhatsApp paylaşımı** + onay penceresi, Detaya git), tek başvuru listesi (arama, statü/hizmet/tarih filtresi, sayfalama), detay (müşteri bilgisi düzenleme, statü geçmişi, iç notlar, bağlantı göster/kopyala/paylaş/yenile/iptal/yeni oluştur), manuel silme (her iki hesap) (iki aşamalı; storage silme PHASE 08 storage modülü hazır olduğunda tamamlanır — bu fazda dosyasız başvurular için).

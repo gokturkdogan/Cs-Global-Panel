@@ -178,7 +178,8 @@ Genel Bakış (PHASE 04) okumaları audit'e yazılmaz. PHASE 03'te uygulanan: `U
 | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` | USER | `{ requirementId, fileId, reviewId }` |
 | `DOCUMENT_COMMENT_ADDED` / `INTERNAL_NOTE_ADDED` | USER | `{ id }` |
 | `SERVICE_CREATED` / `SERVICE_UPDATED` / `SERVICE_ACTIVATED` / `SERVICE_DEACTIVATED` | USER | `{ changedFields }` |
-| `DOCUMENT_TEMPLATE_CREATED` / `DOCUMENT_TEMPLATE_UPDATED` | USER | `{ serviceId, changedFields }` |
+| `DOCUMENT_TEMPLATE_CREATED` / `DOCUMENT_TEMPLATE_UPDATED` | USER | `{ serviceId, changedFields }` (sıralama: `["sortOrder"]`) |
+| `DOCUMENT_TEMPLATE_ACTIVATED` / `DOCUMENT_TEMPLATE_DEACTIVATED` (PHASE 05, D-076) | USER | `{ serviceId, changedFields }` |
 | `TECHNICAL_CLEANUP_EXECUTED` | SYSTEM | `{ counts }` |
 
 Kaldırılan event'ler: `CUSTOMER_OTP_*`, `CUSTOMER_ACCESS_GRANTED`, `ACCESS_LINK_INVALID_ATTEMPT`, `APPLICATION_ARCHIVED/UNARCHIVED`, `SETTINGS_UPDATED`, `USER_PASSWORD_CHANGED`/`RESET` (→ `USER_PASSWORD_SET`), `RETENTION_PURGE_EXECUTED`.
@@ -232,3 +233,13 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 - **Kimliği doğrulanmış testler (D-067):** uygulamada bypass/test endpoint'i/özel header yok; testler kısa ömürlü gerçek oturum satırı üretir. Gerçek hesapların credential kayıtları ve mevcut oturumları test başı/sonu karşılaştırılır.
 - **CSP:** Radix kaydırma kilidinin `<style>` etiketi nonce'ludur (D-071); `'unsafe-inline'` yok. E2E'de panel sayfalarında konsol/CSP hatası yok.
 - **Açık:** hesap başına kilitleme DoS'u (D-068 kalan risk), IP bazlı limit (TD-04), HTTPS'te `Secure` cookie'nin tarayıcıda doğrulanması (P4-04), axe taraması (PHASE 12).
+
+## 13. PHASE 05 Güvenlik Notları (hizmet / evrak şablonu)
+- **Yetki:** 7 Server Action'ın tamamı `requireStaff()` ile başlar (statik unit testi); iki hesap eşit; aktör ve `created_by`/`updated_by` yalnızca oturumdan. Oturumsuz erişim → `/login`; başka origin'den mutasyon → proxy 403 (E2E).
+- **Girdi:** Zod `.strict()` — bilinmeyen alan (aktör, rol, dosya politikası, version) girdiyi reddeder; kimlikler UUID; `expectedVersion` ≥1; yön `up|down`. Ad için karakter beyaz listesi; çok satırlı metinde kontrol karakteri yok.
+- **IDOR:** Evrak işlemleri `serviceId + requirementId` birlikte kilitlenir; başka hizmete ait evrak → `NOT_FOUND`, değişiklik yok (integration).
+- **XSS:** Talimat/açıklama düz metin olarak saklanır; yalnızca React metni olarak render edilir (`dangerouslySetInnerHTML` yok); `<script>`/`onerror` yükleri E2E'de metin olarak görünür, diyalog/istek oluşmaz.
+- **SQL:** Drizzle parametreli; arama LIKE desenine kaçışla parametre olarak gider.
+- **Hata sızıntısı:** Kullanıcıya Türkçe genel mesajlar; log'da yalnızca PG hata kodu (unit/integration: log'da metin içeriği yok).
+- **Bütünlük:** Optimistic lock + satır kilitleri (kayıp güncelleme yok); audit aynı transaction'da (audit hatasında mutasyon geri alınır); şablon mutasyonları snapshot tablolarına yazmaz (statik + integration).
+- **Sabit dosya politikası:** Dosya tipi/boyutu/sayısı şablon alanı değil; ekranda salt okunur "Dosya kuralları (sabit)" kartı.

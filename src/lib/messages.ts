@@ -15,4 +15,43 @@ export const messages = {
     notFoundTitle: "Sayfa bulunamadı",
     notFoundDescription: "Aradığınız sayfa mevcut değil veya taşınmış olabilir.",
   },
+  common: {
+    conflict:
+      "Bu kayıt başka bir işlem tarafından güncellendi. Lütfen sayfayı yenileyip tekrar deneyiniz.",
+    notFound: "Kayıt bulunamadı. Silinmiş veya erişilemez olabilir.",
+    validation: "Lütfen işaretli alanları kontrol edin.",
+    internal: "İşlem şu anda tamamlanamadı. Lütfen biraz sonra tekrar deneyin.",
+    unauthenticated: "Oturumunuz sona ermiş. Lütfen yeniden giriş yapın.",
+    saved: "Değişiklikler kaydedildi.",
+    unsavedChanges: "Kaydedilmemiş değişiklikler var.",
+  },
+  services: {
+    duplicateName: "Bu adla bir hizmet zaten var.",
+    created: "Hizmet oluşturuldu. Şimdi evrak gereksinimlerini ekleyebilirsiniz.",
+    activated: "Hizmet aktifleştirildi.",
+    deactivated: "Hizmet pasifleştirildi.",
+    requirementCreated: "Evrak gereksinimi eklendi.",
+    requirementActivated: "Evrak gereksinimi aktifleştirildi.",
+    requirementDeactivated: "Evrak gereksinimi pasifleştirildi.",
+    requirementMoved: "Sıralama güncellendi.",
+    snapshotNotice:
+      "Bu hizmette yapılan değişiklikler yeni başvurular için geçerlidir. Mevcut başvuruların evrak listeleri değişmez.",
+    noActiveRequirementWarning:
+      "Bu hizmette aktif evrak gereksinimi yok. Aktif evrak gereksinimi olmayan hizmetle başvuru oluşturulamaz.",
+    emptyTitle: "Henüz hizmet bulunmuyor.",
+    emptyDescription: "Yeni bir hizmet oluşturarak başlayabilirsiniz.",
+    noResults: "Aramanıza uygun hizmet bulunamadı.",
+    requirementsEmpty: "Bu hizmette henüz evrak gereksinimi yok.",
+  },
+  validation: {
+    nameRequired: "Hizmet adı zorunludur.",
+    nameLength: "Hizmet adı 2–150 karakter olmalıdır.",
+    titleRequired: "Evrak adı zorunludur.",
+    titleLength: "Evrak adı 2–150 karakter olmalıdır.",
+    invalidCharacters:
+      "Yalnızca harf, rakam, boşluk ve - – — ( ) . , & / ' + : karakterleri kullanılabilir; ilk karakter harf veya rakam olmalıdır.",
+    descriptionLength: "Açıklama en fazla 2000 karakter olabilir.",
+    instructionsLength: "Talimat en fazla 4000 karakter olabilir.",
+    controlCharacters: "Metin geçersiz karakter içeriyor.",
+  },
 } as const;

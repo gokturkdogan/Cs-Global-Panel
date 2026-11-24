@@ -1,6 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 3100;
+// İzole geçici veritabanı modunda (D-077) ayrı port ve her zaman yeni sunucu: ortak `neondb`'ye
+// bağlı mevcut bir sunucu yanlışlıkla yeniden kullanılmaz.
+const isolated = process.env.ISOLATED_TEST_DB === "1";
+const PORT = isolated ? 3200 : 3100;
 const baseURL = `http://localhost:${PORT}`;
 
 /**
@@ -29,7 +32,7 @@ export default defineConfig({
     command: `pnpm build && pnpm start --port ${PORT}`,
     url: baseURL,
     timeout: 240_000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env.CI && !isolated,
     // Better Auth'un güvenilen origin'i test sunucusunun adresiyle eşleşmeli.
     env: { NEXT_TELEMETRY_DISABLED: "1", APP_ENV: "development", APP_URL: baseURL },
   },

@@ -8,7 +8,7 @@ import { getDashboardOverview, queryDashboardOverview } from "@/features/dashboa
 import { createDatabase } from "@/server/db/client";
 import * as schema from "@/server/db/schema";
 
-import { connectRuntime, createService, newCreated, randomHex, urls } from "./helpers";
+import { connectRuntime, createService, createUser, newCreated, randomHex, urls } from "./helpers";
 
 /**
  * Genel Bakış sorguları (D-070). Runtime rolüyle, REPEATABLE READ bir transaction içinde: önce mevcut
@@ -30,9 +30,9 @@ describe("dashboard genel bakış sorguları", () => {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
     before = await queryDashboardOverview(db);
 
-    const user = await client.query<{ id: string }>("SELECT id FROM users ORDER BY role LIMIT 1");
-    const userId = user.rows[0]?.id;
-    if (userId === undefined) throw new Error("FK için en az bir personel hesabı gerekli");
+    // FK hedefi: mevcut hesap (salt okunur) ya da hesap yoksa bu transaction'da geçici hesap
+    // (geri alınır). `createUser` yalnızca hesap yokken ekler.
+    const userId = await createUser(client, newCreated());
     const { serviceId } = await createService(client, newCreated(), userId);
 
     // Benzersiz, sentetik başvuru numaraları (2097 yılı — gerçek numaralarla çakışmaz).

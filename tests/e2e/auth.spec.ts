@@ -190,8 +190,16 @@ test.describe("giriş ve çıkış (geçici test hesapları)", () => {
       const page = await context.newPage();
       await signIn(page, accounts[role].username, accounts[role].password);
       await expect(page).toHaveURL(/\/dashboard$/);
+      // Yükleme iskeleti bitene kadar bekle (sayfa akışla gelir).
+      await expect(page.getByTestId("dashboard-stats")).toBeVisible();
+      const { username } = accounts[role];
+      const initial = username.charAt(0).toLocaleUpperCase("tr-TR");
       const strip = (values: string[]) =>
-        values.map((value) => value.replaceAll(accounts[role].username, "<kullanıcı>"));
+        values.map((value) =>
+          value
+            .replaceAll(`${initial}${username}`, "<avatar><kullanıcı>")
+            .replaceAll(username, "<kullanıcı>"),
+        );
       const buttons = strip(await page.getByRole("button").allTextContents());
       const links = strip(await page.getByRole("link").allTextContents());
       await context.close();

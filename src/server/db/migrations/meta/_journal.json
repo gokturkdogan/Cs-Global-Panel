@@ -29,6 +29,13 @@
       "when": 1795520808058,
       "tag": "0003_fixed_two_account_model",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795542847925,
+      "tag": "0004_template_optimistic_lock",
+      "breakpoints": true
     }
   ]
 }

@@ -19,7 +19,7 @@ Her iki hesap aşağıdakilerin **tamamını** yapabilir. Hesap türüne göre f
 
 - Dashboard; tüm başvuruları görüntüleme, arama, filtreleme (atama yok — OD-03).
 - Başvuru oluşturma ve müşteri bilgilerini düzenleme.
-- Hizmet oluşturma/düzenleme/pasifleştirme; evrak şablonu yönetimi.
+- Hizmet oluşturma/düzenleme/pasifleştirme/yeniden aktifleştirme; evrak şablonu ekleme/düzenleme/pasifleştirme/yeniden aktifleştirme/sıralama (PHASE 05 — uygulandı; her action `requireStaff()`, aktör oturumdan; E2E'de iki hesabın aynı form/aksiyonları gördüğü ve oluşturan/düzenleyen hesabın farklı olabildiği doğrulandı).
 - Müşteri adına PDF yükleme ve değiştirme (BR-44), evrak inceleme, onay, düzeltme talebi.
 - Statü geçişleri T1–T12 (iptal, iptal edilmişi/tamamlanmışı yeniden açma, izin verilen önceki statülere dönme dahil).
 - Müşteri bağlantısını görüntüleme, kopyalama, WhatsApp ile paylaşma, iptal etme, yenileme.

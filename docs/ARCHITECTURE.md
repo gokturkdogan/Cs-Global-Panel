@@ -229,7 +229,7 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
 | `/dashboard/applications` | Tek liste; arama, statü/hizmet/tarih filtresi, sayfalama | Personel | ✅ | `requireStaff` | RSC | no-store | Yüksek |
 | `/dashboard/applications/new` | Başvuru oluşturma + sonuç ekranı | Personel | ✅ | `requireStaff` | RSC + client form | no-store | Yüksek |
 | `/dashboard/applications/[id]` | Detay: müşteri bilgisi, evraklar, inceleme, yorum, not, geçmiş, bağlantı, geri alma/yeniden açma/silme | Personel | ✅ | `requireStaff` + kaynak kontrolü | RSC + client adalar | no-store | **Çok yüksek** |
-| `/dashboard/services` · `/new` · `/[id]` | Hizmet + evrak şablonu | Personel | ✅ | `requireStaff` | RSC + client form | no-store | Düşük |
+| `/dashboard/services` · `/new` · `/[serviceId]` | Hizmet listesi (arama, durum filtresi) · yeni hizmet · genel bilgiler + durum + evrak şablonları (PHASE 05 — uygulandı) | Personel | ✅ | `requireStaff` | RSC + client form | no-store | Düşük |
 | `/dashboard/audit-logs` | Genel işlem geçmişi | Personel | ✅ | `requireStaff` | RSC | no-store | Orta |
 | `GET /b/[token]` | Token doğrula → cookie → 303 `/portal` | Anonim | Token | Token geçerliliği | Route Handler | no-store | Token |
 | `/portal` | Müşteri paneli | CUSTOMER | Portal cookie | Tek başvuru | RSC + client adalar | no-store | **Çok yüksek** |
@@ -315,3 +315,9 @@ Kurallar (D-016):
 - **Genel Bakış verisi:** `src/features/dashboard/queries.ts` — `getDashboardOverview(getDb())` salt okunur REPEATABLE READ transaction, yalnızca DTO döner; hata `{ ok: false }` (boş durumdan ayrı). Sayaç tanımları `src/features/dashboard/domain.ts` (D-070).
 - **Proxy:** önce köken kontrolü (durum değiştiren, `/api/*` dışı istekler → 403), sonra nonce'lu CSP. Proxy kimlik doğrulama yapmaz.
 - **CSP + Radix:** kaydırma kilidinin `<style>` etiketi için nonce `CspNonce` ile `get-nonce`'a verilir (D-071).
+
+## PHASE 05 Notları (uygulandı)
+- **Hizmet modülü:** `src/features/services/{schemas,queries,service,actions}.ts` + `components/`. Katmanlar: `schemas` (Zod, istemci+sunucu ortak) → `actions` ("use server": `requireStaff()` + parse + `revalidatePath`) → `service` (server-only, tek transaction, kilit + version + audit) → Drizzle (runtime rolü). Okuma `queries` (DTO).
+- **Ortak yardımcılar:** `src/lib/action-result.ts` (`ActionResult`), `src/lib/search.ts` (BR-80 katlaması, LIKE kaçışı), `src/server/db/errors.ts` (yalnızca PG hata kodu), `src/components/dashboard/{confirm-dialog,form-field,use-unsaved-changes}.tsx`, `src/components/ui/textarea.tsx`.
+- **Kilit sözleşmesi:** services → service_document_requirements → (başvuru zinciri). Ayrıntı ve PHASE 06 snapshot sözleşmesi: DATABASE_SCHEMA §6, D-074.
+- **Test altyapısı:** `scripts/test/isolated-db.ts` (Docker, geçici PostgreSQL 18.7 — D-077).

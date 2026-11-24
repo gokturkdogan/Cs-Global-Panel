@@ -1,6 +1,6 @@
 # API Sözleşmeleri
 
-> **Plan**dır; hiçbir endpoint implement edilmemiştir. Değişiklikler CHANGELOG'a yazılır.
+> **Plan**dır; uygulananlar işaretlidir (PHASE 03: giriş/çıkış; PHASE 05: §2.3 hizmetler). Değişiklikler CHANGELOG'a yazılır.
 > Mimari: [ARCHITECTURE.md](ARCHITECTURE.md) §6 · Yetkiler: [AUTHORIZATION_MATRIX.md](AUTHORIZATION_MATRIX.md) · Kurallar: [BUSINESS_RULES.md](BUSINESS_RULES.md) · Şema: [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)
 
 ## 1. Ortak Sözleşme
@@ -52,18 +52,20 @@ Liste filtreleri (`searchParams`, Zod): `q` (2–100), `status` (`ALL` \| 7 stat
 
 `reviewDocumentAction`: `fileId` kilit altında aktif dosya değilse `CONFLICT` (BR-57).
 
-### 2.3 Hizmetler (`features/services/actions.ts`) — personel
-| Action | Input | Audit |
-|---|---|---|
-| `createServiceAction` | `{ name, description?, isActive }` | `SERVICE_CREATED` |
-| `updateServiceAction` | `{ serviceId, name, description? }` | `SERVICE_UPDATED` |
-| `setServiceActiveAction` | `{ serviceId, isActive }` | `SERVICE_ACTIVATED` / `DEACTIVATED` |
-| `reorderServicesAction` | `{ orderedIds }` | `SERVICE_UPDATED` |
-| `createDocumentTemplateAction` | `{ serviceId, title, description?, instructions?, isRequired }` | `DOCUMENT_TEMPLATE_CREATED` |
-| `updateDocumentTemplateAction` | `{ requirementId, title, description?, instructions?, isRequired, isActive }` | `DOCUMENT_TEMPLATE_UPDATED` |
-| `reorderDocumentTemplatesAction` | `{ serviceId, orderedIds }` | `DOCUMENT_TEMPLATE_UPDATED` |
+### 2.3 Hizmetler (`features/services/actions.ts`) — personel — **PHASE 05'te uygulandı** (D-072…D-076)
+Tüm action'lar nesne girdi alır, `requireStaff()` → Zod `.strict()` → servis (tek transaction: kilit → ilişki → `expectedVersion` → yazma → audit) sırasını izler ve `ActionResult<T>` döndürür. Hata kodları: `VALIDATION` (+`fieldErrors`), `NOT_FOUND` (yok veya başka hizmete ait evrak — IDOR), `CONFLICT` (eski version / kilit), `DUPLICATE` (aynı ad, büyük/küçük harf duyarsız), `INTERNAL`.
 
-Dosya boyutu/sayısı/tipi alanları yoktur (OD-16).
+| Action | Input | Çıktı | Audit |
+|---|---|---|---|
+| `createServiceAction` | `{ name, description, isActive }` | `{ serviceId }` | `SERVICE_CREATED` |
+| `updateServiceAction` | `{ serviceId, expectedVersion, name, description }` | `{ version, changed }` | `SERVICE_UPDATED` (değişiklik varsa) |
+| `setServiceActiveAction` | `{ serviceId, isActive, expectedVersion }` | `{ version, activeRequirementCount }` | `SERVICE_ACTIVATED` / `SERVICE_DEACTIVATED` |
+| `createRequirementAction` | `{ serviceId, title, description, instructions, isRequired }` | `{ requirementId }` | `DOCUMENT_TEMPLATE_CREATED` |
+| `updateRequirementAction` | `{ serviceId, requirementId, expectedVersion, title, description, instructions, isRequired }` | `{ version, changed }` | `DOCUMENT_TEMPLATE_UPDATED` |
+| `setRequirementActiveAction` | `{ serviceId, requirementId, isActive, expectedVersion }` | `{ version }` | `DOCUMENT_TEMPLATE_ACTIVATED` / `DEACTIVATED` |
+| `moveRequirementAction` | `{ serviceId, requirementId, direction: "up" \| "down" }` | `{ moved }` | `DOCUMENT_TEMPLATE_UPDATED` (`changedFields: ["sortOrder"]`) |
+
+`description`/`instructions` boş metin → `NULL`. Dosya boyutu/sayısı/tipi alanları yoktur; gönderilirse girdi reddedilir (OD-16). **Plandan çıkarılan:** `reorderServicesAction` (hizmetler ada göre sıralanır) ve `reorderDocumentTemplatesAction({orderedIds})` (yerine göreli `moveRequirementAction`) — D-072, D-075.
 
 ### 2.4 Kimlik doğrulama (`features/auth/actions.ts`) — çalışan yönetimi kaldırıldı (OD-24)
 Uygulamada hesap yönetimi action'ı yoktur. Personel kimlik doğrulaması: `signInAction({ username, password })` ve `signOutAction()` (`features/auth/actions.ts`, PHASE 03). Hesap oluşturma ve şifre sıfırlama yalnızca yerel CLI'dır (`pnpm auth:bootstrap`, `pnpm auth:reset-password`).
@@ -135,7 +137,7 @@ Her yanıt: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots
 |---|---|---|
 | Başvuru (oluştur, müşteri bilgisi, geçiş, müşteri adına gönder, bağlantı göster/yenile/iptal, not, sil) | 9 | SA |
 | Evrak/dosya (karar, yorum, kaldır, upload onayı, upload durumu) | 5 + upload RH | SA + RH |
-| Hizmet/şablon | 7 | SA |
+| Hizmet/şablon (PHASE 05 — uygulandı) | 7 | SA |
 | Personel kimlik doğrulama (giriş/çıkış) | 2 | SA |
 | Müşteri (gönder, kaldır, upload onayı/durumu) | 4 | SA |
 | Auth | Better Auth (giriş/çıkış) | RH |

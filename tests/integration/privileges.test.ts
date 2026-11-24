@@ -139,17 +139,18 @@ describe("runtime rolü — en az yetki (D-054)", () => {
   });
 
   it("her tabloda yalnızca beklenen yetkilere sahiptir; yetkisiz yeni tablo kalmaz", async () => {
+    // Tek sorgu (tablo × yetki): yüksek ağ gecikmesinde test süresini sınırlar; denetim aynıdır.
+    const result = await owner.query<{ tbl: string; privilege: string; has: boolean }>(
+      `SELECT t AS tbl, p AS privilege, has_table_privilege($1, 'public.' || t, p) AS has
+       FROM unnest($2::text[]) AS t CROSS JOIN unnest($3::text[]) AS p`,
+      [RUNTIME_ROLE, [...EXPECTED_TABLES], [...ALL_PRIVILEGES]],
+    );
     for (const table of EXPECTED_TABLES) {
       const expected = EXPECTED_PRIVILEGES[table];
       expect(expected, `${table} için beklenen yetki tanımı yok`).toBeDefined();
       for (const privilege of ALL_PRIVILEGES) {
-        const result = await owner.query<{ has: boolean }>(
-          "SELECT has_table_privilege($1, $2, $3) AS has",
-          [RUNTIME_ROLE, `public.${table}`, privilege],
-        );
-        expect(result.rows[0]!.has, `${table} ${privilege}`).toBe(
-          (expected as string[]).includes(privilege),
-        );
+        const row = result.rows.find((item) => item.tbl === table && item.privilege === privilege);
+        expect(row?.has, `${table} ${privilege}`).toBe((expected as string[]).includes(privilege));
       }
     }
   });

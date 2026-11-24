@@ -159,8 +159,9 @@ Better Auth `rateLimit` tablosu **oluşturulmaz**: `disableIpTracking` yerleşik
 | `name` | text | ✗ | | 2–150; UNIQUE INDEX `lower(name)` |
 | `description` | text | ✓ | | ≤2000 |
 | `is_active` | boolean | ✗ | true | |
-| `sort_order` | integer | ✗ | 0 | |
-| `created_by_user_id` / `updated_by_user_id` | text | ✓ / ✓ | | FK users RESTRICT. NULL = sistem/seed kaydı (D-053); personel işlemlerinde uygulama zorunlu doldurur |
+| `sort_order` | integer | ✗ | 0 | Yeni kayıtta `max+10`; hizmet listesi ada göre sıralanır (D-072) |
+| `version` | integer | ✗ | 1 | CHECK `>= 1`; optimistic lock (migration 0004, D-074) |
+| `created_by_user_id` / `updated_by_user_id` | text | ✓ / ✓ | | FK users RESTRICT. NULL = sistem/seed kaydı (D-053); personel işlemlerinde uygulama zorunlu doldurur (PHASE 05'te uygulandı) |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
 Index `(is_active, sort_order)`. Silme yok (BR-22).
@@ -176,10 +177,11 @@ Index `(is_active, sort_order)`. Silme yok (BR-22).
 | `is_required` | boolean | ✗ | true | |
 | `sort_order` | integer | ✗ | 0 | |
 | `is_active` | boolean | ✗ | true | |
+| `version` | integer | ✗ | 1 | CHECK `>= 1`; optimistic lock; sıralama artırmaz (migration 0004, D-074) |
 | `created_by_user_id` / `updated_by_user_id` | text | ✓ / ✓ | | FK users RESTRICT (D-053) |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
-Index `(service_id, is_active, sort_order)`. **Kaldırılan alanlar:** `allowed_mime_type`, `max_file_size_bytes`, `max_file_count` (OD-16).
+Index `(service_id, is_active, sort_order)`. Sıra: `ORDER BY sort_order, created_at, id` (belirleyici); `sort_order` benzersiz değildir, taşıma 10'ar yeniden numaralar (D-075). **Kaldırılan alanlar:** `allowed_mime_type`, `max_file_size_bytes`, `max_file_count` (OD-16).
 
 ### 4.3 `application_number_counters`
 `year smallint PK`, `last_value integer NOT NULL`. Başvuru transaction'ında:
@@ -375,8 +377,10 @@ IP / user-agent / `ip_hash` / `request_id` kolonları **yoktur** (OD-09). Index:
 | Bağlantı yenile/iptal | eski token revoke (+ yeni token), audit | `applications FOR UPDATE` |
 | Silme aşama 1 | `deletion_requested_at`, aktif token revoke, devam eden yüklemeler `EXPIRED`, audit | `applications FOR UPDATE` |
 | Silme aşama 2 | başvuru satırını sil (CASCADE), audit | `applications FOR UPDATE` |
+| Şablon mutasyonları (PHASE 05) | hizmet/evrak alanı, aktiflik, sıra, audit | `services FOR NO KEY UPDATE` → `service_document_requirements FOR UPDATE` + `version` (D-074) |
+| Başvuru snapshot'ı (PHASE 06 sözleşmesi) | aktif şablonların kopyası | `services FOR SHARE` (başvuru kilitlerinden önce) → şablonları belirleyici sırada oku |
 
-Transaction içinde ağ çağrısı yok (Blob, doğrulama dışarıda); kilit sırası **applications → requirements → files**.
+Transaction içinde ağ çağrısı yok (Blob, doğrulama dışarıda); kilit sırası **applications → requirements → files**. Şablon tabloları (`services → service_document_requirements`) bu zincirden önce gelir; başvuru tarafındaki işlemler şablon kilidi almaz (snapshot hariç).
 
 ## 7. Migration Stratejisi (PHASE 02 — uygulandı, D-056)
 - `pnpm db:generate` (`drizzle-kit generate`) → SQL migration'lar repoya; SQL her seferinde incelenir. `push` hiçbir ortamda kullanılmaz.
@@ -447,3 +451,6 @@ Veritabanının `lower()`/`ILIKE` davranışı collation'a bağlıdır ve Türk�
 
 ### 9.6 Kimlik doğrulama tabloları (PHASE 03 — uygulandı)
 Migration `0003_fixed_two_account_model`: hesap türü başına tek hesap, `email` iç kimlik CHECK'i, `username` NOT NULL, admin plugin kolonlarının kaldırılması (D-061). Gerçek veritabanında doğrulananlar: Better Auth Drizzle adapter'ı bu tablolarla giriş/oturum/çıkış yapar; oturumlarda IP/UA NULL kalır; üçüncü hesap ve eşzamanlı bootstrap reddedilir; kullanıcı adı benzersizliği/biçimi ve rol CHECK'i çalışır (tests/integration/auth.test.ts).
+
+### 9.4 PHASE 05 — migration 0004 (D-074)
+`0004_template_optimistic_lock.sql`: `services.version`, `service_document_requirements.version` (`integer DEFAULT 1 NOT NULL` + CHECK `>= 1`). Yalnızca ekleme; mevcut 3 demo hizmet ve 12 şablon `version = 1` aldı; yeni tablo yok, GRANT değişmedi. `db:check` temiz; neondb'de toplam 5 migration. Tablo sayısı 17.

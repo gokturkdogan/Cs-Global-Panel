@@ -30,6 +30,8 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 | `pg` | 8.23.1 (PHASE 02) | PostgreSQL sürücüsü (Pool, interaktif transaction) | ✅ |
 | `better-auth` | 1.7.27 (PHASE 03) | Personel kimlik doğrulama (username plugin, scrypt, oturum) | ✅ next ^16, drizzle-orm ^0.45.2, drizzle-kit >=0.31.4, pg ^8 |
 
+**Test altyapısı (npm bağımlılığı değil — PHASE 05, D-077):** Docker Engine 28.4.0 (Docker Desktop, yerel) + resmî `postgres:18-alpine` imajı (PostgreSQL 18.7, `builtin` C.UTF-8). Yalnızca `pnpm test:*:isolated` için; ücretsiz, geçici, 127.0.0.1. PHASE 05'te yeni npm bağımlılığı eklenmedi (Radix AlertDialog mevcut `radix-ui` paketinden; React Hook Form gereksiz bulundu).
+
 **Development bağımlılıkları**
 
 | Paket | Sürüm | Amaç | Peer durumu |

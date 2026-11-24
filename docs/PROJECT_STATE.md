@@ -1,21 +1,22 @@
 # Proje Durumu
 
-> Her faz sonunda güncellenir. Son güncelleme: **2026-11-24** (PHASE 04 sonu)
+> Her faz sonunda güncellenir. Son güncelleme: **2026-11-24** (PHASE 05 sonu)
 
 ## Current Phase
-**PHASE 04 — Dashboard Foundation**
-Phase Status: **COMPLETED — kullanıcı onayı bekleniyor**. PHASE 05'e onaysız geçilmez.
+**PHASE 05 — Service & Document Template Management**
+Phase Status: **COMPLETED — kullanıcı onayı bekleniyor**. PHASE 06'ya onaysız geçilmez.
 
 ## Completed Phases
 - PHASE 00 — Project Foundation & Architecture (+ revizyon) — Product Owner onayı 2026-11-24.
 - PHASE 01 — Project Initialization — Product Owner onayı 2026-11-24.
 - PHASE 02 — Database Foundation — Product Owner onayı 2026-11-24 (D-052…D-058 Accepted; D-059 tek veritabanı).
 - PHASE 03 — Authentication & Equal Staff Access — Product Owner onayı 2026-11-24 (D-060…D-064, D-066 Accepted; D-065 koşullu). Gerçek ADMIN ve EMPLOYEE hesapları oluşturuldu.
+- PHASE 04 — Dashboard Foundation — Product Owner onayı 2026-11-24 (D-069…D-071 Accepted; D-067, D-068 koşullu Accepted; D-063, D-065 Partially Superseded). P4-01 PARTIAL, P4-03 MITIGATED, P4-04 DEFERRED.
 
 > Faz onayları production güvenliği veya KVKK uyumluluğu onayı değildir; PB-01…PB-11 açıktır.
 
 ## Project Status
-Şirket paneli temeli uygulandı: ortak düzen (sidebar, mobil drawer, header, konum yolu, hesap menüsü, çıkış), gerçek veritabanından Genel Bakış (4 sayaç, son 5 başvuru, inceleme kuyruğu), boş/hata/yükleniyor durumları, hazır olmayan modüller için bilgilendirme sayfaları. İki hesap birebir aynı arayüzü görür (OD-24). Kimliği doğrulanmış testler gerçek hesaplar varken de çalışır (D-067). CSRF reddi kontrollü 403 (D-069). Genel giriş limiti kaldırıldı, bilinmeyen kullanıcı adı limiti eklendi (D-068). Başvuru oluşturma, hizmet yönetimi, müşteri paneli, storage, deployment **yok**. Commit/push yapılmadı.
+Hizmet ve evrak şablonu yönetimi uygulandı (PHASE 05): veritabanı destekli hizmet listesi (Türkçe karakter duyarsız arama, Tümü/Aktif/Pasif), hizmet oluşturma/düzenleme/pasifleştirme/yeniden aktifleştirme, evrak gereksinimi ekleme/düzenleme/zorunluluk/pasifleştirme/sıralama, müşteri talimatları (düz metin), optimistic lock + kilit sözleşmesi, aynı transaction'da audit. İki hesap eşit. Mutasyon testleri Docker'da izole geçici PostgreSQL'de (D-077). Başvuru oluşturma, müşteri paneli, storage, deployment **yok**. Commit/push bu fazda yapılmadı.
 
 ## Implemented Features
 Altyapı:
@@ -23,7 +24,8 @@ Altyapı:
 - PHASE 02: Drizzle ORM + pg; 17 tablo; en az yetkili `cs_app_runtime`; append-only audit; `db:*` CLI; demo seed.
 - PHASE 03: Better Auth 1.7.27 (username plugin; HTTP route'u yok — D-060); iki hesap modeli (migration 0003 — D-061); `pnpm auth:bootstrap` / `pnpm auth:reset-password` (D-062); ortak `requireStaff()`; giriş rate limiting (D-063); nonce'lu CSP + dinamik render (D-064); ortak giriş ekranı `/login`; korumalı `/dashboard` placeholder; çıkış; auth audit event'leri.
 - PHASE 04: `/dashboard` düzeni ve Genel Bakış (D-070); `/dashboard/applications`, `/services`, `/audit-logs` bilgilendirme sayfaları; panel içi 404; proxy köken kontrolü (D-069); bilinmeyen kullanıcı adı rate limiti (D-068); test oturumu altyapısı (D-067); CSP nonce'lu kaydırma kilidi (D-071).
-- Veritabanı: Neon Free, Frankfurt, PostgreSQL 18.7, tek veritabanı `neondb` (D-059); 4 migration.
+- PHASE 05: `/dashboard/services` (liste, arama, filtre), `/new`, `/[serviceId]` (genel bilgiler, durum, sabit dosya kuralları, evrak gereksinimleri); 7 Server Action; migration 0004 (`version` kolonları — D-074); ConfirmDialog, FormField, Textarea; izole test ortamı (`pnpm test:integration:isolated`, `pnpm test:e2e:isolated` — D-077).
+- Veritabanı: Neon Free, Frankfurt, PostgreSQL 18.7, tek veritabanı `neondb` (D-059); 5 migration.
 
 ## Pending Features
 Tüm ürün özellikleri — [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) PHASE 02–13.
@@ -34,7 +36,7 @@ OD-01…OD-23: **23/23 ACCEPTED** (Product Owner, 2026-11-24) — [DECISION_LOG.
 
 ## Technical Decisions
 
-D-042…D-058 **Accepted**. D-060…D-064 ve D-066 **Accepted**; D-065 **Conditionally Accepted** (koşulu karşılamak için D-067 önerildi). PHASE 04 kararları **D-067…D-071 Proposed** (kullanıcı onayı bekliyor). Ürün kararı OD-24 ACCEPTED.
+D-042…D-058, D-060…D-064, D-066, D-069…D-071 **Accepted**; D-067 ve D-068 **Conditionally Accepted**; D-063 ve D-065 **Partially Superseded**. PHASE 05 kararları **D-072…D-077 Proposed** (kullanıcı onayı bekliyor). Ürün kararı OD-24 ACCEPTED.
 
 | ID | Konu | Öneri | Gerekli faz |
 |---|---|---|---|
@@ -59,29 +61,31 @@ D-042…D-058 **Accepted**. D-060…D-064 ve D-066 **Accepted**; D-065 **Conditi
 5. Production hosting kararı için değerlendirme sonuçlarına onay (TD-07).
 
 ## Known Issues
-1. **Gerçek hesaplar varken doğrulanamayanlar (D-067):** doğru şifreyle giriş (Set-Cookie dahil), bootstrap'ın hesap oluşturması, şifre sıfırlamanın etkisi — yalnızca hesap yokken (PHASE 03) doğrulandı. Diğer tüm oturum davranışları test oturumlarıyla sürekli doğrulanıyor.
-2. **Hesap başına kilitleme DoS'u (D-068 kalan risk):** kullanıcı adını bilen saldırgan 10 denemeyle o hesabın girişini 15 dk engelleyebilir; IP bazlı limit yok (TD-04, PHASE 13). Bilinmeyen-ad limiti doluyken sınırlı kullanıcı adı tespiti mümkün (aday başına 11 istek).
-3. **Ani yük:** Pool en fazla 5 bağlantı; çok sayıda eşzamanlı giriş isteğinde bağlantı bekleme 10 sn'yi aşarsa giriş "şu anda yapılamıyor" ile reddedilir (fail-closed). Yük testi PHASE 12.
-4. **`Secure` cookie:** yapılandırma düzeyinde testli; gerçek HTTPS tarayıcı doğrulaması yapılmadı (P4-04 → PHASE 13).
-5. **Köken kontrolü hosting'e bağlı:** `X-Forwarded-Host`/`Host` davranışı hosting seçiminde doğrulanmalı (D-069).
-6. **Test kayıtları:** testlerin audit kayıtları değiştirilemez olduğu için kalır; gerçek hesaplar varken çıkış E2E testi gerçek hesap kimliğiyle `USER_LOGOUT` yazar (tek projede).
-7. **Panel veri hatası durumu** E2E ile değil unit + integration ile doğrulandı (paylaşılan veritabanında yetki geri alma riskli). **axe taraması** yapılmadı (paket yok — PHASE 12).
-8. **ESLint 10 peer uyarıları (D-042)** sürüyor.
-9. **Bağımlılık taraması:** 1 moderate (GHSA-67mh-4wv8-2f99, esbuild ≤0.24.2, drizzle-kit zinciri; runtime'da yüklenmez). Yüksek/kritik yok.
-10. **Node.js yaması:** yerel 24.22.1; 24.22.3 güvenlik sürümü (kurulmadı).
-11. **Repo herkese açık.** Private yapılması önerilir.
-12. Integration testleri CI'da çalışmaz (veritabanı secret'ı yok); CI'daki E2E'de oturum gerektiren testler "no-database" gerekçesiyle atlanır. Gerçek GitHub CI çalışması gözlemlenmedi (push yok).
+1. **P4-01 (PARTIAL):** Gerçek hesaplar varken (`neondb`) doğru şifreyle giriş, bootstrap ve şifre sıfırlama doğrulanamaz; bu senaryolar artık **izole geçici veritabanında** geçici hesaplarla sürekli doğrulanıyor (D-077). D-067 koşulları geçerli; gerçek müşteri verisinden önce izolasyon (PB-06) gerekli.
+2. **Hesap başına kilitleme DoS'u ve kullanıcı adı tespiti (D-068 — açık):** IP bazlı limit yok (TD-04, PHASE 13).
+3. **Ani yük:** Pool en fazla 5 bağlantı; yüksek ağ gecikmesinde (ölçülen ~290 ms) eşzamanlı giriş denemeleri 10 sn bağlantı beklemesini aşıp fail-closed reddedilebilir. Yük testi PHASE 12. (Rate limit testleri bu yüzden kendi uzun beklemeli havuzunu kullanır.)
+4. **`Secure` cookie (P4-04 — DEFERRED):** gerçek HTTPS tarayıcı doğrulaması PHASE 13 öncesi.
+5. **Köken kontrolü hosting'e bağlı** (`X-Forwarded-Host` davranışı — D-069).
+6. **Kaydedilmemiş değişiklik uyarısı** yalnızca sayfa yenileme/kapatmada (`beforeunload`); uygulama içi bağlantı gezinmesinde yalnızca görünür gösterge var (D-073).
+7. **İzole testler Docker gerektirir;** CI'da izole hedef yok (PHASE 12). CI'da veritabanı yok → integration ve oturum gerektiren E2E çalışmaz. Gerçek GitHub CI çalışması gözlemlenmedi.
+8. **Ortak `neondb`'de test yan etkileri:** PHASE 02 testlerinin sentetik `SYSTEM` audit kayıtları (`TEST_EVENT`, `APPLICATION_DELETED`) birikir (değiştirilemez); gerçek personel adına audit artık oluşmaz (çıkış E2E'si izole ortama taşındı). Önceki fazlardan kalan gerçek hesap adına `USER_LOGOUT` test kayıtları silinemez.
+9. **Tam sayfa ekran görüntülerinde** sabit header/sidebar sayfa ortasında görünür (Playwright `fullPage` davranışı; arayüz hatası değil).
+10. **axe taraması** yapılmadı (PHASE 12). Gerçek cihaz/ekran okuyucu testi yok.
+11. **ESLint 10 peer uyarıları (D-042)**, **1 moderate bağımlılık bulgusu** (drizzle-kit → esbuild), **Node 24.22.3 yaması kurulmadı**.
+12. **Repo herkese açık** — private yapılması önerilir.
 
 ## PHASE 04 Teknik Konuları — Sonuç
 
 | ID | Konu | Sonuç |
 |---|---|---|
-| **P4-01** | Kalıcı kimliği doğrulanmış test stratejisi | **Çözüldü (D-067, Proposed):** tek veritabanı + test başına kısa ömürlü oturum; gerçek hesaplara yalnızca okuma/etkisiz işlem; bypass/endpoint yok. Doğru şifreyle giriş gerçek hesaplar varken NOT VERIFIED. |
-| **P4-02** | CSRF reddinin hata biçimi | **Çözüldü (D-069, Proposed):** proxy'de 403 "İstek reddedildi."; Next.js kontrolü ikinci katman olarak açık. |
-| **P4-03** | Global login rate limit DoS riski | **Azaltıldı (D-068, Proposed):** genel limit kaldırıldı, yalnızca bilinmeyen adlara ortak limit. **Açık:** hesap başına kilitleme DoS'u (TD-04, PHASE 13). |
-| **P4-04** | HTTPS'te `Secure` cookie | **Kısmen:** yapılandırma düzeyinde integration testli. Gerçek HTTPS tarayıcı doğrulaması sistem sertifika deposu değişikliği veya deployment gerektirdiği için yapılmadı → **PHASE 13 öncesi zorunlu** (PB-07 kapsamında). |
+| **P4-01** | Kalıcı kimliği doğrulanmış test stratejisi | **PARTIAL (D-067, koşullu Accepted)** — tam kimlik doğrulama test kapsamı açısından: tek veritabanı + test başına kısa ömürlü oturum; gerçek hesaplara yalnızca okuma/etkisiz işlem; bypass/endpoint yok. Doğru şifreyle giriş gerçek hesaplar varken NOT VERIFIED. |
+| **P4-02** | CSRF reddinin hata biçimi | **RESOLVED (D-069, Accepted):** proxy'de 403 "İstek reddedildi."; Next.js kontrolü ikinci katman olarak açık. |
+| **P4-03** | Global login rate limit DoS riski | **MITIGATED (D-068, koşullu Accepted):** genel limit kaldırıldı, yalnızca bilinmeyen adlara ortak limit. **Açık:** hesap başına kilitleme DoS'u (TD-04, PHASE 13). |
+| **P4-04** | HTTPS'te `Secure` cookie | **DEFERRED:** yapılandırma düzeyinde integration testli. Gerçek HTTPS tarayıcı doğrulaması sistem sertifika deposu değişikliği veya deployment gerektirdiği için yapılmadı → **PHASE 13 öncesi zorunlu** (PB-07 kapsamında). |
 
 ## Technical Debt
+- `reorderServicesAction` uygulanmadı (hizmetler ada göre; D-072). İhtiyaç olursa hizmet sırası için ayrı karar.
+- Hizmet listesi en fazla 100 kayıt (sayfalama yok — küçük katalog).
 - Rota bazlı `no-referrer` header'ı müşteri yollarıyla birlikte (PHASE 07/08).
 - `tw-animate-css` yeniden eklenmedi; drawer/menü geçişleri `globals.css` keyframe'leriyle (D-070). Yeni animasyonlu bileşenlerde aynı yaklaşım.
 - axe taraması için `@axe-core/playwright` değerlendirmesi (PHASE 12).
@@ -105,8 +109,14 @@ Ayrıntı: [SECURITY.md](SECURITY.md) §11.
 
 **Geliştirmeyi engelleyen:** yok (yalnızca faz onayları). PB-01…PB-11 açık; hiçbiri çözülmüş sayılmaz. PHASE 00/01 onayları production güvenliği veya KVKK uyumluluğu onayı değildir.
 
-## Latest Verification Results (2026-11-24, PHASE 04)
-Gerçek hesaplar mevcutken, tek veritabanında: lint, typecheck, format:check temiz; unit 118/118; db:check temiz; integration 89 geçti / 12 atlandı (geçici hesaplı yaşam döngüsü testleri — gerçek hesaplar varken bilinçli); canary build + client bundle kontrolü temiz; E2E 179 geçti / 69 atlandı (24 şifreyle giriş testi — gerçek hesaplar; diğerleri proje/genişlik kapsamı); `pnpm run audit` (high) temiz (1 moderate). `pnpm install --frozen-lockfile` ve `pnpm db:verify` (17 tablo, 4 migration, TLS doğrulandı) temiz. Development (`next dev`) ve production (`next start`) smoke: `/login` 200, oturumsuz `/dashboard*` → `/login`, `/api/auth/*` 404, sahte/eksik Origin'li POST 403, `no-store`. Test sonrası: `test-session-*` oturumu 0, başvuru 0, yalnızca 3 demo hizmet, 2 hesap.
+## Latest Verification Results (2026-11-24, PHASE 05)
+- `pnpm install --frozen-lockfile`, lint, typecheck, format:check, `db:check` → exit 0. `db:verify` → 17 tablo, 5 migration, TLS doğrulandı.
+- Unit 148/148.
+- Integration (`neondb`): 100 geçti / 17 atlandı (12 geçici hesap yaşam döngüsü + 5 eşzamanlılık — izole ortama özgü). Integration (izole): 107 geçti / 10 atlandı (gerçek hesaba özgü testler).
+- Canary build + client bundle kontrolü (22 dosya) temiz.
+- E2E (`neondb`): 213 geçti / 107 atlandı. E2E (izole): 257 geçti / 63 atlandı (yalnızca proje/genişlik kapsamı ve 1 boş-veri koşulu).
+- `pnpm run audit` (high): temiz (1 moderate).
+- `neondb` gerçek veri parmak izleri (hesap+credential md5, hizmet, evrak, başvuru sayısı, şablon audit sayısı) test öncesi/sonrası **aynı**; `test-session-*` 0; gerçek oturum etkilenmedi.
 
 ## Next Phase
-**PHASE 05 — Service & Document Template Management** — kullanıcı açıkça onaylamadan başlanmaz.
+**PHASE 06 — Customer & Application Management** — kullanıcı açıkça onaylamadan başlanmaz.

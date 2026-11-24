@@ -32,3 +32,23 @@ export const ACCESS_TOKEN_BYTES = 32;
  */
 export const LOGIN_RATE_LIMIT_PER_USERNAME = { max: 10, windowSeconds: 15 * 60 } as const;
 export const LOGIN_RATE_LIMIT_UNKNOWN_USERNAMES = { max: 50, windowSeconds: 15 * 60 } as const;
+
+/**
+ * Hizmet ve evrak şablonu metin sınırları (DATABASE_SCHEMA §4.1–4.2 CHECK kısıtlarıyla aynı).
+ * Dosya tipi/boyutu/sayısı şablon alanı değildir (OD-16).
+ */
+export const SERVICE_TEXT_LIMITS = {
+  nameMin: 2,
+  nameMax: 150,
+  descriptionMax: 2000,
+  requirementTitleMin: 2,
+  requirementTitleMax: 150,
+  requirementDescriptionMax: 2000,
+  requirementInstructionsMax: 4000,
+} as const;
+
+/** Hizmet listesi tek sorguda en fazla bu kadar kayıt döndürür (sınırsız sorgu yok). */
+export const SERVICE_LIST_LIMIT = 100;
+
+/** Arama metni üst sınırı (karakter). */
+export const SEARCH_QUERY_MAX_LENGTH = 100;

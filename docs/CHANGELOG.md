@@ -12,6 +12,30 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara
 ### Not Changed
 - PB-01…PB-11 açık. Kod değişikliği yok. Commit/push yapılmadı.
 
+## [PHASE 05 — Service & Document Template Management] — 2026-11-24
+
+PHASE 04 kapatıldı (D-069…D-071 Accepted; D-067, D-068 koşullu; D-063, D-065 Partially Superseded). Hizmet ve evrak şablonu yönetimi uygulandı.
+
+### Added
+- D-072…D-077 (Proposed); THREAT_MODEL TM-46; SECURITY §13; TESTING_STRATEGY §14; DATABASE_SCHEMA §9.4.
+- Migration `0004_template_optimistic_lock` (`services.version`, `service_document_requirements.version`).
+- `src/features/services/{schemas,queries,service,actions}.ts` + `components/{service-list,service-filters,service-form,service-status-card,requirement-list,requirement-form,status-badges}.tsx`.
+- Rotalar: `/dashboard/services` (gerçek modül), `/dashboard/services/new`, `/dashboard/services/[serviceId]`.
+- `src/components/dashboard/{confirm-dialog,form-field,use-unsaved-changes}.tsx`, `src/components/ui/textarea.tsx`, `src/lib/{search,action-result}.ts`, `src/server/db/errors.ts`; `SERVICE_TEXT_LIMITS`, `SERVICE_LIST_LIMIT`, `SEARCH_QUERY_MAX_LENGTH`; `messages.common|services|validation`.
+- Audit olayları `DOCUMENT_TEMPLATE_ACTIVATED` / `DOCUMENT_TEMPLATE_DEACTIVATED`.
+- İzole test ortamı: `scripts/test/isolated-db.ts`, `pnpm test:integration:isolated`, `pnpm test:e2e:isolated`, `tests/support/isolation.ts` (Docker `postgres:18-alpine`).
+- Testler: `tests/unit/services.test.ts`, `tests/integration/services.test.ts`, `tests/e2e/services.spec.ts`.
+
+### Changed
+- `CspNonce` belgenin gerçek nonce'unu bir kez okur (Server Action sonrası diyaloglarda CSP hatası düzeltildi — D-071 notu).
+- Playwright izole modda port 3200 ve sunucu yeniden kullanılmaz; E2E teardown izole ortamda geçici hesaplara bağlı sentetik kayıtları temizler.
+- Gerçek hesap adına `USER_LOGOUT` yazan çıkış E2E testi yalnızca izole ortamda çalışır (D-067 koşulu).
+- `privileges.test.ts` yetki denetimi tek sorguya indirildi; rate limit integration testleri uzun beklemeli ayrı havuz kullanır (yüksek ağ gecikmesi); dashboard integration testi hesap yokken geçici hesapla çalışır; rate limit pencere testi CHECK kısıtına uygun hale getirildi.
+- API_CONTRACTS §2.3: `reorderServicesAction` ve `reorderDocumentTemplatesAction` yerine `moveRequirementAction` (D-072, D-075).
+
+### Not Changed
+- OD-01…OD-24; iki hesap eşit; RBAC yok; dosya politikası sabit. Başvuru/müşteri portalı/storage/deployment yok. PB-01…PB-11 açık. Bağımlılık eklenmedi. Commit/push yapılmadı.
+
 ## [PHASE 04 — Dashboard Foundation] — 2026-11-24
 
 PHASE 03 kapatıldı. Şirket paneli temeli, kalıcı kimliği doğrulanmış test stratejisi ve PHASE 04 teknik konuları (P4-01…P4-04).

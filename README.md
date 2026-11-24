@@ -10,9 +10,9 @@ CS Global Customer Panel
 
 ## Durum
 
-**PHASE 04 — Dashboard Foundation** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi ve şirket panelinin temeli (menü, Genel Bakış sayaçları, son başvurular, inceleme kuyruğu) vardır. Başvuru oluşturma, hizmet yönetimi, müşteri paneli ve dosya yükleme **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
+**PHASE 05 — Service & Document Template Management** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi, şirket paneli temeli ve hizmet / evrak şablonu yönetimi vardır. Başvuru oluşturma, müşteri paneli ve dosya yükleme **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
 
-Sonraki faz: **PHASE 05 — Service & Document Template Management**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Sonraki faz: **PHASE 06 — Customer & Application Management**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 
@@ -104,7 +104,7 @@ Yalnızca **iki** şirket hesabı vardır: bir ADMIN, bir EMPLOYEE — **eşit y
 
 Şifre unutulursa: `pnpm auth:reset-password`.
 
-## Testler (PHASE 04)
+## Testler
 
 Testler projenin tek veritabanını kullanır (`.env.local`). Gerçek hesaplar varken testler hesaplara yalnızca okuma/etkisiz işlem yapar; kimliği doğrulanmış testler her test için 30 dakikalık geçici oturum oluşturup siler (D-067). Gerçek şifreler testlerde kullanılmaz.
 
@@ -112,5 +112,11 @@ Testler projenin tek veritabanını kullanır (`.env.local`). Gerçek hesaplar v
 pnpm test                 # unit
 pnpm test:integration     # gerçek veritabanı (sentetik kayıtlar silinir/geri alınır)
 pnpm test:e2e             # production build + Playwright (Chrome, WebKit, mobil)
-E2E_SCREENSHOTS=1 pnpm test:e2e   # ayrıca screenshots/phase-04/ (maskeli, commit edilmez)
+E2E_SCREENSHOTS=1 pnpm test:e2e   # ayrıca screenshots/ (maskeli, commit edilmez)
+
+# İzole geçici veritabanı (Docker gerekir; gerçek veritabanına dokunmaz — D-077)
+pnpm test:integration:isolated   # eşzamanlılık + geçici hesaplarla tüm hesap testleri
+pnpm test:e2e:isolated           # tarayıcıdan hizmet/evrak mutasyonları dahil
 ```
+
+Ortak veritabanında mutasyon testleri yalnızca geri alınan transaction'larda çalışır; commit eden testler yalnızca izole ortamda.

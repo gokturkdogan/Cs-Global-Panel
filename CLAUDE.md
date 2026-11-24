@@ -30,7 +30,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - Mutasyon = Server Action; binary / storage callback / auth / `/b/<token>` / cron = Route Handler.
 - Akış: **Zod → oturumu sunucuda çöz (`requireStaff()` / müşteri oturumu) → kaynak kontrolü → domain guard (kilit altında) → transaction → audit → DTO**.
 - Statü geçişleri yalnızca merkezi state machine ile (`docs/STATE_TRANSITIONS.md`); personel de yalnızca matristeki geçişleri yapar.
-- Transaction içinde ağ çağrısı yok; kilit sırası applications → requirements → files.
+- Transaction içinde ağ çağrısı yok; kilit sırası (services → service_document_requirements →) applications → requirements → files; güncellemeler `expectedVersion` ile (D-074).
 - Veritabanı: uygulama yalnızca `getDb()` (`cs_app_runtime`, en az yetki) ile; şema değişikliği = `pnpm db:generate` + SQL incelemesi + yeni migration (uygulanmış migration değiştirilmez, `push` yok); yeni tablo GRANT'ı aynı migration'da; statü değerleri `src/config/statuses.ts`; ayrıntı `docs/DATABASE_SCHEMA.md` §9.
 - `cacheComponents` kapalı; hassas veride `use cache` / `force-static` / `revalidate` yasak; korumalı yanıtlar `no-store`.
 - Sabit yapılandırma: dosya limitleri (PDF, `MAX_PDF_SIZE_BYTES = 10 485 760`, evrak başına 1 aktif PDF), şifre min 8, oturumlar 7 gün sabit, rate limitler, şirket iletişim bilgileri. Ayarlar sayfası/tablosu yok.
@@ -59,7 +59,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 ## Zorunlu testler (`docs/TESTING_STRATEGY.md`)
 - Domain kuralı → unit; yeni mutasyon → yetki matrisi testi; DB'ye dokunan servis → integration; kullanıcı akışı → E2E (müşteri paneli için mobil projeler).
 - Kalite kapıları: `pnpm lint`, `typecheck`, `format:check`, `test` (unit), `db:check`, `test:integration`, `build`, `check:bundle`, `test:e2e`, `audit`. Kısayol: `pnpm check`.
-- Testler gerçek şirket hesaplarını oluşturmaz, silmez, şifrelerini/credential kayıtlarını ve mevcut oturumlarını değiştirmez (D-065, D-067). Gerçek hesaplar varken kimliği doğrulanmış testler `tests/support/staff-session.ts` ile test başına kısa ömürlü oturum kullanır ve siler; geçici `test-` hesaplı yaşam döngüsü testleri yalnızca hesap yokken çalışır. Uygulamaya test bypass'ı, test endpoint'i veya özel header eklenmez; Playwright trace kapalı kalır.
+- Testler gerçek şirket hesaplarını oluşturmaz, silmez, şifrelerini/credential kayıtlarını ve mevcut oturumlarını değiştirmez (D-065, D-067). Gerçek hesaplar varken kimliği doğrulanmış testler `tests/support/staff-session.ts` ile test başına kısa ömürlü oturum kullanır ve siler; geçici `test-` hesaplı yaşam döngüsü testleri yalnızca hesap yokken çalışır. Uygulamaya test bypass'ı, test endpoint'i veya özel header eklenmez; Playwright trace kapalı kalır. Commit eden mutasyon testleri (eşzamanlılık, tarayıcıdan oluşturma/düzenleme) ve gerçek hesap adına audit yazan testler yalnızca izole geçici veritabanında (`pnpm test:integration:isolated`, `pnpm test:e2e:isolated` — Docker, D-077); ortak veritabanında mutasyonlar geri alınan transaction içinde test edilir.
 - Test edilmemiş işi tamamlanmış gibi raporlama.
 
 ## Dokümantasyon kuralları

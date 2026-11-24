@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 
 import { bootstrapAccounts } from "../../scripts/auth/accounts";
 import { connect, resolveDatabaseUrls } from "../../scripts/db/lib";
+import { isIsolatedTestDatabase } from "../support/isolation";
 import { deleteAllTestSessions } from "../support/staff-session";
 
 /**
@@ -64,6 +65,19 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     if (!createdTemporaryAccounts) return;
     const cleanup = await connect(owner, "cs-global-e2e-teardown");
     try {
+      if (isIsolatedTestDatabase()) {
+        // İzole geçici veritabanı: mutasyon testlerinin geçici hesaplara bağlı (FK RESTRICT) sentetik
+        // kayıtları önce silinir. Ortak veritabanında bu blok çalışmaz (mutasyon testi orada yok).
+        await cleanup.query("DELETE FROM applications WHERE created_by_user_id LIKE 'test-%'");
+        await cleanup.query(
+          `DELETE FROM service_document_requirements WHERE created_by_user_id LIKE 'test-%'
+             OR updated_by_user_id LIKE 'test-%'
+             OR service_id IN (SELECT id FROM services WHERE created_by_user_id LIKE 'test-%' OR updated_by_user_id LIKE 'test-%')`,
+        );
+        await cleanup.query(
+          "DELETE FROM services WHERE created_by_user_id LIKE 'test-%' OR updated_by_user_id LIKE 'test-%'",
+        );
+      }
       await cleanup.query("DELETE FROM users WHERE id LIKE 'test-%'");
     } finally {
       await cleanup.end();

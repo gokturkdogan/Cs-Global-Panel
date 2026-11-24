@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 
 import type { Page } from "@playwright/test";
 
+import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { expect, sessionsAvailable, sessionsSkipReason, test } from "./fixtures";
 
 /**
@@ -107,7 +108,7 @@ test.describe("panel iskeleti", () => {
     expect(JSON.stringify(admin)).not.toMatch(/Ayarlar|Çalışan|Kullanıcı Yönetimi|Hesabım/);
   });
 
-  test("menü gezinmesi: aktif öğe, konum yolu, hazır olmayan modüller 404 değil", async ({
+  test("menü gezinmesi: aktif öğe, konum yolu, hazır olmayan modüller 404 değil, Hizmetler gerçek modül", async ({
     page,
     signInAs,
   }) => {
@@ -129,7 +130,10 @@ test.describe("panel iskeleti", () => {
       await expect(active.locator('[aria-current="page"]')).toHaveText(label);
       if (!isDesktop(page)) await page.keyboard.press("Escape");
       if (path !== "/dashboard") {
-        await expect(page.getByText("Henüz kullanıma hazır değil")).toBeVisible();
+        // Hizmetler PHASE 05'te gerçek modül; diğerleri bilgilendirme sayfası.
+        await expect(page.getByText("Henüz kullanıma hazır değil")).toHaveCount(
+          path === "/dashboard/services" ? 0 : 1,
+        );
         await expect(page.getByRole("navigation", { name: "Konum" })).toHaveText(
           new RegExp(`Panel\\s*${label}`),
         );
@@ -201,7 +205,9 @@ test.describe("hesap menüsü ve oturum", () => {
     signInAs,
     runtimeDb,
   }, testInfo) => {
-    // Çıkış gerçek hesap adına USER_LOGOUT audit kaydı yazar; gürültüyü sınırlamak için tek proje.
+    // Çıkış, oturumdaki hesap adına USER_LOGOUT audit kaydı yazar. Gerçek personel adına yanıltıcı
+    // audit oluşmasın diye (D-067 onay koşulu) yalnızca izole veritabanında (geçici hesaplar) çalışır.
+    test.skip(!isIsolatedTestDatabase(), ISOLATION_SKIP_REASON);
     test.skip(testInfo.project.name !== "Desktop Chrome", "tek projede yeterli");
     const session = await signInAs("employee");
     await page.goto("/dashboard");

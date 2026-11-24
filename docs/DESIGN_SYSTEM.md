@@ -209,3 +209,17 @@ Uzun içerik kuralları: `min-w-0`, `break-words`, `overflow-wrap:anywhere` dosy
 | NotReadyPage | `not-ready.tsx` | Hazır olmayan modül: konum yolu + başlık + "Henüz kullanıma hazır değil" (sahte aksiyon yok) |
 
 Son başvurular: ≥768px tablo (`caption` sr-only, `th scope="col"`), altında kart listesi (yatay kaydırma yok); satırlar bağlantı değildir (detay PHASE 06). Pasif "Yeni Başvuru" butonu `disabled` + görünür açıklama metni (`aria-describedby`). Ekran görüntüleri (yerel, commit edilmez): `screenshots/phase-04/`.
+
+## 11. PHASE 05 Uygulanan Bileşenler (hizmet yönetimi)
+
+| Bileşen | Dosya | Kurallar |
+|---|---|---|
+| ConfirmDialog | `src/components/dashboard/confirm-dialog.tsx` | Radix AlertDialog; odak kapanı, Escape = iptal, kapanınca odak tetikleyiciye; onay sürerken iki buton pasif + "İşleniyor…"; yıkıcı işlemde `destructive` buton; açıklamada sonucun geri alınabilir olduğu ve geçmiş kayıtların silinmeyeceği yazılır |
+| FormField | `src/components/dashboard/form-field.tsx` | Etiket (zorunlu `*` dekoratif, isteğe bağlı "(isteğe bağlı)" metni) + alan + yardım + hata; `aria-invalid` + `aria-describedby`; karakter sayacı (kod noktası) |
+| Textarea | `src/components/ui/textarea.tsx` | Input ile aynı kenarlık/odak/hata stilleri; düz metin |
+| ServiceList / ServiceFilters | `src/features/services/components/` | ≥768px tablo (`caption`, `th scope`), altında kart listesi (44px "Düzenle"); arama GET formu (`role="search"`); Tümü/Aktif/Pasif bağlantıları `aria-current="page"`; boş katalog ≠ sonuç yok ≠ hata |
+| ServiceForm / RequirementForm | aynı klasör | Kontrollü alanlar; istemci doğrulaması + sunucu doğrulaması; ilk hatalı alana odak; "Kaydediliyor…" + pasif buton (çift gönderim kilidi); "Kaydedilmemiş değişiklikler var." göstergesi; çakışmada "Sayfayı yenile" |
+| ActiveStatusBadge / RequiredBadge | `status-badges.tsx` | Aktif (success) / Pasif (neutral); Zorunlu (info) / İsteğe bağlı (outline) — metin + ikon |
+| RequirementList | `requirement-list.tsx` | Sıra numarası + başlık + rozetler; talimat `whitespace-pre-line` düz metin; 44px "Yukarı/Aşağı taşı" ikon butonları (erişilebilir ad: "<evrak> evrakını yukarı taşı"), uçta pasif; taşıma sonrası odak taşınan evrakta kalır; işlem sonucu `role="status"` |
+
+Hizmet detay düzeni: konum yolu + başlık → (oluşturulduysa) başarı bildirimi → snapshot bilgi notu → [Genel bilgiler | Durum + Dosya kuralları (sabit)] → Evrak gereksinimleri. Ekran görüntüleri (yerel, commit edilmez): `screenshots/phase-05/`.
