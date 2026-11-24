@@ -1,7 +1,7 @@
 # Karar Kaydı (Decision Log)
 
 > Durumlar: **Proposed** · **Accepted** · **Rejected** · **Superseded**.
-> Bölüm A: Product Owner tarafından onaylanan ürün kararları (OD-01…OD-23). Bölüm B: teknik kararlar (D-001…D-041).
+> Bölüm A: Product Owner tarafından onaylanan ürün kararları (OD-01…OD-23). Bölüm B: teknik kararlar (D-001…D-051). Bölüm C: faz onayları.
 > Bir ürün kararının **ACCEPTED** olması, ilgili riskin güvenlik denetiminden geçtiği veya hukuki uygunluğun doğrulandığı anlamına gelmez — bkz. [THREAT_MODEL.md](THREAT_MODEL.md), [DATA_PRIVACY.md](DATA_PRIVACY.md), [SECURITY.md](SECURITY.md) §11.
 > Geçmiş kararlar silinmez; yerine geçilenler **Superseded** olarak işaretlenir.
 
@@ -240,24 +240,24 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Decision:** Tek repo, tek Next.js App Router uygulaması; feature modülleri. Ayrı backend/mikroservis yok.
 - **Consequences:** Müşteri ve personel kodu aynı uygulamada → import sınırları lint ile.
 
-### D-002 — TypeScript 6.0.x (7.x değil)
-- **Date:** 2026-11-24 · **Status:** **Proposed — kullanıcı onayı bekliyor**
+### D-002 — TypeScript 6.0.3 (7.x değil)
+- **Date:** 2026-11-24 · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 01 başlangıcı)
 - **Context:** `typescript@latest` = 7.0.2; `typescript-eslint@8.74.0` peer `>=4.8.4 <6.1.0`; `eslint-config-next@16.4.6` → `typescript-eslint ^8.56.0` (revizyonda yeniden doğrulandı).
 - **Alternatives:** TS 7.0.2 (lint zinciri desteklemiyor); TS 5.9.3 (daha eski).
-- **Decision (öneri):** `typescript@6.0.3` exact.
+- **Decision:** `typescript@6.0.3` exact.
 - **Rationale:** typescript-eslint peer aralığındaki en güncel kararlı sürüm; Next.js 16 minimumu (5.1) üstünde.
 - **Consequences:** TS 7 derleme hızı ertelenir; typescript-eslint TS 7 desteği yayımlandığında yeniden değerlendirilir.
 
 ### D-003 — Node.js 24.x LTS
-- **Date:** 2026-11-24 · **Status:** Accepted (OD-13)
+- **Date:** 2026-11-24 · **Status:** Accepted (OD-13) · **Approved By:** Product Owner · PHASE 01 başlangıcında yeniden teyit edildi
 - **Decision:** `engines.node = "24.x"`; güncel yama (24.22.3) tercih edilir.
 
-### D-004 — pnpm sürümünün sabitlenmesi
-- **Date:** 2026-11-24 · **Status:** **Proposed — kullanıcı onayı bekliyor**
+### D-004 — pnpm 10.34.9 (exact)
+- **Date:** 2026-11-24 · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 01 başlangıcı)
 - **Context:** Yerel 10.28.2; npm `latest` 12.23.0 (engines `node >=18`); `latest-10` = 10.34.9, `latest-11` = 11.29.0. Vercel'in pnpm 12 desteği doğrulanmadı.
-- **Alternatives:** pnpm 10.x (yerel kurulu major); pnpm 11.x; pnpm 12.x.
-- **Decision (öneri):** `packageManager` alanı + Corepack ile exact sürüm. Hosting sağlayıcısında desteği doğrulanmış **en güncel major**; doğrulama yapılamazsa **pnpm 10.34.9** (yerel major, en düşük risk).
-- **Consequences:** Yerel/CI/hosting aynı pnpm sürümünü kullanır; lockfile formatı sabit.
+- **Alternatives:** pnpm 11.x; pnpm 12.x.
+- **Decision:** `"packageManager": "pnpm@10.34.9"` (exact) + Corepack; tek paket yöneticisi pnpm, tek lockfile `pnpm-lock.yaml`.
+- **Consequences:** Yerel/CI/hosting aynı pnpm sürümünü kullanır; lockfile formatı sabit. Daha yeni major'a geçiş ayrı karar gerektirir.
 
 ### D-005 — Drizzle ORM 0.45.x
 - **Status:** Proposed · `drizzle-orm@0.45.4`, `drizzle-kit@0.31.11` (1.0 RC değil).
@@ -338,7 +338,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Status:** **Superseded** by OD-08.
 
 ### D-031 — `.gitignore`'un Node/Next.js uyumlu hale getirilmesi
-- **Date:** 2026-11-24 · **Status:** Accepted (Product Owner onayı; PHASE 01 ilk adım, bu fazda implement edilmedi)
+- **Date:** 2026-11-24 · **Status:** Accepted (Product Owner onayı) · PHASE 01 ilk adımında uygulandı
 - **Kapsam:** `node_modules`, `.next`, `.env`, `.env.local`, `.env.*.local` ve diğer gerçek env dosyaları, build çıktıları, `coverage/`, `playwright-report/`, `test-results/`, yerel secret dosyaları; `.env.example` repoda kalır.
 
 ### D-032 — Müşteri oturumu: imzalı cookie, oturum tablosu yok
@@ -388,3 +388,61 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Decision:** T8 `CANCELLED → iptal öncesi statü` (hedefi sunucu belirler), T9 `COMPLETED → IN_PROCESS`, T10 `IN_PROCESS → DOCUMENTS_APPROVED`, T11 `DOCUMENTS_APPROVED → UNDER_REVIEW`, T12 `{DOCUMENTS_APPROVED, IN_PROCESS} → REVISION_REQUIRED` (seçilen evrakların onayı geçersiz). Tümü gerekçeli.
 - **Alternatives:** ADMIN'in serbest hedef statü seçmesi (keyfî değişikliğe açık — reddedildi); daha az geçiş (operasyonel ihtiyaçları karşılamayabilir).
 - **Consequences:** Evrak statüleriyle tutarlılık korunur; yeni geçiş ihtiyacı ayrı karar gerektirir.
+
+### D-042 — ESLint 10.15.0 (ESLint 9 değil)
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Context:** `eslint-config-next@16.4.6` içindeki `eslint-plugin-react@7.37.5`, `eslint-plugin-import@2.32.0`, `eslint-plugin-jsx-a11y@6.10.2` peer aralığı ESLint ^9'da bitiyor. `eslint@9.39.5` npm'de **deprecated** ("This version is no longer supported") ve ESLint destek politikasına göre 2026-08-06'dan beri **EOL**. create-next-app@16.4.6 hâlâ `eslint: ^9` öneriyor. Next.js ESLint dokümanı (son güncelleme 2026-11-18): "eslint-config-next supports ESLint 9 and ESLint 10 … Starting with eslint-config-next@16.4.0 … works with ESLint 10. Some of the plugins … don't list ESLint 10 in their peer dependencies yet, so your package manager may show peer dependency warnings."
+- **Alternatives:** ESLint 9.39.5 (deprecated/EOL — CLAUDE.md deprecated paket yasağı); `eslint-config-next`'i bırakıp eklentileri tek tek kurmak (jsx-a11y/react kuralları kaybolur, temel stack'ten sapma).
+- **Decision:** `eslint@10.15.0` + `eslint-config-next@16.4.6`. Bilinen 3 peer uyarısı **bastırılmaz** (`--force`, `--legacy-peer-deps`, override, `peerDependencyRules` yok) ve raporlanır. `strictPeerDependencies` açılmaz (Next.js dokümanına göre kurulum başarısız olur).
+- **Doğrulama:** Proje kuralları ESLint 10 altında çalıştırıldı; `react/no-danger` dahil 10 kural ihlal dosyasında tetiklendi.
+- **Consequences:** Eklentiler ESLint 10'u peer olarak listeleyince uyarılar kendiliğinden kalkar; her faz sonunda yeniden kontrol edilir.
+
+### D-043 — shadcn/ui: Radix tabanı, minimum bağımlılık
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Context:** `shadcn@4.23.0 init -b radix -p nova` → `components.json` (`style: radix-nova`). CLI ayrıca `cn@0.5.2` (shadcn'in yeni, 0.x sınıf birleştirme paketi; CLI `bin`'i içerir), `shadcn` CLI paketini **runtime** bağımlılığı olarak (32 bağımlılık; yalnızca `shadcn/tailwind.css` için) ve `tw-animate-css` ekledi.
+- **Decision:** `cn` yerine olgun **clsx 2.1.1 + tailwind-merge 3.7.1** (`src/lib/utils.ts`); `shadcn` runtime bağımlılığı kaldırıldı, kullanılan 3 özel variant (`data-disabled`, `data-horizontal`, `data-vertical`) MIT lisanslı kaynaktan `globals.css`'e alındı; `tw-animate-css` kaldırıldı (animasyonlu bileşen yok — Dialog/Sheet eklenecek fazda yeniden değerlendirilir). Bileşenler: Button, Card, Badge, Alert, Separator, Input, Label; tasarım token'larına ve erişilebilirlik kurallarına uyarlandı. CLI `pnpm dlx shadcn@4.23.0` ile çalıştırılır, bağımlılık değildir.
+- **Consequences:** Sonraki `shadcn add` çalıştırmaları `cn`/`shadcn`/`tw-animate-css` ekleyebilir; her eklemede `package.json` farkı incelenir.
+
+### D-044 — Tailwind entegrasyonu `@tailwindcss/postcss`; şablon varsayılanlarının ayıklanması
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Context:** create-next-app@16.4.6 şablonu `@tailwindcss/turbopack` loader'ı, **`cacheComponents: true`**, `partialPrefetching: true`, dark mode bloğu ve `next/font/google` ile geliyor.
+- **Decision:** Tailwind resmî Next.js rehberi ve TECH_STACK'teki `@tailwindcss/postcss` kullanıldı. `cacheComponents` ve `partialPrefetching` eklenmedi (D-016). Next/Vercel görselleri ve favicon kopyalanmadı (logo tasarlanmaz — OD-15).
+- **Consequences:** Turbopack ve webpack ile aynı yapılandırma çalışır.
+
+### D-045 — Font: yerel `geist` paketi
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Decision:** `geist@1.9.2` (`next/font/local`, değişken Geist Sans). Çalışma zamanında harici font isteği yok (E2E ile doğrulandı). Türkçe glifler (ç ğ ı İ ö ş ü Ç Ğ Ö Ş Ü â î û) fontun `cmap` tablosunda doğrulandı. Geist Mono kullanılmadığı için yüklenmez.
+
+### D-046 — pnpm kurulum güvenliği
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Decision:** `pnpm-workspace.yaml`: kurulum script'leri pnpm 10 varsayılanıyla engelli; `sharp` ve `unrs-resolver` script'leri bilinçli olarak yok sayılır (önceden derlenmiş paketleri var). `minimumReleaseAge: 1440` — 24 saatten yeni yayımlanmış sürümler kurulmaz (tedarik zinciri saldırılarına karşı). pnpm sürümü `packageManager` ile proje düzeyinde sabit (global kurulum değiştirilmedi; pnpm kendi sürüm yönetimiyle 10.34.9'u kullanır). Tek lockfile `pnpm-lock.yaml`.
+- **Consequences:** Acil güvenlik yaması 24 saatten yeniyse `minimumReleaseAgeExclude` ile bilinçli istisna gerekir.
+
+### D-047 — Ortam değişkeni doğrulaması: lazy, fail-closed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Decision:** `src/server/env.ts` (`server-only`, Zod): ilk kullanımda doğrulama; PHASE 01'de yalnızca `APP_ENV`, `APP_URL`. `NODE_ENV=production` iken `APP_ENV` zorunlu; development dışında `APP_URL` zorunlu ve `https` origin olmalı; development'ta varsayılan `http://localhost:3000`. Hata mesajları yalnızca değişken adı içerir. Sonraki fazların secret'ları, onları kullanan kodla birlikte şemaya eklenir ve production'da zorunlu olur. Zod `.strict()` env nesnesine uygulanmaz (`process.env` sistem değişkenleri içerir).
+
+### D-048 — Temel güvenlik header'ları; nonce'lu CSP sonraki fazda
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Decision:** `next.config.ts` `headers()`: `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Strict-Transport-Security`, `X-Robots-Tag`, `poweredByHeader: false` ve script çalıştırmayı etkilemeyen temel CSP (`base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'`). Nonce'lu `script-src`/`style-src` CSP'si `src/proxy.ts` ile PHASE 03'te (dinamik render gerektirir), rota bazlı `no-referrer` ve `no-store` ilgili rotalarla (PHASE 03/07/08) eklenir.
+
+### D-049 — Tasarım token'ları (D-028 uygulaması)
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Decision:** CSS değişkeni + Tailwind 4 `@theme inline` ile semantik token'lar (`src/app/globals.css`). `--muted-foreground` = `#475569` (palet `#64748B` `#EFF6FF`/`#F1F5F9` zeminlerde AA altında kaldığı için; `#64748B` input kenarlığı `--input` olarak kullanılır). Metin tonları `*-strong`, zeminler `*-soft` (success/warning/destructive). Birincil hover `#1D4ED8` (beyaz metinle 6.70). Yalnızca açık tema: `dark:` variant'ı hiç kullanılmayan `.dark` sınıfına bağlı; `color-scheme: light`. Tüm kombinasyonların kontrastı hesaplandı (DESIGN_SYSTEM §1.3).
+
+### D-050 — Test ve CI düzeni
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Decision:** `pnpm test` = Vitest unit (`vitest run`, watch yok); `test:unit` adı kullanılmaz (dokümanlar güncellendi), `test:integration` PHASE 02'de eklenir. Playwright production build üzerinde (`next build` + `next start`, port 3100); projeler Desktop Chrome, Mobile Chrome (Pixel 7), Mobile Safari (iPhone 15), Desktop WebKit. CI: GitHub Actions (repo herkese açık → standart runner'lar ücretsiz), yalnızca resmî action'lar commit SHA'sıyla sabit, pnpm Corepack ile `packageManager`'dan. Husky/lint-staged yok.
+
+### D-051 — Next.js `agentRules` kapalı
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Context:** Next.js 16.4 `next dev` çalıştığında kök dizine `AGENTS.md` yazar.
+- **Decision:** `agentRules: false`; ajan talimatlarının tek kaynağı `CLAUDE.md`. Faydalı ipucu (sürüme uygun dokümanlar `node_modules/next/dist/docs/`) CLAUDE.md'ye eklendi.
+
+---
+
+## C. Faz Onayları
+
+| Faz | Onay | Approved By | Tarih | Not |
+|---|---|---|---|---|
+| PHASE 00 — Project Foundation & Architecture (+ revizyon) | **ACCEPTED** | Product Owner | 2026-11-24 | D-002 (TS 6.0.3), D-003 (Node 24 LTS), D-004 (pnpm 10.34.9), D-031 (.gitignore) aynı onayla kabul edildi. PHASE 01 başlatma yetkisi verildi (yalnızca PHASE 01). Bu onay production güvenliği veya KVKK uyumluluğu onayı **değildir**; PB-01…PB-11 açık kalır. |

@@ -1,0 +1,11 @@
+# pnpm ayarları (tek paketli repo; workspace paketi tanımlanmaz).
+
+# Kurulum script'leri varsayılan olarak engellidir (pnpm 10). Yalnızca açıkça
+# değerlendirilmiş paketler listelenir. sharp ve unrs-resolver önceden derlenmiş
+# platform paketleriyle gelir; script'lerine gerek yoktur.
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
+
+# Tedarik zinciri koruması: 24 saatten yeni yayımlanmış sürümler kurulmaz.
+minimumReleaseAge: 1440

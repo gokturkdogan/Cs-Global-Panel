@@ -1,6 +1,6 @@
 # Test Stratejisi
 
-> Araçlar: **Vitest 5.x** (unit + integration), **Playwright 1.65.x** (E2E, desktop + mobil). Test implement edilmemiştir.
+> Araçlar: **Vitest 5.1.1** (unit + integration), **Playwright 1.65.1** (E2E, desktop + mobil). PHASE 01'de altyapı kuruldu ve ilk testler yazıldı (§10).
 > Güvenlik ve test her fazın parçasıdır; PHASE 12 tam regresyon + denetim fazıdır.
 
 ## 1. Seviyeler ve Ortamlar
@@ -139,8 +139,8 @@ Playwright projeleri: `Mobile Safari (iPhone)`, `Mobile Chrome (Pixel)`, `Deskto
 
 ## 8. CI Kapıları
 
-1. `pnpm install --frozen-lockfile` · 2. `typecheck` · `lint` · `format:check` · 3. `test:unit` · 4. `test:integration` (PHASE 02+) · 5. `build` · 6. `test:e2e` (PHASE 04+, kritik set) · 7. `pnpm audit`.
-CI: GitHub Actions ücretsiz dakikaları (limit PHASE 01'de kontrol edilir; ücretli plan yok).
+1. `pnpm install --frozen-lockfile` · 2. `typecheck` · `lint` · `format:check` · 3. `test` (unit) · 4. `test:integration` (PHASE 02+) · 5. `build` · `check:bundle` · 6. `test:e2e` · 7. `pnpm audit --audit-level=high` · ayrıca gerçek env dosyalarının git tarafından ignore edildiği kontrolü.
+CI: `.github/workflows/ci.yml` (GitHub Actions). Repo herkese açık olduğundan standart runner'lar ücretsizdir (2026-11-24); ücretli plan yok. Yalnızca resmî action'lar, commit SHA'sıyla sabit; pnpm `packageManager`'dan Corepack ile.
 
 ## 9. Kabul Kriterleri
 
@@ -150,3 +150,19 @@ CI: GitHub Actions ücretsiz dakikaları (limit PHASE 01'de kontrol edilir; ücr
 - Test edilmemiş iş tamamlandı olarak raporlanmaz.
 
 Kaldırılan test alanları: OTP, müşteri eşleştirme/birleştirme, atama/kapsam, arşiv, ayarlar, otomatik bağlantı süre sonu, otomatik saklama/silme, dinamik dosya limitleri, çoklu dosya, harici AV (EICAR), zorunlu şifre değişimi, kendi şifresini değiştirme, hareketsizlik zaman aşımı.
+
+## 10. PHASE 01 Test Altyapısı (uygulandı)
+
+| Komut | Ne çalışır |
+|---|---|
+| `pnpm test` | Vitest, `tests/unit/**/*.test.ts`, Node ortamı, watch yok (`vitest run`) |
+| `pnpm test:watch` | Vitest watch modu (yerel geliştirme) |
+| `pnpm test:e2e` | Playwright; `pnpm build && pnpm start --port 3100` ile production build üzerinde |
+| `pnpm check` | lint + typecheck + format:check + test |
+| `pnpm check:bundle` | Build sonrası client bundle'da sunucu secret adı/sunucu modülü kontrolü |
+
+- Vitest: `@` → `src`; `server-only` testte boş modüle çözülür (React Server ortamındaki davranışla aynı), böylece `src/server/*` saf fonksiyonları test edilebilir.
+- Playwright projeleri: **Desktop Chrome**, **Mobile Chrome** (Pixel 7 emülasyonu), **Mobile Safari** (iPhone 15 emülasyonu, WebKit), **Desktop WebKit**. Tarayıcılar `playwright install chromium webkit` ile kullanıcı önbelleğine kurulur. Emülasyon gerçek cihaz testi yerine geçmez.
+- Unit testler (26): sabitler (`MAX_PDF_SIZE_BYTES === 10_485_760`, PDF türü, şifre 8–128, 7 gün oturum, 256 bit token), şirket yapılandırması (iletişim alanları `null` veya geçerli E.164; şu an `null`), `parseServerEnv` (varsayılanlar, origin indirgeme, production'da https/zorunluluk, fail-closed `APP_ENV`, değerin hata mesajına sızmaması).
+- E2E (başlangıç sayfası): 200 yanıt, başlık, `lang="tr"`, Türkçe içerik, konsol/sayfa hatası yok, harici istek yok, yerel Geist fontu, OS koyu tema tercihinde açık tema, mevcut cihazda yatay taşma yok, güvenlik header'ları, `robots.txt`; Desktop Chrome'da 320/375/390/768/1024/1440 px genişliklerde taşma yok.
+- `tests/integration/` ve `tests/fixtures/` gerçek kullanım başladığı fazda oluşturulur.

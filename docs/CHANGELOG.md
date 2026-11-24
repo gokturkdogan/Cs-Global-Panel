@@ -2,6 +2,32 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 01 — Project Initialization] — 2026-11-24
+
+PHASE 00 kapatıldı (Product Owner onayı; D-002, D-003, D-004, D-031 Accepted). Çalışan proje altyapısı kuruldu; ürün özelliği yok.
+
+### Added
+- Next.js 16.4.6 uygulaması repo kökünde (App Router, `src/`, Turbopack, `@/*` alias); `package.json` (exact sürümler, `packageManager: pnpm@10.34.9`, `engines.node: 24.x`), `pnpm-lock.yaml`, `pnpm-workspace.yaml` (kurulum script kısıtları, `minimumReleaseAge`), `.nvmrc`.
+- TypeScript 6.0.3 strict + `noUncheckedIndexedAccess`; ESLint 10 flat config (`eslint-config-next` + proje kuralları); Prettier.
+- Tailwind CSS 4.3.5 (`@tailwindcss/postcss`), shadcn/ui (`components.json`, Radix): Button, Card, Badge, Alert, Separator, Input, Label; CS Global semantik token'ları (`globals.css`); yerel Geist fontu.
+- `Logo` (geçici metin logo), `src/config/company.ts`, `src/config/constants.ts`, `src/lib/utils.ts` (`cn`), `src/server/env.ts` (Zod, lazy, fail-closed), `.env.example`.
+- Root layout (`lang="tr"`, metadata, noindex), `robots.ts`, altyapı önizleme sayfası.
+- Temel güvenlik header'ları (`next.config.ts`).
+- Vitest (3 dosya, 26 test), Playwright (Desktop Chrome, Mobile Chrome, Mobile Safari, Desktop WebKit), `scripts/check-client-bundle.mjs`, `.github/workflows/ci.yml`.
+- Teknik kararlar D-042…D-051 (Proposed); DECISION_LOG Bölüm C (faz onayları); THREAT_MODEL TM-40 (aynı tarayıcıda birden fazla müşteri bağlantısı).
+- TECH_STACK §0 (kurulu sürümler), §3.1a; DESIGN_SYSTEM §1.3; TESTING_STRATEGY §10; DEPLOYMENT §11.
+
+### Changed
+- `.gitignore`: Visual Studio şablonu → Node.js/Next.js (D-031).
+- D-002 (TypeScript 6.0.3), D-004 (pnpm 10.34.9) **Accepted**; D-003 yeniden teyit edildi; D-031 uygulandı.
+- Test script adı `test:unit` → `test` (CLAUDE.md, TESTING_STRATEGY).
+- Roadmap: PHASE 03 (dağıtık rate limiting doğrulaması, nonce'lu CSP), PHASE 07 (aynı tarayıcıda iki bağlantı — TM-40), PHASE 08 (dosya uç noktasında sunucu tarafı yetkilendirme; buton gizlemek kontrol değildir) notları eklendi.
+- CLAUDE.md: kesinleşen sürümler, kalite kapıları, Next.js sürüm dokümanı ipucu; README: kurulum, komutlar, env yaklaşımı, durum.
+
+### Not Changed
+- OD-01…OD-23 ürün kararları; production blocker'ları (PB-01…PB-11 açık).
+- Veritabanı, kimlik doğrulama, panel, portal, storage, deployment: yok. Commit/push yapılmadı. Global Node/pnpm kurulumları değiştirilmedi.
+
 ## [PHASE 00 — Revizyon] — 2026-11-24
 
 Product Owner'ın OD-01…OD-23 kararları (23/23 ACCEPTED) tüm dokümanlara işlendi.

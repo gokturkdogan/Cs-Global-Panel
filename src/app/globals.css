@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+/*
+ * CS Global tasarım sistemi — docs/DESIGN_SYSTEM.md
+ * Yalnızca açık tema (dark mode MVP kapsamında değil).
+ *
+ * `dark:` variant'ı yalnızca `.dark` sınıfına bağlanır. Uygulamada bu sınıf hiç
+ * kullanılmadığı için shadcn/ui bileşenlerindeki `dark:` sınıfları etkisizdir ve
+ * işletim sistemi koyu tema tercihi arayüzü değiştirmez.
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Radix durum/yön variant'ları — shadcn/ui (MIT) `shadcn/tailwind.css` dosyasından
+ * yalnızca kullanılanlar alınmıştır (shadcn CLI runtime bağımlılığı olmasın diye).
+ */
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
+/*
+ * Semantik renk token'ları. Kontrast oranları DESIGN_SYSTEM §1.1'de (WCAG 2.2 AA).
+ * Metin olarak kullanılan success/warning/destructive tonları `*-strong` token'larıdır.
+ */
+:root {
+  color-scheme: light;
+
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --primary-dark: #1e3a8a;
+  --primary-light: #eff6ff;
+
+  --secondary: #eff6ff;
+  --secondary-foreground: #1e3a8a;
+
+  --muted: #f1f5f9;
+  /* #64748B, #EFF6FF/#F1F5F9 zeminlerde AA altında kaldığı için metinde #475569 kullanılır. */
+  --muted-foreground: #475569;
+
+  --accent: #eff6ff;
+  --accent-foreground: #1e3a8a;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --destructive-strong: #b91c1c;
+  --destructive-soft: #fef2f2;
+
+  --success: #16a34a;
+  --success-strong: #15803d;
+  --success-soft: #f0fdf4;
+
+  --warning: #d97706;
+  --warning-strong: #b45309;
+  --warning-soft: #fffbeb;
+
+  --info-strong: #1d4ed8;
+
+  /* Dekoratif ayırıcı/kart kenarı. Form alanı sınırı için `--input` (3:1+) kullanılır. */
+  --border: #e2e8f0;
+  --input: #64748b;
+  --ring: #2563eb;
+
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-strong: var(--destructive-strong);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-success: var(--success);
+  --color-success-strong: var(--success-strong);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-strong: var(--warning-strong);
+  --color-warning-soft: var(--warning-soft);
+  --color-info-strong: var(--info-strong);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-4xl: calc(var(--radius) * 4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring;
+  }
+
+  html {
+    @apply bg-background font-sans text-foreground antialiased;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply min-h-dvh;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

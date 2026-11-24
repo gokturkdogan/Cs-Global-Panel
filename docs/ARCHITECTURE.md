@@ -207,19 +207,21 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
         └── upload-client.ts       # uploadPdf() — client tarafı storage sınırı
 ```
 
+**PHASE 01 itibarıyla mevcut olanlar:** `src/app/{layout.tsx, page.tsx, globals.css, robots.ts}`, `src/components/ui/{button,card,badge,alert,separator,input,label}.tsx`, `src/components/shared/logo.tsx`, `src/config/{company,constants}.ts`, `src/lib/utils.ts`, `src/server/env.ts`, `tests/{unit,e2e}/`, `scripts/check-client-bundle.mjs`, `.github/workflows/ci.yml`. Diğer klasörler gerçek kullanımları başladığı fazda oluşturulur (boş klasör/placeholder yok).
+
 Önceki yapıdan kaldırılanlar: `features/customers`, `features/settings`, `server/email`, `server/customer-access/otp.ts`, `/dashboard/settings`, `/dashboard/account`, `/portal/verify`, `src/types` (gerçek ihtiyaç doğunca eklenir).
 
 ### Client/Server sınırı
 1. `src/server/**`, `service.ts`, `queries.ts` ilk satırda `import 'server-only'`.
 2. `NEXT_PUBLIC_*` değişken **yok**; bağlantılar sunucuda üretilir.
-3. ESLint `no-restricted-imports`: `src/components/**` ve `"use client"` dosyalarından `@/server/*` yasak.
-4. PHASE 01'de client chunk'larında secret adı kontrol script'i.
+3. ESLint `no-restricted-imports`: `src/components/**` ve `src/lib/**` içinden `@/server/*` ve `server-only` yasak. `"use client"` dosyaları glob ile hedeflenemediğinden, onlar için güvence `server-only`'nin derleme zamanı hatasıdır.
+4. `pnpm check:bundle` (`scripts/check-client-bundle.mjs`): build sonrası `.next/static` içinde sunucu env adları ve sunucu modülü işaretleri aranır; bulunursa başarısız olur (CI'da çalışır).
 
 ## 8. Route Mimarisi
 
 | Route | Amaç | Roller | AuthN | AuthZ | Render | Cache | Hassas veri |
 |---|---|---|---|---|---|---|---|
-| `/` | `/login` veya `/dashboard`'a yönlendirme | Herkes | — | — | Redirect | no-store | Yok |
+| `/` | `/login` veya `/dashboard`'a yönlendirme (PHASE 03). PHASE 01–02'de statik altyapı önizleme sayfası (veri/işlev yok) | Herkes | — | — | Redirect (PHASE 01: statik) | no-store (PHASE 01: hassas veri yok, statik) | Yok |
 | `/login` | Personel girişi (yalnızca kullanıcı adı + şifre) | Anonim | — | Girişliyse yönlendir | RSC + client form | no-store | Yok |
 | `/dashboard` | Sayaçlar, son başvurular, inceleme bekleyenler | ADMIN, EMPLOYEE | Staff session | `dashboard:read_stats` | RSC | no-store | Orta |
 | `/dashboard/applications` | Tek liste; arama, statü/hizmet/tarih filtresi, sayfalama | ADMIN, EMPLOYEE | ✅ | `application:list` | RSC | no-store | Yüksek |
@@ -274,10 +276,10 @@ Kurallar (D-016):
 | `PAGE_SIZES` | 10 / 20 / 50 | |
 
 ### 11.2 `src/config/company.ts` (OD-14)
-`{ name: 'CS Global', phone: null, whatsapp: null }` — gerçek değerler Product Owner tarafından sağlanınca doldurulur; `null` iken UI disabled/placeholder gösterir (BR-171).
+`{ name: 'CS Global', tagline: 'Vize Danışmanlık', productName: 'Vize Danışmanlık Yönetim Platformu', phoneE164: null, whatsappE164: null }` — gerçek numaralar Product Owner tarafından sağlanınca E.164 biçiminde doldurulur; `null` iken UI disabled/placeholder gösterir, bağlantı üretmez (BR-171). Unit test uydurma biçimi reddeder.
 
 ### 11.3 Environment
-`src/server/env.ts` (Zod) başlangıçta doğrular. Liste: [DEPLOYMENT.md](DEPLOYMENT.md) §3. `APP_URL` tek bağlantı kaynağıdır (OD-20).
+`src/server/env.ts` (Zod, `server-only`) **ilk kullanımda** doğrular (D-047): henüz kullanılmayan servis değişkenleri build'i bozmaz; her değişken onu kullanan kodla birlikte şemaya eklenir ve production'da zorunludur (fail-closed). `NODE_ENV=production` iken `APP_ENV` zorunlu; development dışında `APP_URL` `https` origin olmalıdır. Liste: [DEPLOYMENT.md](DEPLOYMENT.md) §3. `APP_URL` tek bağlantı kaynağıdır (OD-20).
 
 ## 12. Transaction ve Idempotency
 

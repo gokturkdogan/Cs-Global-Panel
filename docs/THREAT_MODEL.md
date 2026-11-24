@@ -64,6 +64,7 @@
 | **TM-37** | **Domain değişikliğinde eski bağlantıların kırılması** (OD-20) | Orta | Orta | Eski alan adı korunuyorsa yönlendirme; korunamıyorsa toplu bağlantı yenileme + yeniden paylaşım (DEPLOYMENT §8) | Orta | — | Hayır |
 | **TM-38** | **Phishing / sahte bağlantı** | Orta | Orta | Tek resmî alan adı; müşteriye operasyonel bilgilendirme | Orta | — | Hayır |
 | **TM-39** | **Konsol hesaplarının ele geçirilmesi** | Düşük | Kritik | MFA zorunlu; en az yetki | Düşük | PHASE 13 kontrol listesi | PB-06 kapsamında |
+| **TM-40** | **Aynı tarayıcıda birden fazla müşteri bağlantısı** — tek portal cookie'sinin (`__Host-cs_portal`) yeni bağlantıyla üzerine yazılması; açık sekmede başka başvurunun görüntülenmesi veya kullanıcının yanlış başvuruya yükleme yapması | Orta | Orta | Kapsam yalnızca cookie'den; evrak/dosya kimlikleri başvuruya özgü olduğundan kapsam dışı mutasyon 404; istemcinin gördüğü başvuru ile cookie'deki başvurunun uyuşmadığı durumda işlemin reddedilmesi ve sayfanın yenilenmesi (yaklaşım PHASE 07'de kesinleşir; istemci değeri kapsam kaynağı olamaz) | Düşük (önlem uygulandıktan sonra) | PHASE 07 E2E: aynı tarayıcıda iki bağlantı, iki sekme | Hayır (PB-07 kapsamında) |
 
 ## 4. Birleşik Risk Değerlendirmesi
 

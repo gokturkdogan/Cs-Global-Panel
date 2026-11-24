@@ -29,7 +29,8 @@
 
 ## 3. Environment Değişkenleri (`.env.example` planı)
 
-> PHASE 01'de değersiz `.env.example` oluşturulur. Gerçek değerler repoya yazılmaz.
+> PHASE 01'de `.env.example` oluşturuldu: etkin olarak yalnızca `APP_ENV` ve `APP_URL` (yerel varsayılanlarla) vardır; aşağıdaki diğer değişkenler dosyada yorum satırı olarak, kullanılacakları fazla birlikte listelenir. Gerçek değerler repoya yazılmaz; `.env`, `.env.local`, `.env.*` ignore edilir (`.env.example` hariç) — CI'da otomatik kontrol edilir.
+> Doğrulama `src/server/env.ts`'te ilk kullanımda yapılır (D-047). `NODE_ENV=production` iken `APP_ENV` zorunlu; `development` dışında `APP_URL` zorunlu ve `https` origin olmalıdır. Her yeni değişken, onu kullanan kodla aynı fazda şemaya eklenir.
 
 ```dotenv
 # --- Uygulama ---
@@ -149,3 +150,9 @@ Hosting runtime logları (redaksiyonlu), DB konsol metrikleri, temizlik işi ç�
 ## 10. Hesap Güvenliği
 
 Tüm konsollarda (hosting, DB, storage, GitHub) **MFA zorunlu**; production erişimi en az kişi; hesaplar mümkünse şirket adına; ayrılan personelin erişimi aynı gün kaldırılır.
+
+## 11. Build ve CI Ortamı (PHASE 01)
+
+- Node.js `engines.node: 24.x` + `.nvmrc` (`24`); pnpm `packageManager: pnpm@10.34.9`. Vercel'in varsayılan Node sürümü 26 olduğundan `engines` sabitlemesi zorunludur. Hosting'de pnpm 10.34.9 kullanımı (Corepack/`packageManager`) **doğrulanmadı** — deployment PHASE 13'te.
+- CI: `.github/workflows/ci.yml` — push (`main`) ve PR'da kalite kapıları + E2E. Repo herkese açık olduğundan GitHub Actions standart runner'ları ücretsizdir; ücretli plan veya kredi kartı gerekmez. Workflow yalnızca `contents: read` yetkisiyle çalışır, secret kullanmaz.
+- Deployment, preview, hosting hesabı: **yapılmadı** (PHASE 13).

@@ -17,10 +17,11 @@ CS Global (vize danışmanlığı) için evrak toplama, inceleme ve süreç taki
 ## Her fazdan önce
 - `CLAUDE.md`, `docs/PROJECT_STATE.md`, `docs/DECISION_LOG.md` ve fazla ilgili dokümanları oku.
 - Ürün kararları OD-01…OD-23 **kesindir** (Product Owner, 2026-11-24) — tekrar sorma, değiştirme, kapsamını kendiliğinden genişletme. Yalnızca gerçekten çözülmemiş teknik kararları (TD-xx) sor.
-- Paket sürümlerini npm registry / resmî dokümandan yeniden doğrula; tahmin etme.
+- Paket sürümlerini npm registry / resmî dokümandan yeniden doğrula; tahmin etme. Kurulu sürümler: `docs/TECH_STACK.md` §0. Next.js API'leri için kurulu sürümün dokümanı `node_modules/next/dist/docs/` altındadır.
+- Yeni bağımlılık exact sürümle eklenir; `shadcn add` sonrası `package.json` farkı incelenir (D-043).
 
 ## Stack (`docs/TECH_STACK.md`)
-Next.js 16 (App Router, `proxy.ts`) · React 19 · TypeScript strict (6.0.x önerisi — D-002 onay bekliyor; TS 7 typescript-eslint ile uyumsuz) · **Node.js 24 LTS** · pnpm (`packageManager` ile exact — D-004 onay bekliyor) · Tailwind CSS 4 · shadcn/ui · Lucide · Geist · React Hook Form + Zod 4 · Neon Postgres + Drizzle ORM 0.45 (`node-postgres`) · Better Auth 1.7 (username + admin) · Vercel Private Blob (tek storage modülü arkasında) · Vitest · Playwright · ESLint + Prettier.
+Next.js 16 (App Router, `proxy.ts`) · React 19 · TypeScript **6.0.3** strict (D-002; TS 7 typescript-eslint ile uyumsuz) · **Node.js 24 LTS** · pnpm **10.34.9** (`packageManager`, D-004) · ESLint 10 + `eslint-config-next` (D-042) · Tailwind CSS 4 · shadcn/ui · Lucide · Geist · React Hook Form + Zod 4 · Neon Postgres + Drizzle ORM 0.45 (`node-postgres`) · Better Auth 1.7 (username + admin) · Vercel Private Blob (tek storage modülü arkasında) · Vitest · Playwright · ESLint + Prettier.
 Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık için gerekçe sun. **Ücretli servis, ücretli plan, kredi kartı gerektiren hizmet, otomatik ücretlendirme yok** (kullanıcı onayı olmadan).
 
 ## Mimari ilkeler (`docs/ARCHITECTURE.md`)
@@ -55,7 +56,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 
 ## Zorunlu testler (`docs/TESTING_STRATEGY.md`)
 - Domain kuralı → unit; yeni mutasyon → yetki matrisi testi; DB'ye dokunan servis → integration; kullanıcı akışı → E2E (müşteri paneli için mobil projeler).
-- Kalite kapıları: `typecheck`, `lint`, `format:check`, `test:unit`, (varsa) `test:integration`, `build`, `audit`.
+- Kalite kapıları: `pnpm lint`, `typecheck`, `format:check`, `test` (unit), (varsa) `test:integration`, `build`, `check:bundle`, `test:e2e`, `audit`. Kısayol: `pnpm check`.
 - Test edilmemiş işi tamamlanmış gibi raporlama.
 
 ## Dokümantasyon kuralları
@@ -64,7 +65,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - Her faz sonunda `docs/PROJECT_STATE.md` + `docs/CHANGELOG.md`.
 
 ## Yasaklanan yaklaşımlar
-Mikroservis/ayrı backend · Bellek içi rate limit veya yerel dosya sistemi (production) · Public storage / kalıcı public dosya URL'i · DB'de binary · Düz metin token · Başvuru numarasını erişim anahtarı yapmak · URL'de kişisel veri · Frontend'de statü belirleme · OTP, e-posta/SMS entegrasyonu · Müşteri profili/eşleştirme/birleştirme · Çalışan atama · Arşivleme · Ayarlar sayfası/tablosu · Otomatik veri saklama/silme veya bağlantı süre sonu · Dinamik dosya limitleri · Harici antivirüs · Self-servis şifre işlemleri · IP/UA saklama · Gerçek müşteri verisinin dev/test/preview/demo'da kullanılması · Müşteri panelinde üçüncü taraf script · Deprecated/deneysel paketler (TS 7, Drizzle 1.0 RC, Next.js taint API) · Kullanıcı onayı olmadan commit/push, hesap açma, ücretli servis, deployment.
+Mikroservis/ayrı backend · Bellek içi rate limit veya yerel dosya sistemi (production) · Public storage / kalıcı public dosya URL'i · DB'de binary · Düz metin token · Başvuru numarasını erişim anahtarı yapmak · URL'de kişisel veri · Frontend'de statü belirleme · OTP, e-posta/SMS entegrasyonu · Müşteri profili/eşleştirme/birleştirme · Çalışan atama · Arşivleme · Ayarlar sayfası/tablosu · Otomatik veri saklama/silme veya bağlantı süre sonu · Dinamik dosya limitleri · Harici antivirüs · Self-servis şifre işlemleri · IP/UA saklama · Gerçek müşteri verisinin dev/test/preview/demo'da kullanılması · Müşteri panelinde üçüncü taraf script · Deprecated/deneysel paketler (TS 7, ESLint 9, Drizzle 1.0 RC, Next.js taint API) · `cacheComponents` / `'use cache'` (lint ile engelli) · Kullanıcı onayı olmadan commit/push, hesap açma, ücretli servis, deployment.
 
 ## Sonraki faza geçmeden önce
 1. Fazın Acceptance + DoD maddeleri tek tek doğrulandı.

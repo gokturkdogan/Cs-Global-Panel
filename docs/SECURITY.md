@@ -105,6 +105,8 @@ Tek aktif bağlantı: DB partial unique index + `applications FOR UPDATE` (OD-18
 
 `next.config.ts` `headers()` + `src/proxy.ts` (nonce'lu CSP).
 
+> **PHASE 01 durumu (D-048):** Tüm yanıtlarda `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Strict-Transport-Security`, `X-Robots-Tag` ve script çalıştırmayı etkilemeyen temel CSP (`base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'`) gönderilir; `X-Powered-By` kapalı. E2E ile doğrulandı. Henüz uygulanmayanlar: nonce'lu `script-src`/`style-src` CSP (PHASE 03, `proxy.ts`), rota bazlı `no-referrer` (PHASE 07/08), `Cache-Control: no-store` (korumalı rotalarla birlikte), PDF yanıtı CSP'si (PHASE 08).
+
 | Header | Değer | Kapsam |
 |---|---|---|
 | `Content-Security-Policy` | `default-src 'self'; script-src 'self' 'nonce-{n}' 'strict-dynamic'; style-src 'self' 'nonce-{n}'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' <blob-upload-host>; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests` | Tüm sayfalar. Blob upload host'u PHASE 08'de kesinleşir; Tailwind/shadcn uyumu PHASE 01'de test edilir. |
@@ -189,7 +191,7 @@ Kaldırılan event'ler: `CUSTOMER_OTP_*`, `CUSTOMER_ACCESS_GRANTED`, `ACCESS_LIN
 
 ## 10. Bağımlılık Güvenliği
 
-Exact sürümler, commit'li lockfile, `pnpm install --frozen-lockfile`, her faz sonunda `pnpm audit` (yüksek/kritik = blok), pnpm kurulum script kısıtları (PHASE 01). Ücretli servis bağımlılığı yok.
+Exact sürümler, commit'li lockfile, `pnpm install --frozen-lockfile`, her faz sonunda `pnpm audit` (yüksek/kritik = blok). PHASE 01'de uygulandı (D-046): kurulum script'leri varsayılan olarak engelli (yalnızca `sharp`, `unrs-resolver` bilinçli olarak yok sayılır), `minimumReleaseAge: 1440` (24 saatten yeni sürüm kurulmaz), CI action'ları commit SHA'sıyla sabit, `pnpm check:bundle` ile client bundle secret kontrolü. Ücretli servis bağımlılığı yok.
 
 ## 11. Production Blocker'ları
 
