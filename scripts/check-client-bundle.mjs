@@ -5,10 +5,11 @@ import { join } from "node:path";
 
 const STATIC_DIR = ".next/static";
 
-/** Client koduna asla girmemesi gereken ifadeler: sunucu env adları ve sunucu modülü işaretleri. */
-const FORBIDDEN = [
+/** Sunucuya özel env değişkenleri — hem adları hem (tanımlıysa) değerleri client'ta aranır. */
+const SERVER_ENV_NAMES = [
   "APP_URL",
   "DATABASE_URL",
+  "DATABASE_URL_UNPOOLED",
   "BETTER_AUTH_SECRET",
   "RATE_LIMIT_KEY_SECRET",
   "ACCESS_TOKEN_HMAC_KEY",
@@ -16,7 +17,33 @@ const FORBIDDEN = [
   "CUSTOMER_SESSION_SECRET",
   "BLOB_READ_WRITE_TOKEN",
   "CRON_SECRET",
-  "EnvValidationError",
+];
+
+/** Sunucu modülü işaretleri (bu ifadeler yalnızca sunucu kodunda bulunur). */
+const SERVER_MODULE_MARKERS = ["EnvValidationError", "DatabaseConfigError", "cs_app_runtime"];
+
+/**
+ * Build sırasında ortamda bulunan secret değerleri de aranır (canary sızıntı testi):
+ * CI, gerçek olmayan benzersiz değerlerle build alıp bu kontrolü aynı ortamla çalıştırır.
+ * Değerler raporda gösterilmez; yalnızca değişken adı yazılır.
+ */
+const secretValues = SERVER_ENV_NAMES.map((name) => [name, process.env[name]])
+  .filter(([, value]) => typeof value === "string" && value.length >= 8)
+  .flatMap(([name, value]) => {
+    const candidates = [value];
+    try {
+      const url = new URL(value);
+      if (url.password) candidates.push(decodeURIComponent(url.password));
+    } catch {
+      // URL değil
+    }
+    return candidates.map((candidate) => ({ label: `${name} değeri`, value: candidate }));
+  });
+
+const FORBIDDEN = [
+  ...SERVER_ENV_NAMES.map((name) => ({ label: name, value: name })),
+  ...SERVER_MODULE_MARKERS.map((marker) => ({ label: marker, value: marker })),
+  ...secretValues,
 ];
 
 async function listFiles(dir) {
@@ -38,7 +65,7 @@ const findings = [];
 for (const file of files) {
   const content = await readFile(file, "utf8");
   for (const term of FORBIDDEN) {
-    if (content.includes(term)) findings.push(`${file}: ${term}`);
+    if (content.includes(term.value)) findings.push(`${file}: ${term.label}`);
   }
 }
 
@@ -47,4 +74,7 @@ if (findings.length > 0) {
   process.exit(1);
 }
 
-console.log(`Client bundle kontrolü başarılı: ${files.length} dosya tarandı, yasaklı ifade yok.`);
+console.log(
+  `Client bundle kontrolü başarılı: ${files.length} dosya tarandı, yasaklı ifade yok` +
+    ` (${secretValues.length} secret değeri dahil).`,
+);

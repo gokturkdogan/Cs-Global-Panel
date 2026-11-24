@@ -2,8 +2,10 @@
 
 # Kurulum script'leri varsayılan olarak engellidir (pnpm 10). Yalnızca açıkça
 # değerlendirilmiş paketler listelenir. sharp ve unrs-resolver önceden derlenmiş
-# platform paketleriyle gelir; script'lerine gerek yoktur.
+# platform paketleriyle gelir; esbuild (drizzle-kit, vite) platform ikilisini
+# optionalDependencies ile alır. Script'lerine gerek yoktur.
 ignoredBuiltDependencies:
+  - esbuild
   - sharp
   - unrs-resolver
 

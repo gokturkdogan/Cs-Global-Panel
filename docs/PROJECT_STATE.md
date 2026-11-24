@@ -1,26 +1,25 @@
 # Proje Durumu
 
-> Her faz sonunda güncellenir. Son güncelleme: **2026-11-24** (PHASE 01 sonu)
+> Her faz sonunda güncellenir. Son güncelleme: **2026-11-24** (PHASE 02 sonu)
 
 ## Current Phase
-**PHASE 01 — Project Initialization**
-Phase Status: **COMPLETED — kullanıcı onayı bekleniyor** (kabul kriterleri ve test sonuçları aşağıda; PHASE 02'ye onaysız geçilmez)
+**PHASE 02 — Database Foundation**
+Phase Status: **COMPLETED — kullanıcı onayı bekleniyor** (PHASE 03'e onaysız geçilmez)
 
 ## Completed Phases
-- PHASE 00 — Project Foundation & Architecture (+ revizyon) — Product Owner onayı 2026-11-24. Onay production güvenliği veya KVKK uyumluluğu onayı değildir.
-- PHASE 01 — Project Initialization — teknik olarak tamamlandı (2026-11-24); kullanıcı onayı bekleniyor.
+- PHASE 00 — Project Foundation & Architecture (+ revizyon) — Product Owner onayı 2026-11-24.
+- PHASE 01 — Project Initialization — Product Owner onayı 2026-11-24 (D-042…D-051 Accepted).
+
+> Faz onayları production güvenliği veya KVKK uyumluluğu onayı değildir; PB-01…PB-11 açıktır.
 
 ## Project Status
-Çalışan Next.js 16 altyapısı (yalnızca altyapı önizleme sayfası). Veritabanı, kimlik doğrulama, şirket paneli, müşteri paneli, storage, deployment **yok**. Gerçek müşteri kullanımına hazır değildir. Commit/push yapılmadı.
+Veritabanı altyapısı kuruldu ve gerçek Neon veritabanında doğrulandı. Kimlik doğrulama, şirket paneli, müşteri paneli, storage, deployment **yok**. Gerçek müşteri kullanımına hazır değildir. Commit/push yapılmadı.
 
 ## Implemented Features
-Ürün özelliği yok. PHASE 01 altyapısı:
-- Next.js 16.4.6 App Router + `src/`, TypeScript 6.0.3 strict (+ `noUncheckedIndexedAccess`), Tailwind CSS 4.3.5, shadcn/ui (Radix; Button, Card, Badge, Alert, Separator, Input, Label), Lucide, yerel Geist fontu.
-- CS Global tasarım token'ları (yalnızca açık tema, WCAG AA kontrastları hesaplandı), geçici metin logo (`Logo`), merkezi `company.ts` (telefon/WhatsApp `null`) ve `constants.ts`.
-- Root layout (`lang="tr"`, metadata, noindex, `robots.ts`), altyapı önizleme sayfası.
-- `src/server/env.ts` (Zod, lazy, fail-closed), `.env.example`.
-- Temel güvenlik header'ları (D-048), ESLint proje kuralları (server import sınırı, `dangerouslySetInnerHTML`, cache API, `any` yasağı), Prettier.
-- Vitest (26 unit test), Playwright (4 proje, E2E), client bundle secret kontrolü, GitHub Actions CI taslağı.
+Ürün özelliği yok. Altyapı:
+- PHASE 01: Next.js 16.4.6, TypeScript 6.0.3 strict, Tailwind 4, shadcn/ui, tasarım token'ları, env doğrulaması, güvenlik header'ları, Vitest/Playwright, CI.
+- PHASE 02: Drizzle ORM 0.45.4 + pg 8.23.1 + Drizzle Kit 0.31.11; 17 tablo (DATABASE_SCHEMA); 3 migration; en az yetkili `cs_app_runtime` rolü; audit append-only trigger'ları; lazy Pool (`getDb()`); `db:*` CLI; demo seed; 71 integration testi; canary bundle kontrolü.
+- Veritabanı: Neon Free, Frankfurt (`aws-eu-central-1`), PostgreSQL 18.7, **tek veritabanı `neondb`** (D-059).
 
 ## Pending Features
 Tüm ürün özellikleri — [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) PHASE 02–13.
@@ -31,7 +30,7 @@ OD-01…OD-23: **23/23 ACCEPTED** (Product Owner, 2026-11-24) — [DECISION_LOG.
 
 ## Technical Decisions
 
-PHASE 01'de alınan teknik kararlar D-042…D-051 **Proposed** durumdadır ([DECISION_LOG.md](DECISION_LOG.md)); kullanıcı onayıyla Accepted olur.
+D-042…D-051 **Accepted** (2026-11-24). PHASE 02 kararları DECISION_LOG'da (Proposed).
 
 | ID | Konu | Öneri | Gerekli faz |
 |---|---|---|---|
@@ -56,11 +55,13 @@ PHASE 01'de alınan teknik kararlar D-042…D-051 **Proposed** durumdadır ([DEC
 5. Production hosting kararı için değerlendirme sonuçlarına onay (TD-07).
 
 ## Known Issues
-1. **ESLint 10 peer uyarıları (D-042):** `eslint-plugin-react`, `eslint-plugin-import`, `eslint-plugin-jsx-a11y` (eslint-config-next 16.4.6 bağımlılıkları) peer aralıkları ESLint ^9'da bitiyor. Next.js dokümanı ESLint 10 desteğini ve bu uyarıyı belgeliyor; kurallar ESLint 10 altında çalışıyor. Uyarılar bastırılmadı. ESLint 9 deprecated/EOL olduğu için alternatif değil.
-2. **Node.js yaması:** yerel 24.22.1; 24.22.3 (2026-11-10) bir **güvenlik** sürümü. Sistem Node'u kullanıcı onayı olmadan güncellenmedi — güncelleme önerilir (`nvm install 24`).
-3. Başlangıç sayfası (`/`) statik prerender ediliyor (hassas veri yok); PHASE 03'te yönlendirmeye dönüşecek.
-4. Repo herkese açık (GitHub): dokümanlar (tehdit modeli dahil) herkese görünür. Güvenlik gizliliğe dayanmaz; secret yok. Bilgi amaçlı.
-5. Gerçek cihaz testi yapılmadı (yalnızca Playwright emülasyonu) — müşteri paneli fazlarında (PHASE 07/08/11) zorunlu.
+1. **Owner veritabanı şifresi sohbete yazıldı (2026-11-24).** `neondb_owner` şifresi Neon'da sıfırlanmalı ve `.env.local`'daki `DATABASE_URL_UNPOOLED` güncellenmelidir (kullanıcı adımı). Runtime (`cs_app_runtime`) şifresi yerelde üretildi, hiçbir yerde gösterilmedi.
+2. **ESLint 10 peer uyarıları (D-042)** sürüyor.
+3. **Bağımlılık taraması:** 1 moderate (GHSA-67mh-4wv8-2f99, esbuild ≤0.24.2 dev sunucusu CORS) — `drizzle-kit → @esbuild-kit/esm-loader (deprecated) → @esbuild-kit/core-utils → esbuild 0.18.20`. Yalnızca dev aracı; ilgili kod esbuild `serve` API'sini çağırmıyor. Override uygulanmadı. Runtime (`--prod`): açık yok.
+4. **Node.js yaması:** yerel 24.22.1; 24.22.3 güvenlik sürümü (kurulmadı — kullanıcı kararı).
+5. **Repo herkese açık** (2026-11-24 itibarıyla). Private yapılması önerilir.
+6. Integration testleri CI'da çalışmaz (veritabanı secret'ı yok); yerelde çalıştırılır.
+7. Tek veritabanı (D-059): testlerin audit satırları veritabanında kalır (değiştirilemez); şu an 2 satır.
 
 ## Technical Debt
 - Nonce'lu CSP, rota bazlı `no-referrer`/`no-store` header'ları henüz yok (D-048; PHASE 03/07/08).
@@ -76,7 +77,7 @@ Ayrıntı: [SECURITY.md](SECURITY.md) §11.
 | PB-03 | KVKK hukuki değerlendirmesi (aydınlatma, yurt dışı aktarım, saklama/imha politikası, VERBİS, ihlal prosedürü) | Hayır |
 | PB-04 | Bearer link + OTP yok + süresiz bağlantı riski için yazılı risk kabulü | Hayır |
 | PB-05 | Antivirüs olmadan PDF kabulü için yazılı risk kabulü + personel cihaz politikası | Hayır |
-| PB-06 | Production ortam izolasyonu | Hayır |
+| PB-06 | Production ortam izolasyonu — **D-059 (tek veritabanı) ile kapsamı genişledi:** gerçek müşteri verisi girmeden önce ayrı production veritabanı veya yazılı risk kabulü (TM-43) | Hayır |
 | PB-07 | Yetkilendirme ve güvenlik testlerinin geçmesi | Hayır |
 | PB-08 | Seçilen ücretsiz planda yedek/geri yükleme yeteneği | Hayır |
 | PB-09 | Bağımlılık taraması temiz | Hayır |
@@ -85,25 +86,27 @@ Ayrıntı: [SECURITY.md](SECURITY.md) §11.
 
 **Geliştirmeyi (PHASE 02) başlatmayı engelleyen:** yalnızca PHASE 01 kullanıcı onayı. PB-01…PB-11 açık; hiçbiri çözülmüş sayılmaz. PHASE 00/01 onayları production güvenliği veya KVKK uyumluluğu onayı değildir.
 
-## Latest Verification Results (2026-11-24, PHASE 01)
-Node v24.22.1 · pnpm 10.34.9 · macOS 27.2.1 arm64. Temiz kurulumla (node_modules ve .next silinerek) sırayla:
+## Latest Verification Results (2026-11-24, PHASE 02)
+Node v24.22.1 · pnpm 10.34.9 · Neon PostgreSQL 18.7 (Frankfurt), tek veritabanı `neondb`.
 
 | Komut | Exit | Sonuç |
 |---|---|---|
-| `pnpm install --frozen-lockfile` | 0 | 451 paket, lockfile güncel |
-| `pnpm lint` | 0 | 0 hata, 0 uyarı (`--max-warnings=0`) |
-| `pnpm typecheck` | 0 | `next typegen` + `tsc --noEmit` |
-| `pnpm format:check` | 0 | Tüm dosyalar Prettier uyumlu |
-| `pnpm test` | 0 | 3 dosya, 26 test geçti |
-| `pnpm build` | 0 | `/`, `/_not-found`, `/robots.txt` statik |
-| `pnpm check:bundle` | 0 | 11 client dosyası, yasaklı ifade yok (negatif testle doğrulandı) |
-| `pnpm test:e2e` | 0 | 30 geçti, 18 bilinçli atlandı (genişlik testleri yalnızca Desktop Chrome'da) |
-| `pnpm audit` / `pnpm audit --prod` | 0 | Bilinen açık yok |
+| `pnpm install --frozen-lockfile` | 0 | |
+| `pnpm lint` / `typecheck` / `format:check` | 0 / 0 / 0 | |
+| `pnpm test` | 0 | 7 dosya, 61 unit test |
+| `pnpm db:check` | 0 | Migration'lar tutarlı |
+| `pnpm db:verify` | 0 | TLS 1.3, sertifika doğrulandı (sahip ve runtime); 17 tablo; pg_trgm 1.6; 3 migration; runtime rolü süper kullanıcı/createrole/createdb/bypassrls/replication = false |
+| `pnpm db:init` | 0 | Rol mevcut → öznitelik + şifre eşitlendi |
+| `pnpm db:migrate` (2 kez) | 0 / 0 | 3 yeni → 0 yeni (tekrar uygulanmadı) |
+| `pnpm test:integration` | 0 | 4 dosya, **71/71** (gerçek Neon, ~54 sn) |
+| `pnpm db:seed` (2 kez) | 0 / 0 | 3 hizmet + 12 şablon → 0 oluşturuldu, 3 atlandı |
+| `pnpm build` (canary secret'larla) + `check:bundle` | 0 / 0 | Canary değerleri client bundle'da yok; negatif test yakaladı |
+| `pnpm test:e2e` | 0 | 30 geçti, 18 bilinçli atlandı |
+| `pnpm run audit` (high) / `pnpm audit --prod` | 0 / 0 | 1 moderate (dev) / açık yok |
 
-- Development smoke: `pnpm dev` → `GET /` 200, güvenlik header'ları mevcut. Production smoke: `pnpm start` → `GET /` 200, `lang="tr"`, başlık, header'lar, `/robots.txt` 200, bilinmeyen yol 404. Başlatılan sunucular kapatıldı.
-- ESLint proje kuralları geçici ihlal dosyasıyla doğrulandı (10/10 kural tetiklendi; dosya silindi).
-- `.gitignore`: `git check-ignore` ile env, build, test çıktıları, secret dosyaları doğrulandı; `.env.example` takip edilebilir.
-- Gerçek cihaz testi: **yapılmadı**.
+- Migration SQL'i önce PGlite (PostgreSQL WASM, scratch dizininde) üzerinde ön kontrol edildi.
+- Testler sonrası satır sayıları: kullanıcı/başvuru/dosya/token 0 (temizlendi); hizmet 3 + şablon 12 (seed); audit 2 (test, silinemez).
+- `cs_global_dev` ve `cs_global_test` (bu fazda oluşturulan) kullanıcı talebiyle silindi.
 
 ## Next Phase
-**PHASE 02 — Database Foundation** — kullanıcı açıkça onaylamadan başlanmaz.
+**PHASE 03 — Authentication & Authorization** — kullanıcı açıkça onaylamadan başlanmaz.

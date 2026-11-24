@@ -1,7 +1,7 @@
 # Karar Kaydı (Decision Log)
 
 > Durumlar: **Proposed** · **Accepted** · **Rejected** · **Superseded**.
-> Bölüm A: Product Owner tarafından onaylanan ürün kararları (OD-01…OD-23). Bölüm B: teknik kararlar (D-001…D-051). Bölüm C: faz onayları.
+> Bölüm A: Product Owner tarafından onaylanan ürün kararları (OD-01…OD-23). Bölüm B: teknik kararlar (D-001…D-059). Bölüm C: faz onayları.
 > Bir ürün kararının **ACCEPTED** olması, ilgili riskin güvenlik denetiminden geçtiği veya hukuki uygunluğun doğrulandığı anlamına gelmez — bkz. [THREAT_MODEL.md](THREAT_MODEL.md), [DATA_PRIVACY.md](DATA_PRIVACY.md), [SECURITY.md](SECURITY.md) §11.
 > Geçmiş kararlar silinmez; yerine geçilenler **Superseded** olarak işaretlenir.
 
@@ -390,7 +390,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Consequences:** Evrak statüleriyle tutarlılık korunur; yeni geçiş ihtiyacı ayrı karar gerektirir.
 
 ### D-042 — ESLint 10.15.0 (ESLint 9 değil)
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Context:** `eslint-config-next@16.4.6` içindeki `eslint-plugin-react@7.37.5`, `eslint-plugin-import@2.32.0`, `eslint-plugin-jsx-a11y@6.10.2` peer aralığı ESLint ^9'da bitiyor. `eslint@9.39.5` npm'de **deprecated** ("This version is no longer supported") ve ESLint destek politikasına göre 2026-08-06'dan beri **EOL**. create-next-app@16.4.6 hâlâ `eslint: ^9` öneriyor. Next.js ESLint dokümanı (son güncelleme 2026-11-18): "eslint-config-next supports ESLint 9 and ESLint 10 … Starting with eslint-config-next@16.4.0 … works with ESLint 10. Some of the plugins … don't list ESLint 10 in their peer dependencies yet, so your package manager may show peer dependency warnings."
 - **Alternatives:** ESLint 9.39.5 (deprecated/EOL — CLAUDE.md deprecated paket yasağı); `eslint-config-next`'i bırakıp eklentileri tek tek kurmak (jsx-a11y/react kuralları kaybolur, temel stack'ten sapma).
 - **Decision:** `eslint@10.15.0` + `eslint-config-next@16.4.6`. Bilinen 3 peer uyarısı **bastırılmaz** (`--force`, `--legacy-peer-deps`, override, `peerDependencyRules` yok) ve raporlanır. `strictPeerDependencies` açılmaz (Next.js dokümanına göre kurulum başarısız olur).
@@ -398,46 +398,87 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Consequences:** Eklentiler ESLint 10'u peer olarak listeleyince uyarılar kendiliğinden kalkar; her faz sonunda yeniden kontrol edilir.
 
 ### D-043 — shadcn/ui: Radix tabanı, minimum bağımlılık
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Context:** `shadcn@4.23.0 init -b radix -p nova` → `components.json` (`style: radix-nova`). CLI ayrıca `cn@0.5.2` (shadcn'in yeni, 0.x sınıf birleştirme paketi; CLI `bin`'i içerir), `shadcn` CLI paketini **runtime** bağımlılığı olarak (32 bağımlılık; yalnızca `shadcn/tailwind.css` için) ve `tw-animate-css` ekledi.
 - **Decision:** `cn` yerine olgun **clsx 2.1.1 + tailwind-merge 3.7.1** (`src/lib/utils.ts`); `shadcn` runtime bağımlılığı kaldırıldı, kullanılan 3 özel variant (`data-disabled`, `data-horizontal`, `data-vertical`) MIT lisanslı kaynaktan `globals.css`'e alındı; `tw-animate-css` kaldırıldı (animasyonlu bileşen yok — Dialog/Sheet eklenecek fazda yeniden değerlendirilir). Bileşenler: Button, Card, Badge, Alert, Separator, Input, Label; tasarım token'larına ve erişilebilirlik kurallarına uyarlandı. CLI `pnpm dlx shadcn@4.23.0` ile çalıştırılır, bağımlılık değildir.
 - **Consequences:** Sonraki `shadcn add` çalıştırmaları `cn`/`shadcn`/`tw-animate-css` ekleyebilir; her eklemede `package.json` farkı incelenir.
 
 ### D-044 — Tailwind entegrasyonu `@tailwindcss/postcss`; şablon varsayılanlarının ayıklanması
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Context:** create-next-app@16.4.6 şablonu `@tailwindcss/turbopack` loader'ı, **`cacheComponents: true`**, `partialPrefetching: true`, dark mode bloğu ve `next/font/google` ile geliyor.
 - **Decision:** Tailwind resmî Next.js rehberi ve TECH_STACK'teki `@tailwindcss/postcss` kullanıldı. `cacheComponents` ve `partialPrefetching` eklenmedi (D-016). Next/Vercel görselleri ve favicon kopyalanmadı (logo tasarlanmaz — OD-15).
 - **Consequences:** Turbopack ve webpack ile aynı yapılandırma çalışır.
 
 ### D-045 — Font: yerel `geist` paketi
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Decision:** `geist@1.9.2` (`next/font/local`, değişken Geist Sans). Çalışma zamanında harici font isteği yok (E2E ile doğrulandı). Türkçe glifler (ç ğ ı İ ö ş ü Ç Ğ Ö Ş Ü â î û) fontun `cmap` tablosunda doğrulandı. Geist Mono kullanılmadığı için yüklenmez.
 
 ### D-046 — pnpm kurulum güvenliği
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Decision:** `pnpm-workspace.yaml`: kurulum script'leri pnpm 10 varsayılanıyla engelli; `sharp` ve `unrs-resolver` script'leri bilinçli olarak yok sayılır (önceden derlenmiş paketleri var). `minimumReleaseAge: 1440` — 24 saatten yeni yayımlanmış sürümler kurulmaz (tedarik zinciri saldırılarına karşı). pnpm sürümü `packageManager` ile proje düzeyinde sabit (global kurulum değiştirilmedi; pnpm kendi sürüm yönetimiyle 10.34.9'u kullanır). Tek lockfile `pnpm-lock.yaml`.
 - **Consequences:** Acil güvenlik yaması 24 saatten yeniyse `minimumReleaseAgeExclude` ile bilinçli istisna gerekir.
 
 ### D-047 — Ortam değişkeni doğrulaması: lazy, fail-closed
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Decision:** `src/server/env.ts` (`server-only`, Zod): ilk kullanımda doğrulama; PHASE 01'de yalnızca `APP_ENV`, `APP_URL`. `NODE_ENV=production` iken `APP_ENV` zorunlu; development dışında `APP_URL` zorunlu ve `https` origin olmalı; development'ta varsayılan `http://localhost:3000`. Hata mesajları yalnızca değişken adı içerir. Sonraki fazların secret'ları, onları kullanan kodla birlikte şemaya eklenir ve production'da zorunlu olur. Zod `.strict()` env nesnesine uygulanmaz (`process.env` sistem değişkenleri içerir).
 
 ### D-048 — Temel güvenlik header'ları; nonce'lu CSP sonraki fazda
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Decision:** `next.config.ts` `headers()`: `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Strict-Transport-Security`, `X-Robots-Tag`, `poweredByHeader: false` ve script çalıştırmayı etkilemeyen temel CSP (`base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'`). Nonce'lu `script-src`/`style-src` CSP'si `src/proxy.ts` ile PHASE 03'te (dinamik render gerektirir), rota bazlı `no-referrer` ve `no-store` ilgili rotalarla (PHASE 03/07/08) eklenir.
 
 ### D-049 — Tasarım token'ları (D-028 uygulaması)
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Decision:** CSS değişkeni + Tailwind 4 `@theme inline` ile semantik token'lar (`src/app/globals.css`). `--muted-foreground` = `#475569` (palet `#64748B` `#EFF6FF`/`#F1F5F9` zeminlerde AA altında kaldığı için; `#64748B` input kenarlığı `--input` olarak kullanılır). Metin tonları `*-strong`, zeminler `*-soft` (success/warning/destructive). Birincil hover `#1D4ED8` (beyaz metinle 6.70). Yalnızca açık tema: `dark:` variant'ı hiç kullanılmayan `.dark` sınıfına bağlı; `color-scheme: light`. Tüm kombinasyonların kontrastı hesaplandı (DESIGN_SYSTEM §1.3).
 
 ### D-050 — Test ve CI düzeni
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Decision:** `pnpm test` = Vitest unit (`vitest run`, watch yok); `test:unit` adı kullanılmaz (dokümanlar güncellendi), `test:integration` PHASE 02'de eklenir. Playwright production build üzerinde (`next build` + `next start`, port 3100); projeler Desktop Chrome, Mobile Chrome (Pixel 7), Mobile Safari (iPhone 15), Desktop WebKit. CI: GitHub Actions (repo herkese açık → standart runner'lar ücretsiz), yalnızca resmî action'lar commit SHA'sıyla sabit, pnpm Corepack ile `packageManager`'dan. Husky/lint-staged yok.
 
 ### D-051 — Next.js `agentRules` kapalı
-- **Date:** 2026-11-24 (PHASE 01) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 01) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 02 başlangıcı)
 - **Context:** Next.js 16.4 `next dev` çalıştığında kök dizine `AGENTS.md` yazar.
 - **Decision:** `agentRules: false`; ajan talimatlarının tek kaynağı `CLAUDE.md`. Faydalı ipucu (sürüme uygun dokümanlar `node_modules/next/dist/docs/`) CLAUDE.md'ye eklendi.
+
+### D-052 — Veritabanı düzeyinde ilişki bütünlüğü: bileşik FK'lar ve NULL-güvenli CHECK'ler
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Context:** Şemadaki tek kolonlu FK'lar (`document_reviews.file_id` vb.) bir incelemenin başka evrağın/başvurunun dosyasına bağlanmasını engellemiyordu (INV-09/INV-10). Ayrıca `reason`/`customer_message` CHECK'leri NULL değerde "geçti" sayılıyordu (PostgreSQL CHECK'te NULL = geçer).
+- **Decision:** `application_document_requirements (id, application_id)`, `application_document_files (id, requirement_id, application_id)`, `application_access_tokens (id, application_id)` üzerinde UNIQUE hedefler; dosya → evrak, inceleme → dosya/evrak, yorum/iç not → evrak, dosya/statü geçmişi → token ilişkileri **bileşik FK** (aynı başvuru zorunlu). Token referansları (`uploaded_by_access_token_id`, `actor_access_token_id`) doküman taslağındaki `SET NULL` yerine bileşik FK + `NO ACTION` (token'lar yalnızca başvuru silinince CASCADE ile silinir; bileşik FK'da `SET NULL` NOT NULL `application_id`'yi de boşaltırdı). CHECK'ler NULL durumunu açıkça ele alır. Ek kısıtlar: storage yolu kimliklerden türetilmiş `.pdf` yolu olmak zorunda (kişisel veri giremez), doğrulanmış dosyada boyut/sha256/aktivasyon zamanı zorunlu, token hash 64 hex, ciphertext `v1:<keyId>:` önekli, kullanıcı adı `^[a-z0-9_.]{3,30}$`, `sessions.impersonated_by` NULL (impersonation kullanılmaz), audit metadata yalnızca izinli üst düzey anahtarlar.
+- **Migration etkisi:** Yalnızca ilk migration (henüz hiçbir ortamda veri yok). İş kurallarını değiştirmez; yanlış uygulama kodunu DB'de durdurur.
+
+### D-053 — Hizmet/şablon `created_by_user_id` NULL olabilir (sistem/seed kaydı)
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Context:** Development seed hizmet ve evrak şablonu oluşturmalı, ancak bu fazda personel hesabı oluşturulmaz (PHASE 03) ve sahte şifre hash'li kullanıcı yazılmaz.
+- **Alternatives:** Giriş yapamayan "sistem" kullanıcısı (personel listelerini kirletir, Better Auth tablosuna yapay kayıt); seed'i PHASE 03'e ertelemek (bu fazın seed gereksinimini karşılamaz).
+- **Decision:** `services.created_by_user_id` ve `service_document_requirements.created_by_user_id` NULL olabilir; NULL = sistem/seed kaydı. Personelin oluşturduğu kayıtlarda değer PHASE 05'te uygulama katmanında zorunludur (test edilecek). Başvuru, token, inceleme vb. tablolarda aktör kolonları NOT NULL kalır.
+
+### D-054 — En az yetkili runtime rolü ve veritabanı güvenlik kontrolleri
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Context:** Neon'da Console/API ile oluşturulan roller `neon_superuser` üyesidir (CREATEDB, CREATEROLE, BYPASSRLS, REPLICATION); SQL ile oluşturulan roller yalnızca temel `public` yetkileri alır (neon.com/docs/manage/roles, 2026-11-24).
+- **Decision:** Migration/yönetim: projenin sahip rolü (tabloların sahibi). Runtime: SQL ile oluşturulan `cs_app_runtime` (`pnpm db:init`): LOGIN, NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOINHERIT; hiçbir role üye değil, hiçbir nesnenin sahibi değil. Tablo bazında yalnızca gereken GRANT'lar (migration 0002): değiştirilemez kayıtlar (inceleme, yorum, iç not, statü geçmişi, audit) yalnızca SELECT+INSERT; hizmet/kullanıcı DELETE yok; TRUNCATE/REFERENCES/TRIGGER hiçbir tabloda yok; `drizzle` şemasına erişim yok; `public`'te CREATE ve veritabanında TEMP PUBLIC'ten geri alındı. Başvuru alt kayıtları CASCADE ile silinir (referans eylemleri tablo sahibinin yetkisiyle çalışır). Rol düzeyinde `statement_timeout=15s`, `lock_timeout=5s`, `idle_in_transaction_session_timeout=15s` (pooler oturum SET'ini korumadığı için rol düzeyinde). Audit: runtime'a UPDATE/DELETE/TRUNCATE yok + sahip dahil herkes için engelleyen trigger. RLS kullanılmaz (yetkilendirme uygulama katmanında — ARCHITECTURE).
+- **Sınır:** Tablo sahibi rol trigger'ı kapatabilir/tabloyu değiştirebilir; audit koruması bu role karşı mutlak değildir (THREAT_MODEL TM-41).
+
+### D-055 — Bağlantı yapılandırması ve hedef doğrulama
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed — **kısmen Superseded (D-059)**: ayrı test veritabanı ve veritabanı ortam işareti kaldırıldı
+- **Decision:** `DATABASE_URL` = runtime (Neon pooled uç nokta, `cs_app_runtime`); `DATABASE_URL_UNPOOLED` = migration/yönetim (pooler olmayan uç nokta, sahip rol). Uzak bağlantıda `sslmode=verify-full` zorunlu (Neon önerisi); runtime adresinde rol adı `cs_app_runtime` olmak zorunda; production'da yerel adres reddedilir. Doğrulama lazy (`getDatabaseEnv()` → `getDb()`), hata mesajında adres parçası yok. Ayrı `DATABASE_URL_TEST` yok: integration testleri aynı sunucudaki `cs_global_test` veritabanını kullanır (adres türetilir). Her veritabanı `COMMENT ON DATABASE … IS 'cs.environment=<ortam>'` ile işaretlenir (ilk tasarım `ALTER DATABASE … SET cs.environment` idi; PostgreSQL 15+'ta özel ayarı veritabanı düzeyinde yazmak süper kullanıcı istediği için Neon'da reddedildi — 42501); migrate/seed/studio/test yazmadan önce bu işareti doğrular (APP_ENV'e tek başına güvenilmez). Pool: süreç başına tek Pool (`max 5`, `idleTimeoutMillis 10s`, `connectionTimeoutMillis 10s`), dev hot reload'da `globalThis` ile yeniden kullanım. Sürücü: `pg` + `drizzle-orm/node-postgres` (interaktif transaction ve `FOR UPDATE` gerektiği için HTTP sürücüsü kullanılmaz — D-006).
+
+### D-056 — Migration akışı
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Decision:** `drizzle-kit generate` (şemadan SQL) + elle yazılan SQL migration'ları (`--custom`: extension, trigger, GRANT). Sıra: `0000_extensions` (pg_trgm) → `0001_initial_schema` → `0002_security_and_privileges`. Uygulama `pnpm db:migrate` (drizzle-orm migrator, tek transaction, `drizzle.__drizzle_migrations`) ile; hedef işareti doğrulanmadan çalışmaz. `drizzle-kit push` kullanılmaz; uygulanmış migration dosyası değiştirilmez, düzeltme yeni migration ile yapılır; `db:reset`/`db:drop` komutu yoktur. Migration'lar gerçek veritabanından önce PGlite (PostgreSQL WASM, yalnızca scratch dizininde) üzerinde ön kontrol edildi. Production hedefi PHASE 13'te eklenir.
+
+### D-057 — Veritabanı CLI'ı Node 24 ile doğrudan; `tsx` yok
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Decision:** `scripts/db/*.ts` Node 24.22'nin yerleşik TypeScript tip ayıklamasıyla çalışır (uyarısız doğrulandı); ek script runner kurulmaz. Script'ler `.ts` uzantılı göreli import kullanır (`allowImportingTsExtensions`, `noEmit` ile). `.env.local` Node'un `process.loadEnvFile` ile okunur (mevcut değişkenler ezilmez). Paylaşılan saf modül `src/server/db/settings.ts` `server-only` içermez (CLI'da çalışabilmesi için); Drizzle şema dosyaları da aynı nedenle `server-only` içermez — bunlar secret içermez ve client'tan import ESLint sınırıyla engellidir. `getDb()` içeren `client.ts` `server-only`'dir.
+
+### D-058 — Şema kolon adlandırması ve `updated_at`
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Decision:** Kolon adları şemada açıkça snake_case yazılır (Drizzle `casing` seçeneğine bağlı kalınmaz); TS alan adları camelCase. Better Auth tablolarında TS alan adları Better Auth 1.7.27'nin alan adlarıyla birebir aynıdır (adapter `schema[model][field]` ile arar — kaynak koddan doğrulandı). `updated_at` veritabanı trigger'ıyla güncellenir (uygulama kodu unutsa da tutarlı). Statü değerleri `text` + CHECK; değer listeleri tek kaynak `src/config/statuses.ts`'ten üretilir.
+
+### D-059 — Tek veritabanı; ortam ayrımı yok (Product Owner kararı)
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24
+- **Context:** D-055 ayrı `cs_global_dev` ve `cs_global_test` veritabanları ile veritabanı düzeyinde ortam işareti (`cs.environment`) öngörüyordu. Product Owner açıkça tek veritabanı istedi: "diğer tüm veritabanlarını da sil, tek veritabanı ile ilerleyeceğiz, ortamsal fark olmayacak".
+- **Decision:** Uygulama, migration, seed ve integration testleri Neon projesindeki **tek veritabanını** (`neondb`) kullanır. Ayrı development/test veritabanı, `--target` seçeneği ve veritabanı ortam işareti yoktur. Bu oturumda oluşturulan `cs_global_dev` ve `cs_global_test` silindi (yalnızca şema ve test fixture'ı içeriyordu); Neon'un sistem veritabanı `postgres` korunur. Korunan güvenlik kontrolleri: en az yetkili runtime rolü, `sslmode=verify-full`, `db:init`'in bu projeye ait olmayan tablo varsa durması, testlerin yalnızca kendi sentetik kayıtlarını silmesi, seed'in mevcut kayıtlara dokunmaması.
+- **Riskler (kabul edildi, production öncesi yeniden değerlendirilmeli — PB-06):** (1) Veritabanında gerçek müşteri verisi olduğunda `pnpm test:integration` sentetik kayıtları aynı veritabanına yazar; testlerin audit kayıtları silinemez ve kalır. (2) `pnpm db:seed` demo hizmetleri gerçek kataloğun yanına ekler. (3) Hatalı bir test temizliği gerçek veriyi etkileyebilir (temizlik yalnızca test kimlikleriyle sınırlıdır). (4) CLAUDE.md'deki "gerçek müşteri verisi dev/test/demo'da kullanılmaz" kuralı, ortamlar tek veritabanında birleştiği için ancak gerçek veri girmeden önce ayrı production veritabanına geçilerek korunabilir.
+- **Consequences:** PB-06 (production ortam izolasyonu) açık kalır; gerçek müşteri verisi girmeden önce ayrı production veritabanı veya bu kararın yazılı risk kabulü gerekir.
 
 ---
 
@@ -446,3 +487,4 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 | Faz | Onay | Approved By | Tarih | Not |
 |---|---|---|---|---|
 | PHASE 00 — Project Foundation & Architecture (+ revizyon) | **ACCEPTED** | Product Owner | 2026-11-24 | D-002 (TS 6.0.3), D-003 (Node 24 LTS), D-004 (pnpm 10.34.9), D-031 (.gitignore) aynı onayla kabul edildi. PHASE 01 başlatma yetkisi verildi (yalnızca PHASE 01). Bu onay production güvenliği veya KVKK uyumluluğu onayı **değildir**; PB-01…PB-11 açık kalır. |
+| PHASE 01 — Project Initialization | **ACCEPTED** | Product Owner | 2026-11-24 | D-042…D-051 aynı onayla kabul edildi. PHASE 02 başlatma yetkisi verildi (yalnızca PHASE 02). Onay mevcut güvenlik risklerini ve PB-01…PB-11'i kapatmaz. |

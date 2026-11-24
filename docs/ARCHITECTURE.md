@@ -158,7 +158,8 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
 │   ├── bootstrap-admin.ts         # İlk ADMIN (PHASE 03)
 │   └── recover-admin.ts           # ADMIN erişim kurtarma (PHASE 03)
 ├── tests/{unit,integration,e2e,fixtures}/
-├── drizzle.config.ts
+├── drizzle.config.ts          # PHASE 02
+├── scripts/db/                # db:init, db:migrate, db:seed, db:verify, db:studio (Node 24 ile doğrudan)
 ├── next.config.ts
 └── src/
     ├── proxy.ts
@@ -196,7 +197,7 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
     │   └── audit/         {service, queries, components}
     ├── server/                    # Tümü `import 'server-only'`
     │   ├── env.ts
-    │   ├── db/{client.ts, schema/*.ts, migrations/}
+    │   ├── db/{client.ts, settings.ts, schema/*.ts, migrations/}   # PHASE 02
     │   ├── auth/{auth.ts, session.ts, permissions.ts}
     │   ├── customer-access/{tokens.ts, portal-session.ts}
     │   ├── storage/{storage.ts, pdf-validation.ts}
@@ -207,12 +208,14 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
         └── upload-client.ts       # uploadPdf() — client tarafı storage sınırı
 ```
 
+**PHASE 02'de eklenenler:** `drizzle.config.ts`, `src/config/statuses.ts`, `src/server/db/{client.ts, settings.ts, schema/, migrations/}`, `scripts/db/`, `tests/integration/`, `vitest.integration.config.ts`.
+
 **PHASE 01 itibarıyla mevcut olanlar:** `src/app/{layout.tsx, page.tsx, globals.css, robots.ts}`, `src/components/ui/{button,card,badge,alert,separator,input,label}.tsx`, `src/components/shared/logo.tsx`, `src/config/{company,constants}.ts`, `src/lib/utils.ts`, `src/server/env.ts`, `tests/{unit,e2e}/`, `scripts/check-client-bundle.mjs`, `.github/workflows/ci.yml`. Diğer klasörler gerçek kullanımları başladığı fazda oluşturulur (boş klasör/placeholder yok).
 
 Önceki yapıdan kaldırılanlar: `features/customers`, `features/settings`, `server/email`, `server/customer-access/otp.ts`, `/dashboard/settings`, `/dashboard/account`, `/portal/verify`, `src/types` (gerçek ihtiyaç doğunca eklenir).
 
 ### Client/Server sınırı
-1. `src/server/**`, `service.ts`, `queries.ts` ilk satırda `import 'server-only'`.
+1. `src/server/**`, `service.ts`, `queries.ts` ilk satırda `import 'server-only'`. **İstisna (D-057):** `src/server/db/schema/*` ve `src/server/db/settings.ts` Node CLI'ında (drizzle-kit, `scripts/db`) da yüklendiği için `server-only` içermez; secret içermezler ve client'tan import ESLint kuralıyla engellidir. Veritabanına bağlanan `src/server/db/client.ts` `server-only`'dir.
 2. `NEXT_PUBLIC_*` değişken **yok**; bağlantılar sunucuda üretilir.
 3. ESLint `no-restricted-imports`: `src/components/**` ve `src/lib/**` içinden `@/server/*` ve `server-only` yasak. `"use client"` dosyaları glob ile hedeflenemediğinden, onlar için güvence `server-only`'nin derleme zamanı hatasıdır.
 4. `pnpm check:bundle` (`scripts/check-client-bundle.mjs`): build sonrası `.next/static` içinde sunucu env adları ve sunucu modülü işaretleri aranır; bulunursa başarısız olur (CI'da çalışır).
@@ -283,7 +286,7 @@ Kurallar (D-016):
 
 ## 12. Transaction ve Idempotency
 
-- `pg.Pool` (pooled URL) + `drizzle-orm/node-postgres`; interactive transaction (D-006).
+- `pg.Pool` (pooled URL) + `drizzle-orm/node-postgres`; interactive transaction (D-006). Ayrıntı §12.1.
 - Transaction içinde ağ çağrısı yok (storage, doğrulama dışarıda).
 - Başvuru oluşturma `idempotencyKey`; upload claim satır kilidi; gönderim statü guard'ı; bağlantı yenileme `applications FOR UPDATE` + partial unique index.
 
@@ -291,3 +294,12 @@ Kurallar (D-016):
 
 - Hosting runtime logları + yapılandırılmış JSON loglar; PII ve token **loglanmaz** (redaksiyon listesi; `/b/` path'i maskelenir).
 - Harici APM/analytics/hata izleme servisi yok; müşteri tarafında üçüncü taraf script yasak.
+
+### 12.1 Veritabanı bağlantı katmanı (PHASE 02 — D-055)
+- `getDb()` (`src/server/db/client.ts`): ilk çağrıda `getDatabaseEnv()` ile `DATABASE_URL` doğrulanır, **süreç başına tek** `pg.Pool` kurulur; modül import'u bağlantı açmaz. Development'ta hot reload'da `globalThis` üzerinden yeniden kullanılır. İstek veya sorgu başına Pool/bağlantı açılmaz.
+- Doğrudan Drizzle sorgu ve `db.transaction()` API'si kullanılır; generic repository, Unit of Work veya DI katmanı yoktur.
+- **Pool ayarları ve gerekçesi:** `max: 5` — Neon pooler (PgBouncer, transaction modu) istemci bağlantılarını 10 000'e kadar kabul eder ve sunucu bağlantılarını `0.9 × max_connections` (0.25 CU'da ≈100) havuzunda çoğullar; sunucusuz örnek başına küçük havuz yeterlidir. `idleTimeoutMillis: 10s` — boştaki istemciler kapanır. `connectionTimeoutMillis: 10s` — Neon'un scale-to-zero sonrası uyanması "birkaç yüz ms"dir (Free plan'da 5 dk hareketsizlikte uyur); pay bırakılır. Bu değerler başlangıç değerleridir; yük testleri PHASE 12'de, hosting'e özgü havuz yaşam döngüsü (ör. Vercel `attachDatabasePool`) PHASE 13'te değerlendirilir.
+- **Zaman aşımları rol düzeyindedir** (`statement_timeout 15s`, `lock_timeout 5s`, `idle_in_transaction_session_timeout 15s` — `pnpm db:init`): pooler transaction modunda oturum `SET`'i korunmaz ve başka istemcilere taşabilir; transaction içi gereksinimde `SET LOCAL` kullanılır.
+- Pooler kısıtları: oturum `SET/RESET`, `LISTEN/NOTIFY`, SQL `PREPARE`, oturum düzeyi advisory lock kullanılmaz.
+- Hata logu yalnızca PostgreSQL hata kodunu içerir; bağlantı adresi, kullanıcı adı, şifre, sorgu parametresi veya kişisel veri loglanmaz.
+- Statik başlangıç sayfası ve `next build` veritabanı gerektirmez.

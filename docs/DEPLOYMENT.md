@@ -38,8 +38,8 @@ APP_URL=                          # Tek bağlantı kaynağı (OD-20): http://loc
 APP_ENV=                          # development | preview | production
 
 # --- Veritabanı ---
-DATABASE_URL=                     # Pooled bağlantı — runtime
-DATABASE_URL_UNPOOLED=            # Direct bağlantı — migration
+DATABASE_URL=                     # Pooled bağlantı — runtime, cs_app_runtime rolü, sslmode=verify-full (PHASE 02)
+DATABASE_URL_UNPOOLED=            # Direct bağlantı — migration/yönetim, tablo sahibi rol (PHASE 02)
 
 # --- Better Auth ---
 BETTER_AUTH_SECRET=               # >=32 kr., yüksek entropi
@@ -156,3 +156,22 @@ Tüm konsollarda (hosting, DB, storage, GitHub) **MFA zorunlu**; production eri�
 - Node.js `engines.node: 24.x` + `.nvmrc` (`24`); pnpm `packageManager: pnpm@10.34.9`. Vercel'in varsayılan Node sürümü 26 olduğundan `engines` sabitlemesi zorunludur. Hosting'de pnpm 10.34.9 kullanımı (Corepack/`packageManager`) **doğrulanmadı** — deployment PHASE 13'te.
 - CI: `.github/workflows/ci.yml` — push (`main`) ve PR'da kalite kapıları + E2E. Repo herkese açık olduğundan GitHub Actions standart runner'ları ücretsizdir; ücretli plan veya kredi kartı gerekmez. Workflow yalnızca `contents: read` yetkisiyle çalışır, secret kullanmaz.
 - Deployment, preview, hosting hesabı: **yapılmadı** (PHASE 13).
+
+## 12. Veritabanı Ortamı (PHASE 02)
+
+### 12.1 Neon kurulumu (yapıldı — 2026-11-24)
+Tek veritabanı (D-059): Neon projesindeki `neondb` veritabanı uygulama, migration, seed ve integration testleri için ortak kullanılır. Ayrı development/test veritabanı yoktur. Proje: Free plan, AWS Europe (Frankfurt) `aws-eu-central-1`, PostgreSQL 18.7.
+- `.env.local` (yalnızca yerel, git'te ignore, izin `600`):
+  - `DATABASE_URL_UNPOOLED` = pooler olmayan uç nokta, sahip rol (`neondb_owner`), `neondb`, `sslmode=verify-full` (`channel_binding` parametresi kaldırılır).
+  - `DATABASE_URL` = aynı ana makinenin `-pooler` ekli hali, kullanıcı `cs_app_runtime`, yerelde üretilen şifre (`openssl rand -hex 32` eşdeğeri), `neondb`, `sslmode=verify-full`.
+- Komutlar: `pnpm db:verify` → `pnpm db:init` → `pnpm db:migrate` → (isteğe bağlı) `pnpm db:seed`; `pnpm test:integration` aynı veritabanında çalışır.
+- Bağlantı bilgileri sohbete, terminal çıktısına veya issue'lara yazılmaz; yazıldıysa ilgili rolün şifresi Neon'da sıfırlanır.
+
+### 12.2 Bölge ve KVKK
+Frankfurt, planlanan hosting bölgesine (`fra1`) yakın olduğu için önerilir. **Avrupa bölgesi seçmek tek başına KVKK uyumu sağlamaz**: Türkiye dışına aktarım (m.9) ve sağlayıcı sözleşmeleri hukuki değerlendirme gerektirir (DATA_PRIVACY §8, PB-03). Production bölgesi PHASE 13'te sağlayıcı kararıyla kesinleşir.
+
+### 12.3 Neon Free plan (doğrulandı 2026-11-24, neon.com/docs/introduction/plans)
+100 proje; proje başına 1 GB depolama (toplam 20 GB), 100 CU-saat/ay, 5 GB egress, 10 branch, 6 saat (1 GB değişiklik geçmişi) geri yükleme penceresi; 5 dk hareketsizlikte scale-to-zero (Free'de sabit). SLA yok. Development/test için yeterlidir; production uygunluğu PB-01/PB-08 kapsamındadır.
+
+### 12.4 Ortam izolasyonu (D-059)
+Veritabanı düzeyinde ortam ayrımı yoktur (Product Owner kararı). `db:init` bu projeye ait olmayan tablo varsa durur; integration testleri yalnızca kendi sentetik kayıtlarını siler; seed mevcut kayıtlara dokunmaz. **Gerçek müşteri verisi girmeden önce** ayrı production veritabanı veya bu kararın yazılı risk kabulü gerekir (PB-06, TM-43).

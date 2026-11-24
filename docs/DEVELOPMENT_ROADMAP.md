@@ -15,7 +15,7 @@
 - **Acceptance:** Dokümanlar kararlarla uyumlu, çelişkisiz, referanslar geçerli.
 - **DoD:** Kullanıcı revizyonu onaylar; D-002 ve D-004 kararlarını verir.
 
-## PHASE 01 — Project Initialization (tamamlandı — kullanıcı onayı bekliyor; sonuçlar PROJECT_STATE ve CHANGELOG'da)
+## PHASE 01 — Project Initialization (tamamlandı — Product Owner onayı 2026-11-24)
 - **Scope:** `.gitignore` değişimi (D-031, ilk adım), Next.js 16 + TypeScript (D-002) strict + Tailwind 4 + shadcn/ui, ESLint (flat config, `eslint-config-next`, `no-restricted-imports` sınırları, `dangerouslySetInnerHTML` yasağı, cache API yasağı) + Prettier, klasör yapısı, `server-only`, `src/server/env.ts`, `.env.example`, `src/config/constants.ts` ve `src/config/company.ts` iskeleti, design token'ları, temel bileşenler (Button, Input, Card, Badge, `Logo`), Vitest + Playwright kurulumu, güvenlik header iskeleti, `robots.ts`, CI taslağı, `engines.node = 24.x` + `packageManager` sabitleme.
 - **Deliverables:** Repo iskeleti, lockfile, CI workflow, `pnpm` script'leri.
 - **Dependencies:** PHASE 00 onayı; D-002, D-004.
@@ -24,7 +24,7 @@
 - **Acceptance:** `pnpm build` başarılı; kalite kapıları yeşil; header'lar mevcut; `.env.local` git tarafından ignore ediliyor (test).
 - **DoD:** Ortak DoD + TECH_STACK kurulu sürümlerle güncel.
 
-## PHASE 02 — Database Foundation
+## PHASE 02 — Database Foundation (tamamlandı — kullanıcı onayı bekliyor; tek veritabanı D-059)
 - **Scope:** Neon Free non-prod projesi (kullanıcı onayıyla, ücretsiz), Drizzle + `pg` pool, 13 domain tablosu + CHECK/partial unique index/trigger/GRANT migration'ları, `pg_trgm`, sahte seed (demo hizmetler, şablonlar, sahte başvurular), normalizasyon yardımcıları (telefon, e-posta, arama).
 - **Deliverables:** `src/server/db/schema/*`, migration SQL'leri, `db:generate`, `db:migrate`, `db:seed`, integration test altyapısı.
 - **Dependencies:** PHASE 01; D-005, D-006, D-007, D-008, D-039.

@@ -60,7 +60,7 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 
 | Katman | Durum |
 |---|---|
-| Aktarım | TLS: tarayıcı ↔ hosting (HSTS), uygulama ↔ DB (`sslmode=verify-full` — PHASE 02'de doğrulanır), uygulama ↔ storage (HTTPS) |
+| Aktarım | TLS: tarayıcı ↔ hosting (HSTS), uygulama ↔ DB (`sslmode=verify-full` zorunlu; PHASE 02'de TLS 1.3 + doğrulanmış sertifika test edildi), uygulama ↔ storage (HTTPS) |
 | Neon at-rest | AES-256 (Neon güvenlik dokümanı) |
 | Vercel Blob at-rest | **Doğrulanmadı** — PHASE 08'de |
 | Uygulama seviyesi | Bağlantı token'ı: HMAC hash + AES-256-GCM kopya; personel şifreleri scrypt |
@@ -100,8 +100,8 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 
 | Ortam | DB | Storage | Secret | Veri |
 |---|---|---|---|---|
-| Development | Neon Free non-prod projesi, `dev` branch | Ayrı Blob store (dev) | `.env.local` | Sahte |
+| Development (PHASE 02 itibarıyla — D-059) | Neon Free projesinde **tek veritabanı** (`neondb`); testler ve seed aynı veritabanını kullanır | Ayrı Blob store (dev) | `.env.local` | Sahte |
 | Preview / Demo | Neon Free non-prod projesi, preview branch'leri | Ayrı Blob store (demo) | Sağlayıcı Preview scope | Sahte |
 | Production | **Ayrı proje/hesap** — sağlayıcı açık (PB-01) | **Ayrı store** | Production scope | Gerçek |
 
-Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md).
+Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md). ⚠️ D-059 (tek veritabanı) nedeniyle gerçek müşteri verisi bu veritabanına **girmeden önce** ayrı production veritabanı gerekir (PB-06, TM-43).

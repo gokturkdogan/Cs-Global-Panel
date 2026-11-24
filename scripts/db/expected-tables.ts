@@ -1,0 +1,20 @@
+/** Bu projenin public şemasındaki tablolar (DATABASE_SCHEMA.md — 17 tablo). */
+export const EXPECTED_TABLES: readonly string[] = [
+  "users",
+  "sessions",
+  "accounts",
+  "verifications",
+  "services",
+  "service_document_requirements",
+  "application_number_counters",
+  "applications",
+  "application_document_requirements",
+  "application_document_files",
+  "document_reviews",
+  "document_comments",
+  "application_internal_notes",
+  "application_status_history",
+  "application_access_tokens",
+  "rate_limit_buckets",
+  "audit_logs",
+];

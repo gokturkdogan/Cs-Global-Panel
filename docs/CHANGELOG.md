@@ -2,6 +2,31 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 02 — Database Foundation] — 2026-11-24
+
+PHASE 01 kapatıldı (D-042…D-051 Accepted). Veritabanı altyapısı kuruldu ve Neon üzerinde doğrulandı.
+
+### Added
+- `drizzle-orm` 0.45.4, `pg` 8.23.1 (runtime); `drizzle-kit` 0.31.11, `@types/pg` 8.23.1 (dev). `tsx` eklenmedi (Node 24 TS'yi doğrudan çalıştırır).
+- Drizzle şeması `src/server/db/schema/` (17 tablo), `src/config/statuses.ts` (statü/kod listeleri — CHECK'lerin tek kaynağı), `src/server/db/settings.ts`, `src/server/db/client.ts` (lazy Pool, `getDb()`), `getDatabaseEnv()`.
+- Migration'lar: `0000_extensions` (pg_trgm), `0001_initial_schema`, `0002_security_and_privileges` (updated_at trigger'ları, audit append-only trigger'ları, runtime GRANT'ları).
+- `drizzle.config.ts`; `scripts/db/` (`db:verify`, `db:init`, `db:migrate`, `db:seed`, `db:studio`); `db:generate`, `db:check`, `test:integration` script'leri.
+- En az yetkili `cs_app_runtime` rolü (SQL ile; `neon_superuser` değil), rol düzeyi zaman aşımları.
+- Unit testler (db adresi doğrulama, migration SQL statik kontrolleri, seed verisi, `parseDatabaseEnv`) ve 4 integration test dosyası (71 test).
+- Kararlar D-052…D-059; THREAT_MODEL TM-41…TM-43; DATABASE_SCHEMA §9; ARCHITECTURE §12.1; DEPLOYMENT §12; SECURITY §9a; TESTING_STRATEGY §11.
+- Neon projesi (Free, Frankfurt, PG 18.7): `neondb` üzerinde şema, rol ve demo seed.
+
+### Changed
+- Şema dokümana göre uygulandı; teknik zorunluluklarla: bileşik FK'lar ve NULL-güvenli CHECK'ler (D-052), hizmet/şablon `created_by_user_id` nullable (D-053), token referansları `SET NULL` yerine bileşik FK + `NO ACTION`.
+- `check-client-bundle.mjs`: secret adlarına ek olarak build ortamındaki secret değerleri (canary) aranır; CI build/check canary değerlerle çalışır, `db:check` eklendi.
+- `.env.example`: `DATABASE_URL`, `DATABASE_URL_UNPOOLED` biçim örnekleri.
+- `pnpm-workspace.yaml`: `esbuild` kurulum script'i bilinçli olarak yok sayılır.
+- `tsconfig.json`: `allowImportingTsExtensions` (Node ile çalışan script'ler için).
+- **Tek veritabanı (D-059, Product Owner):** ayrı development/test veritabanı ve veritabanı ortam işareti kaldırıldı; geçici olarak oluşturulan `cs_global_dev`, `cs_global_test` silindi.
+
+### Not Changed
+- OD-01…OD-23; PB-01…PB-11 (PB-06 notu genişletildi). Kimlik doğrulama, panel, portal, storage, deployment yok. Commit/push yapılmadı.
+
 ## [PHASE 01 — Project Initialization] — 2026-11-24
 
 PHASE 00 kapatıldı (Product Owner onayı; D-002, D-003, D-004, D-031 Accepted). Çalışan proje altyapısı kuruldu; ürün özelliği yok.

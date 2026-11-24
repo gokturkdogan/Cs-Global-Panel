@@ -31,6 +31,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - Akış: **Zod → aktörü sunucuda çöz → RBAC → kaynak kontrolü → domain guard (kilit altında) → transaction → audit → DTO**.
 - Statü geçişleri yalnızca merkezi state machine ile (`docs/STATE_TRANSITIONS.md`); ADMIN de yalnızca matristeki geçişleri yapar.
 - Transaction içinde ağ çağrısı yok; kilit sırası applications → requirements → files.
+- Veritabanı: uygulama yalnızca `getDb()` (`cs_app_runtime`, en az yetki) ile; şema değişikliği = `pnpm db:generate` + SQL incelemesi + yeni migration (uygulanmış migration değiştirilmez, `push` yok); yeni tablo GRANT'ı aynı migration'da; statü değerleri `src/config/statuses.ts`; ayrıntı `docs/DATABASE_SCHEMA.md` §9.
 - `cacheComponents` kapalı; hassas veride `use cache` / `force-static` / `revalidate` yasak; korumalı yanıtlar `no-store`.
 - Sabit yapılandırma: dosya limitleri (PDF, `MAX_PDF_SIZE_BYTES = 10 485 760`, evrak başına 1 aktif PDF), şifre min 8, oturumlar 7 gün sabit, rate limitler, şirket iletişim bilgileri. Ayarlar sayfası/tablosu yok.
 - Gelecek ihtimaller için kod, tablo, endpoint, servis, konfigürasyon oluşturma.

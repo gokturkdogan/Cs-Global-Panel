@@ -189,6 +189,14 @@ Kaldırılan event'ler: `CUSTOMER_OTP_*`, `CUSTOMER_ACCESS_GRANTED`, `ACCESS_LIN
 - GitHub secret scanning + push protection (PHASE 13).
 - Rotasyon: [DEPLOYMENT.md](DEPLOYMENT.md) §5.
 
+## 9a. Veritabanı Güvenliği (PHASE 02)
+- **En az yetki (D-054):** uygulama `cs_app_runtime` ile çalışır (SQL ile oluşturulmuş; `neon_superuser` üyesi değil, süper kullanıcı değil, rol/veritabanı oluşturamaz, hiçbir nesnenin sahibi değil). Tablo bazında yalnızca gereken yetkiler; DDL/TRUNCATE yok; audit yalnızca SELECT+INSERT. Runtime adresi başka rol kullanırsa uygulama bağlanmaz (D-055). Migration/yönetim rolü yalnızca CLI'da.
+- **Aktarım:** uzak bağlantılarda `sslmode=verify-full` zorunlu (sertifika + ana makine doğrulaması).
+- **Audit değiştirilemezliği:** runtime rolüne karşı yetki + trigger; tablo sahibi role karşı mutlak değildir (TM-41).
+- **Hedef koruması:** tek veritabanı (D-059); `db:init` bu projeye ait olmayan tablo varsa durur; testler yalnızca kendi sentetik kayıtlarını siler; seed mevcut kayıtlara dokunmaz; `db:reset`/`db:drop` yok; Drizzle Studio yalnızca `127.0.0.1`. Gerçek veri öncesi ayrı production veritabanı: PB-06/TM-43.
+- **Gizlilik:** bağlantı adresi/şifre loglanmaz, hata mesajlarında yer almaz; build sırasında canary secret değerleriyle client bundle taranır (`pnpm check:bundle`).
+- RLS kullanılmaz; kaynak bazlı yetkilendirme sunucu tarafında zorunludur (§1).
+
 ## 10. Bağımlılık Güvenliği
 
 Exact sürümler, commit'li lockfile, `pnpm install --frozen-lockfile`, her faz sonunda `pnpm audit` (yüksek/kritik = blok). PHASE 01'de uygulandı (D-046): kurulum script'leri varsayılan olarak engelli (yalnızca `sharp`, `unrs-resolver` bilinçli olarak yok sayılır), `minimumReleaseAge: 1440` (24 saatten yeni sürüm kurulmaz), CI action'ları commit SHA'sıyla sabit, `pnpm check:bundle` ile client bundle secret kontrolü. Ücretli servis bağımlılığı yok.
@@ -204,7 +212,7 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 | PB-03 | KVKK hukuki değerlendirmesi (aydınlatma, yurt dışı aktarım, saklama/imha, VERBİS, ihlal prosedürü) | DATA_PRIVACY §9 |
 | PB-04 | Bearer link + OTP yok + süresiz bağlantı + belge indirme birleşik riskinin **yazılı risk kabulü** | THREAT_MODEL TM-13–TM-15 |
 | PB-05 | Antivirüs taraması olmadan PDF kabulünün **yazılı risk kabulü** ve personel cihaz önlemleri | THREAT_MODEL TM-16 |
-| PB-06 | Ortam izolasyonu (production DB/storage/secret'ların ayrılması) | DEPLOYMENT §1 |
+| PB-06 | Ortam izolasyonu (production DB/storage/secret'ların ayrılması). D-059 (tek veritabanı) nedeniyle gerçek müşteri verisi girmeden önce ayrı production veritabanı veya yazılı risk kabulü gerekir (TM-43). | DEPLOYMENT §1, §12.4 |
 | PB-07 | Tüm yetkilendirme negatif testleri ve güvenlik E2E senaryolarının geçmesi | TESTING_STRATEGY |
 | PB-08 | Yedek/geri yükleme yeteneğinin seçilen ücretsiz planda doğrulanması | DEPLOYMENT §7 |
 | PB-09 | Bağımlılık taraması temiz | |

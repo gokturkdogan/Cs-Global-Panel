@@ -1,6 +1,6 @@
 # Veritabanı Şeması
 
-> PostgreSQL (Neon) + Drizzle ORM 0.45.x. Bu bir **tasarım dokümanıdır**; fiziksel DB, migration veya bağlantı oluşturulmamıştır.
+> PostgreSQL (Neon) + Drizzle ORM 0.45.4. **PHASE 02'de uygulandı:** şema `src/server/db/schema/*`, migration'lar `src/server/db/migrations/` (0000–0002). Uygulama ayrıntıları, invariant'lar ve yetkiler §9'da. Gerçek veritabanında doğrulama durumu: [PROJECT_STATE.md](PROJECT_STATE.md).
 > İş kuralları: [BUSINESS_RULES.md](BUSINESS_RULES.md) · State machine: [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) · Silme: BR-150…BR-155
 > Revizyon (2026-11-24, OD-01…OD-23): 23 → **17 tablo**. Değişiklik özeti §8'de.
 
@@ -8,13 +8,13 @@
 
 | Konu | Karar |
 |---|---|
-| İsimlendirme | Tablo/kolon `snake_case`, çoğul. Drizzle TS tarafında `camelCase` (`casing: 'snake_case'`). |
+| İsimlendirme | Tablo/kolon `snake_case`, çoğul. Drizzle TS tarafında `camelCase`; kolon adları şemada açıkça yazılır (`casing` seçeneğine bağlı değil — D-058). |
 | PK (domain) | `uuid DEFAULT gen_random_uuid()` (D-007). |
-| PK (Better Auth) | Kütüphanenin ürettiği `text` ID'ler. Domain → `users` FK'ları `text`. |
+| PK (Better Auth) | Kütüphanenin ürettiği `text` ID'ler (Better Auth varsayılan ID üretimi; `generateId` değiştirilmez). Domain → `users` FK'ları `text`. |
 | PK (audit) | `bigint GENERATED ALWAYS AS IDENTITY`. |
 | Public referans | `applications.application_number`. Personel URL'lerinde UUID; her istekte yetki kontrolü. |
-| Statü/enum | `text` + `CHECK (col IN (...))`. TS union tipleri domain modülünden. |
-| Zaman | Tümü `timestamptz` UTC, `DEFAULT now()`. Gösterim `Europe/Istanbul`. |
+| Statü/enum | `text` + `CHECK (col IN (...))` (PostgreSQL enum değil: değer ekleme/çıkarma basit migration'dır). Değer listeleri ve TS union tipleri tek kaynak `src/config/statuses.ts`. |
+| Zaman | Tümü `timestamptz` UTC, `DEFAULT now()`; `updated_at` veritabanı trigger'ıyla güncellenir (D-058). Gösterim `Europe/Istanbul`. |
 | Silme davranışı | Kullanıcılar ve hizmetler silinmez → FK `ON DELETE RESTRICT`. Başvuruya ait tüm alt kayıtlar `ON DELETE CASCADE` — **yalnızca ADMIN manuel silme** tetikler (BR-150). |
 | Soft delete | Yok. Arşiv yok (OD-23). `deletion_requested_at` yalnızca devam eden gerçek silme işleminin işaretidir (BR-153), soft delete değildir. |
 | Sabit limitler | Dosya tipi/boyutu/sayısı şemada **kolon değildir** (OD-16); `src/config/constants.ts` + DB kısıtları (tek aktif dosya). |
@@ -164,7 +164,7 @@ Better Auth `rateLimit` tablosu **oluşturulmaz**: `disableIpTracking` yerleşik
 | `description` | text | ✓ | | ≤2000 |
 | `is_active` | boolean | ✗ | true | |
 | `sort_order` | integer | ✗ | 0 | |
-| `created_by_user_id` / `updated_by_user_id` | text | ✗ / ✓ | | FK users RESTRICT |
+| `created_by_user_id` / `updated_by_user_id` | text | ✓ / ✓ | | FK users RESTRICT. NULL = sistem/seed kaydı (D-053); personel işlemlerinde uygulama zorunlu doldurur |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
 Index `(is_active, sort_order)`. Silme yok (BR-22).
@@ -180,7 +180,7 @@ Index `(is_active, sort_order)`. Silme yok (BR-22).
 | `is_required` | boolean | ✗ | true | |
 | `sort_order` | integer | ✗ | 0 | |
 | `is_active` | boolean | ✗ | true | |
-| `created_by_user_id` / `updated_by_user_id` | text | ✗ / ✓ | | FK users |
+| `created_by_user_id` / `updated_by_user_id` | text | ✓ / ✓ | | FK users RESTRICT (D-053) |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
 Index `(service_id, is_active, sort_order)`. **Kaldırılan alanlar:** `allowed_mime_type`, `max_file_size_bytes`, `max_file_count` (OD-16).
@@ -256,7 +256,7 @@ Index `(application_id, sort_order)`. **Kaldırılan alanlar:** `allowed_mime_ty
 | `rejection_reason` | text | ✓ | | `NOT_PDF`, `ACTIVE_CONTENT`, `EMBEDDED_FILE`, `ENCRYPTED`, `MALFORMED`, `TOO_LARGE`, `RESOURCE_LIMIT`, `STATE_CHANGED`, `VALIDATION_ERROR` — personel içi |
 | `uploaded_by_actor_type` | text | ✗ | | CHECK `IN ('USER','CUSTOMER')` |
 | `uploaded_by_user_id` | text | ✓ | | FK users RESTRICT |
-| `uploaded_by_access_token_id` | uuid | ✓ | | FK application_access_tokens SET NULL |
+| `uploaded_by_access_token_id` | uuid | ✓ | | Bileşik FK `(uploaded_by_access_token_id, application_id)` → tokens, NO ACTION (D-052) |
 | `upload_expires_at` | timestamptz | ✗ | | Token süresi (+tolerans) |
 | `uploaded_at` | timestamptz | ✓ | | Blob alındı |
 | `activated_at` | timestamptz | ✓ | | ACTIVE oldu |
@@ -306,7 +306,7 @@ Index `(requirement_id, created_at DESC)`. Immutable. Tek aktif dosya kuralıyla
 | `transition_code` | text | ✗ | `CREATE`, `SUBMIT`, …, `REVERT_FOR_REVISION` (T-kodları) |
 | `actor_type` | text | ✗ | CHECK `IN ('USER','CUSTOMER')` |
 | `actor_user_id` | text | ✓ | FK users RESTRICT |
-| `actor_access_token_id` | uuid | ✓ | FK application_access_tokens SET NULL |
+| `actor_access_token_id` | uuid | ✓ | Bileşik FK `(actor_access_token_id, application_id)` → tokens, NO ACTION (D-052) |
 | `on_behalf_of_customer` | boolean | ✗ | false |
 | `reason` | text | ✓ | ≤1000; personel içi; T7–T12'de zorunlu (CHECK `transition_code NOT IN (...) OR reason IS NOT NULL`) |
 | `created_at` | timestamptz | ✗ | now() |
@@ -356,7 +356,7 @@ OD-09 istisnası: IP'den türetilen anahtarlar yalnızca HMAC'lenmiş, pencere s
 | `metadata` | jsonb | ✗ | `'{}'`; whitelist anahtarlar; PII/token/şifre yok |
 
 IP / user-agent / `ip_hash` / `request_id` kolonları **yoktur** (OD-09). Index: `(occurred_at DESC)`, `(action, occurred_at DESC)`, `(actor_user_id, occurred_at DESC)`, `(application_id, occurred_at DESC)`.
-**Değiştirilemezlik (D-039):** uygulama runtime rolü yalnızca `INSERT, SELECT` (`REVOKE UPDATE, DELETE, TRUNCATE`) + `BEFORE UPDATE OR DELETE` trigger'ı hata fırlatır. Otomatik saklama/silme işi **yoktur** (OD-06). Neon'da ayrı rol oluşturma PHASE 02'de doğrulanır; mümkün değilse trigger tek başına uygulanır.
+**Değiştirilemezlik (D-039):** uygulama runtime rolü yalnızca `INSERT, SELECT` (`REVOKE UPDATE, DELETE, TRUNCATE`) + `BEFORE UPDATE OR DELETE` trigger'ı hata fırlatır. Otomatik saklama/silme işi **yoktur** (OD-06). Neon'da SQL ile oluşturulan rolün `neon_superuser` üyeliği almadığı dokümandan doğrulandı (D-054). Metadata CHECK'i yalnızca izinli üst düzey anahtarları kabul eder (`src/config/statuses.ts` → `AUDIT_METADATA_KEYS`).
 
 ## 5. Normalizasyon ve Arama
 - Telefon: E.164 (BR-07); arama girdisi de normalize edilir.
@@ -382,11 +382,12 @@ IP / user-agent / `ip_hash` / `request_id` kolonları **yoktur** (OD-09). Index:
 
 Transaction içinde ağ çağrısı yok (Blob, doğrulama dışarıda); kilit sırası **applications → requirements → files**.
 
-## 7. Migration Stratejisi (PHASE 02)
-- `drizzle-kit generate` → SQL migration'lar repoya; production'da `push` yok.
-- Migration'lar direct (pooler olmayan) URL ile.
-- CHECK, partial unique index, trigger, GRANT/REVOKE özel SQL migration'larıyla.
-- Expand → migrate → contract.
+## 7. Migration Stratejisi (PHASE 02 — uygulandı, D-056)
+- `pnpm db:generate` (`drizzle-kit generate`) → SQL migration'lar repoya; SQL her seferinde incelenir. `push` hiçbir ortamda kullanılmaz.
+- CHECK, partial unique index ve bileşik FK'lar Drizzle şemasından üretilir; extension, trigger, fonksiyon ve GRANT/REVOKE elle yazılan migration'lardadır (`--custom`).
+- Uygulama: `pnpm db:migrate` — pooler olmayan URL, sahip rol, tek transaction; önce `pnpm db:init` (runtime rolü). Tek veritabanı (D-059).
+- Uygulanmış migration dosyası **değiştirilmez**; düzeltme yeni migration ile yapılır. Yeni tablo ekleyen migration GRANT'larını da içerir (integration testi yakalar).
+- Expand → migrate → contract. `db:reset` / `db:drop` / `DROP SCHEMA` kullanılmaz.
 
 ## 8. Önceki ve Yeni Model Farkı
 
@@ -400,3 +401,53 @@ Transaction içinde ağ çağrısı yok (Blob, doğrulama dışarıda); kilit s�
 | İnceleme → dosya | `document_review_files` (N:N) | `document_reviews.file_id` (N:1) |
 | Kaldırılan alanlar | — | `assigned_user_id`, `archived_*`, `terminal_at`, `must_change_password`, `expires_at`/`last_used_at` (token), `max_file_*`/`allowed_mime_type`, `added_after_creation`, `ip_hash`/`request_id` (audit), tüm ayar kolonları |
 | Eklenen alanlar | — | `applications.customer_*`, `search_text` (taşındı), `deletion_requested_*`, `application_status_history.transition_code`, `document_reviews.file_id`, `sessions` CHECK (IP/UA null) |
+
+## 9. PHASE 02 Uygulama Notları
+
+### 9.1 Invariant'lar → mekanizma → test
+
+| ID | Invariant | Veritabanı mekanizması | Doğrulama |
+|---|---|---|---|
+| INV-01 | Başvuru numarası benzersiz, biçimli | `applications_number_unique` + CHECK `^CS-[0-9]{4}-[0-9]{6,}$` | constraints, concurrency (10 eşzamanlı) |
+| INV-02 | Başvuru başına tek aktif token | Partial unique `(application_id) WHERE revoked_at IS NULL` | constraints, concurrency (2 bağlantı) |
+| INV-03 | Token hash benzersiz; düz token yok | `access_tokens_hash_unique` + 64 hex CHECK; `token`/`expires_at` kolonu yok | constraints |
+| INV-04 | Evrak başına tek ACTIVE PDF | Partial unique `(requirement_id) WHERE status = 'ACTIVE'` | constraints, concurrency |
+| INV-05 | Evrak başına tek devam eden yükleme | Partial unique `WHERE status IN ('UPLOAD_PENDING','VALIDATING')` | constraints |
+| INV-06 | 0 < boyut ≤ 10 485 760 | CHECK (yapısal PDF doğrulamasının yerine geçmez — PHASE 08) | constraints |
+| INV-07 | Yalnızca PDF metadata'sı | `mime_type` kolonu yok (tek tür); storage yolu kimliklerden türetilmiş `.pdf` (CHECK) | constraints |
+| INV-08 | Versiyon evrak içinde benzersiz, ≥ 1; yalnızca doğrulanmış dosyada | Partial unique `(requirement_id, version_number)` + CHECK | constraints, concurrency |
+| INV-09 | İnceleme yalnızca aynı evrağın/başvurunun dosyasına | Bileşik FK `(file_id, requirement_id, application_id)` (D-052) | constraints |
+| INV-10 | Snapshot/yorum/not başka başvuruya bağlanamaz; şablon değişikliği snapshot'ı etkilemez | Bileşik FK'lar; şablona yalnızca `SET NULL` referans | constraints |
+| INV-11 | Personel kullanıcı adı benzersiz, küçük harf | UNIQUE + CHECK `^[a-z0-9_.]{3,30}$` | constraints |
+| INV-12 | IP/UA kalıcı tutulmaz | `sessions` CHECK `ip_address IS NULL AND user_agent IS NULL` (+ `impersonated_by IS NULL`) | constraints |
+| INV-13 | Audit değiştirilemez | Runtime: yalnızca SELECT+INSERT; trigger UPDATE/DELETE/TRUNCATE'i herkes için reddeder; metadata anahtar beyaz listesi | privileges |
+| INV-14 | Geçersiz FK reddedilir | Tüm FK'lar | constraints |
+| INV-15 | Silme bütünlüğü | Başvuru → alt kayıtlar CASCADE; hizmet/kullanıcı RESTRICT; audit'te FK yok | transactions-and-deletion |
+| INV-16 | Optimistic lock | `version >= 1` CHECK; desen §9.3 | constraints, concurrency |
+| INV-17 | Zaman tutarlılığı | Tümü `timestamptz`; `updated_at` trigger | privileges (tip), constraints |
+
+### 9.2 Runtime rolü yetkileri (D-054)
+
+| Yetki | Tablolar |
+|---|---|
+| SELECT, INSERT, UPDATE, DELETE | `applications`, `sessions`, `verifications`, `rate_limit_buckets` |
+| SELECT, INSERT, UPDATE | `users`, `accounts`, `services`, `service_document_requirements`, `application_number_counters`, `application_document_requirements`, `application_document_files`, `application_access_tokens` |
+| SELECT, INSERT | `document_reviews`, `document_comments`, `application_internal_notes`, `application_status_history`, `audit_logs` |
+| Hiçbiri | TRUNCATE, REFERENCES, TRIGGER, DDL, `drizzle` şeması, `public`'te CREATE, TEMP |
+
+Bu yetkiler sunucu tarafı yetkilendirmenin yerine geçmez: örneğin runtime rolünün `audit_logs`'u okuyabilmesi, EMPLOYEE'nin audit ekranını görebileceği anlamına gelmez (AUTHORIZATION_MATRIX).
+
+### 9.3 Mutasyon desenleri (sonraki fazlar için)
+- **Optimistic lock:** `UPDATE … SET …, version = version + 1 WHERE id = $1 AND version = $expected RETURNING …` → 0 satır = `CONFLICT` (kullanıcıya "kayıt başka biri tarafından değiştirildi"). Eşzamanlı ikinci güncelleme ilk commit'i bekler ve 0 satır döner (integration testiyle doğrulandı).
+- **Kilit sırası:** `applications` → `application_document_requirements` → `application_document_files` (`SELECT … FOR UPDATE/SHARE`). Ters sıra yasaktır (deadlock).
+- **Hata kodları:** `23505` unique → `CONFLICT`; `23514` check / `23503` FK → uygulama hatası, `INTERNAL_ERROR` (girdi doğrulaması Zod'da yapılmış olmalı); `40001` serialization / `40P01` deadlock → en fazla 1 kez yeniden deneme, sonra `CONFLICT`; `55P03` lock timeout / `57014` statement timeout → `CONFLICT`/`INTERNAL_ERROR`, yeniden deneme yok. Sonsuz retry yoktur. Hata mesajları kullanıcıya iletilmez, PII/SQL parametresi loglanmaz.
+- **Başvuru numarası:** §4.3 sayaç sorgusu; numara boşluksuz değildir (geri alınan transaction aynı numarayı bir sonrakine bırakabilir; silinen başvurunun numarası tekrar kullanılmaz — sayaç geri gitmez). 7+ haneye taşma biçimce desteklenir.
+
+### 9.4 Silme ve storage
+Veritabanı CASCADE'i storage nesnelerini **silmez**. BR-153 sırası korunur: aşama 1 `deletion_requested_*` + token iptali → storage nesneleri silinip doğrulanır (PHASE 08/10) → aşama 2 DB satırı silinir. Storage silme başarısızsa DB kaydı silinmez (aksi halde sahipsiz kişisel veri kalır). `audit_logs` FK içermez ve kişisel veri içermediği için başvuru silinince kalır.
+
+### 9.5 Türkçe arama
+Veritabanının `lower()`/`ILIKE` davranışı collation'a bağlıdır ve Türkçe `I/ı`, `İ/i` kurallarını uygulamaz (integration testi bunu gösterir). Bu nedenle arama **uygulamada** yapılan Türkçe katlama ile çalışır (BR-80): `search_text` yazılırken ve sorgu metni aynı fonksiyondan (`src/lib/search.ts`, PHASE 06) geçer; veritabanında `pg_trgm` GIN index'i bu katlanmış metin üzerindedir. Full-text search altyapısı kurulmaz. `services_name_lower_unique` ASCII dışı büyük/küçük harf eşleşmesini garanti etmez (Türkçe harfli hizmet adlarında aynı adın farklı yazımı ayrı kayıt sayılabilir — PHASE 05'te uygulama normalizasyonuyla ele alınır).
+
+### 9.6 Kimlik doğrulama tabloları (PHASE 03 notları)
+Better Auth 1.7.27 + username + admin alanları kütüphanenin `getAuthTables` çıktısıyla karşılaştırıldı (izole kurulum). PHASE 03'te doğrulanacaklar: Drizzle adapter yapılandırması (`schema: { user: users, session: sessions, account: accounts, verification: verifications }` veya `usePlural`), Better Auth'un oturum oluştururken IP/UA yazmaması (yazarsa CHECK kaydı reddeder — görünür hata), `role` varsayılanı `employee`, personel e-posta politikası (TD-05: `<username>@staff.invalid` önerisi; e-posta UNIQUE + NOT NULL; kullanıcı adı değişirse türetilmiş e-posta da güncellenmeli), kullanıcıların silinmemesi (runtime'da `users` DELETE yetkisi yok).

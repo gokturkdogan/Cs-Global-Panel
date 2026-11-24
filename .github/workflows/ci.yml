@@ -38,8 +38,18 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm format:check
       - run: pnpm test
+      - run: pnpm db:check
+      # Canary: gerçek olmayan benzersiz secret değerleriyle build alınır; client bundle'da
+      # bu değerlerin bulunmadığı doğrulanır. Integration testleri veritabanı gerektirir ve
+      # CI'da çalışmaz (secret yok) — yerelde `pnpm test:integration`.
       - run: pnpm build
+        env:
+          DATABASE_URL: postgresql://cs_app_runtime:CANARY-ci-runtime-5d1f@ci-canary-pooler.example.invalid/cs_global_dev?sslmode=verify-full
+          DATABASE_URL_UNPOOLED: postgresql://ci_owner:CANARY-ci-owner-9b2e@ci-canary.example.invalid/cs_global_dev?sslmode=verify-full
       - run: pnpm check:bundle
+        env:
+          DATABASE_URL: postgresql://cs_app_runtime:CANARY-ci-runtime-5d1f@ci-canary-pooler.example.invalid/cs_global_dev?sslmode=verify-full
+          DATABASE_URL_UNPOOLED: postgresql://ci_owner:CANARY-ci-owner-9b2e@ci-canary.example.invalid/cs_global_dev?sslmode=verify-full
       - run: pnpm audit --audit-level=high
 
   e2e:

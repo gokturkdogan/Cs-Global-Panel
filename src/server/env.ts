@@ -2,6 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
+import { parseDatabaseUrl, RUNTIME_ROLE } from "@/server/db/settings";
+
 /**
  * Sunucu tarafı ortam değişkenleri (ARCHITECTURE §11.3, DEPLOYMENT §3).
  *
@@ -94,4 +96,30 @@ let cachedEnv: ServerEnv | undefined;
 export function getServerEnv(): ServerEnv {
   cachedEnv ??= parseServerEnv(process.env);
   return cachedEnv;
+}
+
+export type DatabaseEnv = {
+  /** Runtime bağlantısı: pooled uç nokta, `cs_app_runtime` rolü, `sslmode=verify-full`. */
+  readonly databaseUrl: string;
+};
+
+/**
+ * Veritabanı ortamını doğrular (D-055). Yalnızca veritabanına erişildiğinde çağrılır; bu yüzden
+ * veritabanı kullanmayan sayfalar ve `next build` DATABASE_URL olmadan çalışır.
+ * Hata mesajı adres değerini içermez.
+ */
+export function parseDatabaseEnv(source: EnvSource): DatabaseEnv {
+  const { appEnv } = parseServerEnv(source);
+  const parsed = parseDatabaseUrl(source.DATABASE_URL, "DATABASE_URL", {
+    expectedUser: RUNTIME_ROLE,
+    allowLocal: appEnv === "development",
+  });
+  return { databaseUrl: parsed.connectionString };
+}
+
+let cachedDatabaseEnv: DatabaseEnv | undefined;
+
+export function getDatabaseEnv(): DatabaseEnv {
+  cachedDatabaseEnv ??= parseDatabaseEnv(process.env);
+  return cachedDatabaseEnv;
 }

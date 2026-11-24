@@ -10,14 +10,14 @@ CS Global Customer Panel
 
 ## Durum
 
-**PHASE 01 — Proje altyapısı** tamamlandı, kullanıcı onayı bekleniyor. Uygulama yalnızca **altyapı aşamasındadır**: çalışan bir Next.js iskeleti, tasarım sistemi, kod kalitesi ve test araçları vardır. Veritabanı, giriş sistemi, şirket paneli, müşteri paneli ve dosya yükleme **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
+**PHASE 02 — Veritabanı altyapısı** üzerinde çalışılıyor. Uygulama yalnızca **altyapı aşamasındadır**: Next.js iskeleti, tasarım sistemi, test araçları ve veritabanı şeması/migration'ları vardır. Giriş sistemi, şirket paneli, müşteri paneli ve dosya yükleme **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
 
-Sonraki faz: **PHASE 02 — Database Foundation**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Sonraki faz: **PHASE 03 — Authentication & Authorization**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 
-- **Kurulu (PHASE 01):** Next.js 16.4.6 (App Router, Turbopack) · React 19.3.1 · TypeScript 6.0.3 (strict) · Tailwind CSS 4.3.5 · shadcn/ui (Radix) · Lucide · Geist · Zod 4 · ESLint 10 + Prettier · Vitest 5 · Playwright 1.65.
-- **Sonraki fazlarda:** Drizzle ORM + Neon PostgreSQL (PHASE 02) · Better Auth (PHASE 03) · Vercel Private Blob (PHASE 08).
+- **Kurulu:** Next.js 16.4.6 (App Router, Turbopack) · React 19.3.1 · TypeScript 6.0.3 (strict) · Tailwind CSS 4.3.5 · shadcn/ui (Radix) · Lucide · Geist · Zod 4 · ESLint 10 + Prettier · Vitest 5 · Playwright 1.65 · Drizzle ORM 0.45.4 + Drizzle Kit 0.31.11 + pg 8.23.1 · Neon PostgreSQL.
+- **Sonraki fazlarda:** Better Auth (PHASE 03) · Vercel Private Blob (PHASE 08).
 
 Hedef aylık altyapı maliyeti: 0. Kurulu sürümler: [docs/TECH_STACK.md](docs/TECH_STACK.md) §0.
 
@@ -67,10 +67,27 @@ pnpm dev                     # http://localhost:3000
 | `pnpm test:e2e` | Playwright E2E (production build üzerinde; ilk kez: `pnpm exec playwright install chromium webkit`) |
 | `pnpm check` | lint + typecheck + format:check + test |
 | `pnpm check:bundle` | Build sonrası client bundle'da secret adı kontrolü |
+| `pnpm test:integration` | Gerçek PostgreSQL ile integration testleri (projenin tek veritabanında; yalnızca kendi sentetik kayıtlarını siler) |
 | `pnpm audit` | Bağımlılık güvenlik taraması (yüksek/kritik = hata) |
 
 ## Ortam Değişkenleri
 
 - Örnek dosya: [`.env.example`](.env.example) — gerçek değer içermez. Yerelde `.env.local` kullanılır; **gerçek env dosyaları git tarafından ignore edilir ve asla commit edilmez.**
-- PHASE 01'de yalnızca `APP_ENV` ve `APP_URL` vardır; ikisi de development'ta isteğe bağlıdır. Sonraki fazların değişkenleri (veritabanı, kimlik doğrulama, token anahtarları, storage) ilgili fazda eklenir: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) §3.
+- `APP_ENV`, `APP_URL` (development'ta isteğe bağlı) ve veritabanı için `DATABASE_URL`, `DATABASE_URL_UNPOOLED` (aşağıda). Sonraki fazların değişkenleri ilgili fazda eklenir: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) §3.
 - Değişkenler yalnızca sunucuda okunur (`src/server/env.ts`, Zod); `NEXT_PUBLIC_*` kullanılmaz. Doğrulama ilk kullanımda yapılır; production'da eksik veya geçersiz değer, o değeri kullanan işlemi hata ile durdurur (fail-closed).
+
+## Veritabanı (Neon PostgreSQL)
+
+Tek veritabanı (D-059): Neon projesindeki `neondb` uygulama, migration, seed ve testler için ortak kullanılır. Kurulum: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) §12. Bağlantı bilgilerini yalnızca `.env.local`'a yazın; sohbete, terminal çıktısına veya issue'lara yapıştırmayın.
+
+| Komut | Amaç | Not |
+|---|---|---|
+| `pnpm db:verify` | Salt okunur bağlantı kontrolü (sürüm, TLS, roller, tablolar, migration sayısı) | Hiçbir şey yazmaz |
+| `pnpm db:init` | En az yetkili `cs_app_runtime` rolünü oluşturur/şifresini eşitler, rol zaman aşımlarını tanımlar | Bu projeye ait olmayan tablo varsa durur |
+| `pnpm db:migrate` | Bekleyen migration'ları uygular (sahip rol, pooler olmayan bağlantı) | Önce `db:init` |
+| `pnpm db:seed` | Demo hizmet ve evrak şablonları ekler (idempotent; personel hesabı yok) | Gerçek katalog varken dikkat |
+| `pnpm db:studio` | Drizzle Studio'yu yalnızca `127.0.0.1`'de açar | Gerçek kişisel veri varken kullanmayın |
+| `pnpm db:generate` | Şema değişikliğinden yeni migration üretir (SQL incelenmeli) | Bağlantı gerekmez |
+| `pnpm db:check` | Migration dosyalarının tutarlılık kontrolü | Bağlantı gerekmez |
+
+Kurallar: uygulanmış migration dosyası değiştirilmez (yeni migration yazılır); `drizzle-kit push`, `db:reset`/`db:drop` yoktur; Seed verileri **demo** amaçlıdır, resmî vize evrak gereksinimi değildir.

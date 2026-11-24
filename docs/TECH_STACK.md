@@ -25,6 +25,8 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 | `radix-ui` | 1.8.1 | shadcn/ui primitifleri (Slot, Label, Separator) | ✅ react ^19 |
 | `class-variance-authority` | 0.7.1 | Bileşen variant'ları (shadcn/ui) | ✅ clsx ^2.1.1 |
 | `clsx` / `tailwind-merge` | 2.1.1 / 3.7.1 | `cn()` sınıf birleştirme | — |
+| `drizzle-orm` | 0.45.4 (PHASE 02) | ORM, `node-postgres` sürücüsü, migrator | ✅ pg >=8 |
+| `pg` | 8.23.1 (PHASE 02) | PostgreSQL sürücüsü (Pool, interaktif transaction) | ✅ |
 
 **Development bağımlılıkları**
 
@@ -40,12 +42,18 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 | `vitest` | 5.1.1 | Unit test | ✅ vite ^8 |
 | `vite` | 8.3.8 | Vitest'in zorunlu peer'i | ✅ |
 | `@playwright/test` | 1.65.1 | E2E (Chromium + WebKit) | ✅ (next peer ^1.51.1) |
+| `drizzle-kit` | 0.31.11 (PHASE 02) | Migration üretimi, `check`, Studio | ✅ |
+| `@types/pg` | 8.23.1 (PHASE 02) | pg tipleri (ts6.0 etiketli) | ✅ |
 
 **Bilinen peer uyarıları (D-042):** `eslint-plugin-react@7.37.5`, `eslint-plugin-import@2.32.0`, `eslint-plugin-jsx-a11y@6.10.2` peer aralıkları `eslint ^9`'da bitiyor; ESLint 10.15.0 ile "unmet peer" uyarısı verir. Next.js ESLint dokümanı ESLint 10'u desteklediğini ve bu uyarıyı belirtir. Uyarılar bastırılmadı; kurallar ESLint 10 altında çalıştırılarak doğrulandı.
 
 **Araçlar (bağımlılık değil):** `pnpm@10.34.9` (`packageManager`, D-004), Node.js 24 LTS (`engines.node: 24.x`, `.nvmrc`: `24`), `shadcn@4.23.0` CLI (`pnpm dlx`), create-next-app@16.4.6 (yalnızca geçici dizinde şablon incelemesi için).
 
-**Sonraki fazlara bırakılanlar (kurulmadı):** `drizzle-orm` 0.45.4, `drizzle-kit` 0.31.11, `pg` 8.23.1 (PHASE 02); `better-auth` 1.7.27 (PHASE 03); `react-hook-form`, `@hookform/resolvers` (ilk form fazı); `libphonenumber-js` (PHASE 06); `@vercel/blob` 2.9.0 (PHASE 08); `tw-animate-css` (animasyonlu bileşen gerekirse). Sürümler kurulum anında yeniden doğrulanır.
+**Sonraki fazlara bırakılanlar (kurulmadı):** `better-auth` 1.7.27 (PHASE 03; PHASE 02'de yalnızca şema uyumu izole kurulumla doğrulandı — peer `drizzle-orm ^0.45.2`, `drizzle-kit >=0.31.4`, `pg ^8` ✅); `react-hook-form`, `@hookform/resolvers` (ilk form fazı); `libphonenumber-js` (PHASE 06); `@vercel/blob` 2.9.0 (PHASE 08); `tw-animate-css` (animasyonlu bileşen gerekirse). Sürümler kurulum anında yeniden doğrulanır.
+
+**PHASE 02'de kurulmayanlar:** `tsx` (Node 24 TypeScript'i doğrudan çalıştırır — D-057), `@neondatabase/serverless` (HTTP sürücüsü interaktif transaction/`FOR UPDATE` için uygun değil — D-006/D-055), `dotenv` (`process.loadEnvFile`).
+
+**Transitive notu:** `drizzle-kit@0.31.11` → `@esbuild-kit/esm-loader@2.6.5` npm'de deprecated ("Merged into tsx"); yalnızca development aracı, runtime'a girmez. esbuild kurulum script'i pnpm politikasıyla engelli; drizzle-kit çalıştığı doğrulandı.
 
 **Kullanılmadı (D-043):** `cn` (shadcn'in 0.x sınıf birleştirme paketi), `shadcn` paketinin runtime bağımlılığı olarak eklenmesi, `@tailwindcss/turbopack`.
 
@@ -266,3 +274,4 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 | 2026-11-24 (ilk) | npm registry, nodejs.org, Vercel/Neon/Better Auth/Next.js dokümanları | §2–§4 |
 | 2026-11-24 (revizyon) | npm `latest`: next, react, typescript, typescript-eslint (peer `<6.1.0`), eslint, eslint-config-next (`typescript-eslint ^8.56.0`), drizzle-orm, drizzle-kit, pg, better-auth, @vercel/blob, vitest, @playwright/test, tailwindcss, zod, pnpm; Node 24 son yama; Better Auth options/hooks/rate-limit/session; Vercel cron limitleri | Sürümler değişmemiş; Node 24 son yaması **24.22.3**; TS 7 uyumsuzluğu sürüyor; Better Auth bulguları §3.5'e işlendi. Diğer paketler (lucide-react, geist, react-hook-form, @hookform/resolvers, libphonenumber-js, @types/*, shadcn CLI) revizyonda **yeniden sorgulanmadı** — ilk doğrulama değerleri geçerli kabul edilmiştir. |
 | 2026-11-24 (PHASE 01) | Kurulan tüm paketler: `dist-tags`, yayın tarihi, `peerDependencies`, `engines`, deprecated durumu; Node 24 güvenlik yamaları; ESLint sürüm politikası; Next.js ESLint ve Tailwind Next.js rehberleri; shadcn CLI | §0. Yeni bulgular: ESLint 9 deprecated/EOL (D-042); `@types/node` 24.x son sürümü 24.19.2; lucide-react `latest` 1.79.0 (<24 saat — `minimumReleaseAge` nedeniyle 1.78.0); create-next-app şablonu `cacheComponents: true` açıyor (D-044). Node 24.22.3 bir **güvenlik** sürümü (yerelde 24.22.1). `pnpm audit`: bilinen açık yok. |
+| 2026-11-24 (PHASE 02) | drizzle-orm, drizzle-kit, pg, @types/pg, better-auth: `latest`, yayın tarihi (>24 saat), deprecated, peer, engines; Better Auth 1.7.27 tablo alanları (izole kurulum, `getAuthTables`) ve Drizzle adapter eşlemesi (kaynak kod); Neon: roller, pooler, Free plan, bölgeler, `pg_trgm`, SSL, scale-to-zero (neon.com/docs) | Sürümler değişmemiş, hepsi `latest`. `pnpm audit`: aşağıdaki faz raporunda. |

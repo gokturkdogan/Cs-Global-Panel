@@ -8,7 +8,7 @@
 | Seviye | Kapsam | Ortam | Çalışma |
 |---|---|---|---|
 | Unit | Saf domain, Zod şemaları, kripto, formatlama, PDF doğrulama kuralları | Node, I/O yok | Her commit |
-| Integration | Servisler + gerçek Postgres (transaction, kısıt, kilit, yetki) | Neon Free non-prod projesinde test branch'i veya yerel Docker Postgres | Her PR |
+| Integration | Servisler + gerçek Postgres (transaction, kısıt, kilit, yetki) | Projenin tek Neon veritabanı (D-059); testler yalnızca kendi sentetik kayıtlarını oluşturup siler | Yerelde (`pnpm test:integration`); CI'da veritabanı secret'ı olmadığından çalışmaz (PHASE 13 kararı) |
 | E2E | Uçtan uca akış | Yerel `next start` veya preview + test DB + dev/demo storage | Her PR (kritik set), periyodik tam set |
 | Manuel | Gerçek cihaz (iOS Safari, Android Chrome, WhatsApp in-app), ekran okuyucu | Preview/demo | PHASE 07, 08, 11, 12 |
 
@@ -166,3 +166,18 @@ Kaldırılan test alanları: OTP, müşteri eşleştirme/birleştirme, atama/kap
 - Unit testler (26): sabitler (`MAX_PDF_SIZE_BYTES === 10_485_760`, PDF türü, şifre 8–128, 7 gün oturum, 256 bit token), şirket yapılandırması (iletişim alanları `null` veya geçerli E.164; şu an `null`), `parseServerEnv` (varsayılanlar, origin indirgeme, production'da https/zorunluluk, fail-closed `APP_ENV`, değerin hata mesajına sızmaması).
 - E2E (başlangıç sayfası): 200 yanıt, başlık, `lang="tr"`, Türkçe içerik, konsol/sayfa hatası yok, harici istek yok, yerel Geist fontu, OS koyu tema tercihinde açık tema, mevcut cihazda yatay taşma yok, güvenlik header'ları, `robots.txt`; Desktop Chrome'da 320/375/390/768/1024/1440 px genişliklerde taşma yok.
 - `tests/integration/` ve `tests/fixtures/` gerçek kullanım başladığı fazda oluşturulur.
+
+## 11. PHASE 02 Integration Testleri
+
+`pnpm test:integration` (`vitest.integration.config.ts`): `.env.local`'daki tek veritabanında çalışır (D-059). Global setup bekleyen migration'ları uygular. Dosyalar sırayla çalışır; her dosya kendi sentetik kayıtlarını rastgele kimliklerle oluşturur ve sahip rolle yalnızca bunları siler. Audit kayıtları değiştirilemez olduğu için testlerin audit satırları veritabanında kalır. Gerçek müşteri verisi bulunan veritabanında çalıştırılmamalıdır (TM-43).
+
+| Dosya | Kapsam |
+|---|---|
+| `privileges.test.ts` | İstemci tarafı TLS (doğrulanmış sertifika), rol, PostgreSQL sürümü, rol düzeyi zaman aşımları, 17 tablo, pg_trgm, uygulanmış migration sayısı, tüm zaman kolonlarının `timestamptz` olması; runtime rolünün öznitelikleri, sahipliği, **tablo × yetki matrisinin tamamı**, DDL/TRUNCATE/trigger kapatma/`drizzle` şeması/TEMP reddi; audit değiştirilemezliği (runtime ve sahip) ve metadata beyaz listesi |
+| `constraints.test.ts` | INV-01…INV-12, INV-14, INV-16, INV-17; BR-04; snapshot bağımsızlığı |
+| `concurrency.test.ts` | Bağımsız bağlantılarla: eşzamanlı aktif token, aktif dosya, versiyon numarası, optimistic lock, `FOR UPDATE` + `lock_timeout`, 10 eşzamanlı başvuru numarası (biri rollback) |
+| `transactions-and-deletion.test.ts` | Drizzle transaction rollback/commit (pooler üzerinden), başvuru silmede CASCADE + audit'in kalması, RESTRICT, pasifleştirme, Drizzle şeması ↔ veritabanı kolon/nullability drift kontrolü, seed idempotency (mevcut demo kayıtlara dokunmadan), Türkçe arama (pg_trgm + `lower()` sınırlaması) |
+
+Unit (veritabanısız): bağlantı adresi doğrulama ve hata mesajı sızıntısı, `parseDatabaseEnv`, migration SQL statik kontrolleri (yıkıcı ifade/secret yok, partial index'ler, her tabloya GRANT, journal eşleşmesi), Drizzle şemasının 17 tablo olması, seed verisi.
+
+Test verileri sentetiktir (`example.invalid`, `+905550000001`, rastgele hex token hash'leri); gerçek müşteri bağlantısı değildir.

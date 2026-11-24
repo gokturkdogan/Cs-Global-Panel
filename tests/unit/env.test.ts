@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { EnvValidationError, parseServerEnv } from "@/server/env";
+import { DatabaseConfigError } from "@/server/db/settings";
+import { EnvValidationError, parseDatabaseEnv, parseServerEnv } from "@/server/env";
 
 function expectEnvError(source: Record<string, string | undefined>, variable: string) {
   try {
@@ -73,5 +74,35 @@ describe("parseServerEnv", () => {
     const error = expectEnvError({ APP_ENV: "production", APP_URL: secretLookingValue }, "APP_URL");
     expect(error.message).not.toContain(secretLookingValue);
     expect(error.message).toContain("APP_URL");
+  });
+});
+
+describe("parseDatabaseEnv", () => {
+  const runtimeUrl =
+    "postgresql://cs_app_runtime:canary-not-real@ep-canary-pooler.example.invalid/cs_global_dev?sslmode=verify-full";
+
+  it("runtime rolüyle verify-full uzak bağlantıyı kabul eder", () => {
+    expect(parseDatabaseEnv({ DATABASE_URL: runtimeUrl }).databaseUrl).toContain("cs_app_runtime");
+  });
+
+  it("DATABASE_URL yoksa yalnızca veritabanına erişildiğinde hata verir (fail-closed)", () => {
+    expect(() => parseDatabaseEnv({})).toThrow(DatabaseConfigError);
+  });
+
+  it("production'da yerel veritabanını reddeder", () => {
+    expect(() =>
+      parseDatabaseEnv({
+        NODE_ENV: "production",
+        APP_ENV: "production",
+        APP_URL: "https://ornek.test",
+        DATABASE_URL: "postgresql://cs_app_runtime:x@localhost/cs_global_dev",
+      }),
+    ).toThrow(DatabaseConfigError);
+  });
+
+  it("runtime bağlantısının tablo sahibi rolle yapılmasını reddeder", () => {
+    expect(() =>
+      parseDatabaseEnv({ DATABASE_URL: runtimeUrl.replace("cs_app_runtime", "neondb_owner") }),
+    ).toThrow(/cs_app_runtime/);
   });
 });
