@@ -86,7 +86,7 @@ Unicode NFC; kontrol karakterleri ve `/ \ : * ? " < > |` kaldırılır; baştaki
 
 | Veri | Davranış |
 |---|---|
-| `ACTIVE`, `SUPERSEDED`, `REMOVED` dosyalar | **Otomatik silinmez** (OD-06). Yalnızca ADMIN başvuru silme işlemiyle. |
+| `ACTIVE`, `SUPERSEDED`, `REMOVED` dosyalar | **Otomatik silinmez** (OD-06). Yalnızca personelin manuel başvuru silme işlemiyle (OD-24: iki hesap eşit). |
 | `REJECTED` dosyalar | Blob hemen silinir; metadata kalır (teknik — saklama politikası değildir). |
 | `UPLOAD_PENDING` > 1 saat | Teknik temizlik: blob varsa silinir, `EXPIRED`. |
 | Orphan blob'lar | Teknik temizlik: `listByPrefix('applications/')` ↔ DB mutabakatı; DB'de karşılığı olmayan ve 24 saatten eski blob'lar silinir. |
@@ -98,7 +98,7 @@ Teknik temizlik: günlük zamanlanmış iş (`GET /api/cron/cleanup`; Vercel Hob
 ```mermaid
 sequenceDiagram
     autonumber
-    actor A as ADMIN
+    actor A as Personel
     participant S as deleteApplicationAction
     participant DB as Postgres
     participant ST as Private storage
@@ -112,7 +112,7 @@ sequenceDiagram
         S->>DB: TX2: DELETE applications (CASCADE) + audit APPLICATION_DELETED
     else kısmi hata
         S-->>A: "Silme tamamlanamadı, tekrar deneyin" (başvuru erişilemez kalır)
-        Note over S: ADMIN "Silmeyi tamamla" veya günlük temizlik yeniden dener (idempotent)
+        Note over S: Personel "Silmeyi tamamla" veya günlük temizlik yeniden dener (idempotent)
     end
 ```
 DB kayıtları, storage nesneleri silindiği doğrulanmadan silinmez — böylece storage'da sahipsiz kişisel veri kalmaz.

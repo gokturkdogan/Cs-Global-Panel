@@ -156,3 +156,47 @@
     }
   }
 }
+
+/*
+ * Panel drawer ve menü geçişleri (DESIGN_SYSTEM §3: 150–200ms, yalnızca opacity/transform).
+ * Radix `data-state` değerine bağlıdır; reduced-motion'da yukarıdaki global kural süreyi sıfırlar.
+ * Harici animasyon paketi kullanılmaz.
+ */
+@layer components {
+  .drawer-overlay[data-state="open"] {
+    animation: cs-fade-in 180ms ease-out;
+  }
+  .drawer-overlay[data-state="closed"] {
+    animation: cs-fade-out 150ms ease-in;
+  }
+  .drawer-panel[data-state="open"] {
+    animation: cs-slide-in-left 200ms ease-out;
+  }
+  .drawer-panel[data-state="closed"] {
+    animation: cs-slide-out-left 150ms ease-in;
+  }
+  .menu-panel[data-state="open"] {
+    animation: cs-fade-in 150ms ease-out;
+  }
+}
+
+@keyframes cs-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes cs-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes cs-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes cs-slide-out-left {
+  to {
+    transform: translateX(-100%);
+  }
+}

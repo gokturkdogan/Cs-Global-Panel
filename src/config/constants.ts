@@ -22,3 +22,13 @@ export const CUSTOMER_SESSION_MAX_AGE_SECONDS = SEVEN_DAYS_IN_SECONDS;
 
 /** Müşteri erişim token'ı uzunluğu: 32 bayt = 256 bit CSPRNG (OD-01). */
 export const ACCESS_TOKEN_BYTES = 32;
+
+/**
+ * Personel girişi rate limit'leri (SECURITY §6, D-063, D-068). Denemeler sayılır; başarılı giriş
+ * kullanıcı adı sayacını sıfırlar; sabit 15 dakikalık pencere; kalıcı hesap kilidi yoktur.
+ * - Kullanıcı adı başına: var olan ve olmayan tüm kullanıcı adlarına aynı şekilde uygulanır.
+ * - Bilinmeyen kullanıcı adları (ortak): yalnızca var olmayan adlarla yapılan toplu denemeleri
+ *   sınırlar; gerçek hesapların girişini etkilemez (global limit DoS riskinin azaltılması — P4-03).
+ */
+export const LOGIN_RATE_LIMIT_PER_USERNAME = { max: 10, windowSeconds: 15 * 60 } as const;
+export const LOGIN_RATE_LIMIT_UNKNOWN_USERNAMES = { max: 50, windowSeconds: 15 * 60 } as const;

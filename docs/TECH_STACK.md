@@ -22,11 +22,13 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 | `server-only` | 0.0.1 | Sunucu modüllerinin client bundle'a girmesini derleme zamanında engeller | — |
 | `geist` | 1.9.2 | Yerel font (`next/font/local`) | ✅ next >=13.2 |
 | `lucide-react` | 1.78.0 | İkonlar | ✅ react ^19 |
-| `radix-ui` | 1.8.1 | shadcn/ui primitifleri (Slot, Label, Separator) | ✅ react ^19 |
+| `radix-ui` | 1.8.1 | shadcn/ui primitifleri (Slot, Label, Separator; PHASE 04: Dialog — mobil drawer, DropdownMenu — hesap menüsü) | ✅ react ^19 |
+| `get-nonce` | 1.0.1 (PHASE 04, D-071) | Radix kaydırma kilidinin `<style>` etiketine CSP nonce'u (react-style-singleton'ın nonce kaynağı; kilit dosyasındaki sürümle aynı, MIT, deprecated değil — npm registry ile doğrulandı) | — |
 | `class-variance-authority` | 0.7.1 | Bileşen variant'ları (shadcn/ui) | ✅ clsx ^2.1.1 |
 | `clsx` / `tailwind-merge` | 2.1.1 / 3.7.1 | `cn()` sınıf birleştirme | — |
 | `drizzle-orm` | 0.45.4 (PHASE 02) | ORM, `node-postgres` sürücüsü, migrator | ✅ pg >=8 |
 | `pg` | 8.23.1 (PHASE 02) | PostgreSQL sürücüsü (Pool, interaktif transaction) | ✅ |
+| `better-auth` | 1.7.27 (PHASE 03) | Personel kimlik doğrulama (username plugin, scrypt, oturum) | ✅ next ^16, drizzle-orm ^0.45.2, drizzle-kit >=0.31.4, pg ^8 |
 
 **Development bağımlılıkları**
 
@@ -49,7 +51,7 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 
 **Araçlar (bağımlılık değil):** `pnpm@10.34.9` (`packageManager`, D-004), Node.js 24 LTS (`engines.node: 24.x`, `.nvmrc`: `24`), `shadcn@4.23.0` CLI (`pnpm dlx`), create-next-app@16.4.6 (yalnızca geçici dizinde şablon incelemesi için).
 
-**Sonraki fazlara bırakılanlar (kurulmadı):** `better-auth` 1.7.27 (PHASE 03; PHASE 02'de yalnızca şema uyumu izole kurulumla doğrulandı — peer `drizzle-orm ^0.45.2`, `drizzle-kit >=0.31.4`, `pg ^8` ✅); `react-hook-form`, `@hookform/resolvers` (ilk form fazı); `libphonenumber-js` (PHASE 06); `@vercel/blob` 2.9.0 (PHASE 08); `tw-animate-css` (animasyonlu bileşen gerekirse). Sürümler kurulum anında yeniden doğrulanır.
+**Sonraki fazlara bırakılanlar (kurulmadı):** `react-hook-form`, `@hookform/resolvers` (ilk form fazı); `libphonenumber-js` (PHASE 06); `@vercel/blob` 2.9.0 (PHASE 08); `tw-animate-css` (animasyonlu bileşen gerekirse). Sürümler kurulum anında yeniden doğrulanır.
 
 **PHASE 02'de kurulmayanlar:** `tsx` (Node 24 TypeScript'i doğrudan çalıştırır — D-057), `@neondatabase/serverless` (HTTP sürücüsü interaktif transaction/`FOR UPDATE` için uygun değil — D-006/D-055), `dotenv` (`process.loadEnvFile`).
 
@@ -190,7 +192,10 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 - Pooled URL (`-pooler`) PgBouncer **transaction mode**'dur → oturum seviyesinde özellikler (session `SET`, session advisory lock, `LISTEN/NOTIFY`) kullanılmamalı. Bu kısıtlar PHASE 02'de `connection-pooling` dokümanından ayrıca doğrulanacak.
 - **Öneri (D-006):** `drizzle-orm/node-postgres` + `pg.Pool` + pooled URL (runtime), direct URL (migration). Başvuru oluşturma gibi işlemler interactive transaction gerektirdiği için HTTP sürücüsü tek başına yeterli değildir.
 
-### 3.5 Better Auth — doğrulanan özellikler
+### 3.5 Better Auth — doğrulanan özellikler (PHASE 03 güncellemesi: aşağıdaki admin plugin, `disabledPaths` ve `hooks.before` maddeleri OD-24/D-060 ile kullanılmaz)
+
+- **PHASE 03 (1.7.27, kurulu paket ve kaynak koddan doğrulandı):** `better-auth/crypto` → `hashPassword`, `verifyPassword`; kök → `generateId`; `better-auth/next-js` → `nextCookies`; `better-auth/cookies` → `getSessionCookie`; `session.disableSessionRefresh`, `session.cookieCache`, `advanced.ipAddress.disableIpTracking`, `advanced.useSecureCookies`, `advanced.cookiePrefix`, `databaseHooks.{user,account,session}.create.before`, `telemetry.enabled` (varsayılan `false`). Username plugin girişi: kullanıcı adını normalize ederek arar; kullanıcı yoksa da şifre hash'ler (zamanlama eşitleme); `emailAndPassword.enabled: false` iken çalışır (integration testi). Güvenlik bildirimleri (GHSA) 1.7.16 ve öncesinde kapatılmış; bunlardan GHSA-fvxx-76fc-893x (cookie cache/ikincil depolama ile iptal edilen oturum) cookie cache kapalı olduğu için de etkisiz.
+
 > İlk doğrulama 2026-11-24 (username, admin, rate-limit, session, cookies, security sayfaları); ek doğrulama aynı gün (options reference, database hooks, hooks, rate-limit, session-management sayfaları).
 - **Username plugin:** `POST /sign-in/username`; e-posta olmadan giriş. Varsayılan uzunluk 3–30, alfanümerik + `_` + `.`; lowercase normalizasyon. `is-username-available` devre dışı bırakılabilir.
 - **Admin plugin:** `createUser`, `setRole`, `banUser` (girişi engeller **ve tüm oturumları iptal eder**), `revokeUserSessions`, `setUserPassword`, `listUsers`; `createAccessControl` ile roller.
@@ -275,3 +280,4 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 | 2026-11-24 (revizyon) | npm `latest`: next, react, typescript, typescript-eslint (peer `<6.1.0`), eslint, eslint-config-next (`typescript-eslint ^8.56.0`), drizzle-orm, drizzle-kit, pg, better-auth, @vercel/blob, vitest, @playwright/test, tailwindcss, zod, pnpm; Node 24 son yama; Better Auth options/hooks/rate-limit/session; Vercel cron limitleri | Sürümler değişmemiş; Node 24 son yaması **24.22.3**; TS 7 uyumsuzluğu sürüyor; Better Auth bulguları §3.5'e işlendi. Diğer paketler (lucide-react, geist, react-hook-form, @hookform/resolvers, libphonenumber-js, @types/*, shadcn CLI) revizyonda **yeniden sorgulanmadı** — ilk doğrulama değerleri geçerli kabul edilmiştir. |
 | 2026-11-24 (PHASE 01) | Kurulan tüm paketler: `dist-tags`, yayın tarihi, `peerDependencies`, `engines`, deprecated durumu; Node 24 güvenlik yamaları; ESLint sürüm politikası; Next.js ESLint ve Tailwind Next.js rehberleri; shadcn CLI | §0. Yeni bulgular: ESLint 9 deprecated/EOL (D-042); `@types/node` 24.x son sürümü 24.19.2; lucide-react `latest` 1.79.0 (<24 saat — `minimumReleaseAge` nedeniyle 1.78.0); create-next-app şablonu `cacheComponents: true` açıyor (D-044). Node 24.22.3 bir **güvenlik** sürümü (yerelde 24.22.1). `pnpm audit`: bilinen açık yok. |
 | 2026-11-24 (PHASE 02) | drizzle-orm, drizzle-kit, pg, @types/pg, better-auth: `latest`, yayın tarihi (>24 saat), deprecated, peer, engines; Better Auth 1.7.27 tablo alanları (izole kurulum, `getAuthTables`) ve Drizzle adapter eşlemesi (kaynak kod); Neon: roller, pooler, Free plan, bölgeler, `pg_trgm`, SSL, scale-to-zero (neon.com/docs) | Sürümler değişmemiş, hepsi `latest`. `pnpm audit`: aşağıdaki faz raporunda. |
+| 2026-11-24 (PHASE 03) | better-auth 1.7.27: `latest`, yayın 2026-11-20 (>24 saat), deprecated değil, peer uyumu, GitHub güvenlik bildirimleri; Next.js 16.4.6 CSP/proxy rehberi (`node_modules/next/dist/docs`) | Kuruldu. `pnpm audit --prod` aynı dev-only esbuild bulgusunu Better Auth'un opsiyonel `drizzle-kit` peer'i üzerinden gösterir (runtime'da yüklenmez). |

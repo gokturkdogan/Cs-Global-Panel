@@ -17,7 +17,7 @@ CS Global, vize danışmanlık müşterilerinden evrakları bugün büyük ölç
 
 | Arayüz | Kullanıcı | Erişim | Öncelik |
 |---|---|---|---|
-| Şirket Yönetim Paneli (`/dashboard`) | ADMIN, EMPLOYEE | Kullanıcı adı + şifre (ADMIN belirler), server-side session, RBAC | Desktop-first, responsive |
+| Şirket Yönetim Paneli (`/dashboard`) | İki sabit hesap: ADMIN, EMPLOYEE — eşit yetki (OD-24) | Kullanıcı adı + şifre (yerel CLI ile oluşturulur), server-side session, ortak personel erişim kontrolü (RBAC yok) | Desktop-first, responsive |
 | Müşteri Paneli (`/portal`) | Müşteri (hesapsız) | Başvuruya özel **süresiz bearer bağlantı** → doğrudan erişim, 7 günlük oturum | **Mobile-first (zorunlu)** |
 
 Her iki arayüz aynı Next.js uygulamasındadır (modüler monolit).

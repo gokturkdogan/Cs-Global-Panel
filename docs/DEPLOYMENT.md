@@ -42,8 +42,8 @@ DATABASE_URL=                     # Pooled bağlantı — runtime, cs_app_runtim
 DATABASE_URL_UNPOOLED=            # Direct bağlantı — migration/yönetim, tablo sahibi rol (PHASE 02)
 
 # --- Better Auth ---
-BETTER_AUTH_SECRET=               # >=32 kr., yüksek entropi
-BETTER_AUTH_URL=                  # = APP_URL
+BETTER_AUTH_SECRET=               # >=32 kr., yüksek entropi (PHASE 03)
+# BETTER_AUTH_URL kullanılmaz: base URL = APP_URL (D-066)
 
 # --- Müşteri erişimi ---
 ACCESS_TOKEN_HMAC_KEY=            # 32 bayt base64
@@ -52,7 +52,7 @@ ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID=   # k1
 CUSTOMER_SESSION_SECRET=          # Portal cookie imzası, 32 bayt base64
 
 # --- Rate limiting ---
-RATE_LIMIT_KEY_SECRET=            # IP/kullanıcı adı anahtarlarının HMAC'i, 32 bayt base64
+RATE_LIMIT_KEY_SECRET=            # Kullanıcı adı anahtarlarının HMAC'i, >=32 kr., BETTER_AUTH_SECRET'tan farklı (PHASE 03)
 
 # --- Storage ---
 BLOB_READ_WRITE_TOKEN=            # handleUpload için (OIDC kabul etmiyor)
@@ -70,7 +70,7 @@ Kaldırılan değişkenler: `NEXT_PUBLIC_APP_URL` (→ `APP_URL`, sunucu tarafı
 1. GitHub `main` korumalı: PR + CI yeşil + review.
 2. PR → preview + Neon preview branch → migration'lar → E2E.
 3. Production: migration'lar deploy'dan önce açık bir adımla (`pnpm db:migrate`, direct URL, yetkili kişi); expand/contract.
-4. Smoke test (sahte test başvurusu, sonra ADMIN silme ile silinir).
+4. Smoke test (sahte test başvurusu, sonra personel silme işlemiyle silinir).
 5. Geri alma: sağlayıcının önceki deployment'a dönüş özelliği; migration'lar ileri düzeltme.
 
 `package.json`: `"engines": { "node": "24.x" }` (OD-13), `"packageManager": "pnpm@<sürüm>"` (D-004).
@@ -130,7 +130,7 @@ Harici servis yok: e-posta, SMS, antivirüs, Redis, kuyruk, APM, analytics, alan
 ## 7. Yedekleme ve Geri Yükleme
 
 - Neon Free geri yükleme penceresi **6 saat** — veri kaybı/yanlış silme için çok kısa; production sağlayıcısında yedek yeteneği bir seçim kriteridir (PB-08).
-- Vercel Blob sürüm/yedek özelliği **doğrulanmadı**; silinen dosya geri getirilemeyebilir → silme yalnızca ADMIN onaylı akışla.
+- Vercel Blob sürüm/yedek özelliği **doğrulanmadı**; silinen dosya geri getirilemeyebilir → silme yalnızca onaylı manuel silme akışıyla.
 - Geri yükleme provası production öncesi zorunlu (PHASE 13).
 - Ek uzun süreli yedek alınmaz (DATA_PRIVACY §4).
 
@@ -175,3 +175,8 @@ Frankfurt, planlanan hosting bölgesine (`fra1`) yakın olduğu için önerilir.
 
 ### 12.4 Ortam izolasyonu (D-059)
 Veritabanı düzeyinde ortam ayrımı yoktur (Product Owner kararı). `db:init` bu projeye ait olmayan tablo varsa durur; integration testleri yalnızca kendi sentetik kayıtlarını siler; seed mevcut kayıtlara dokunmaz. **Gerçek müşteri verisi girmeden önce** ayrı production veritabanı veya bu kararın yazılı risk kabulü gerekir (PB-06, TM-43).
+
+## 13. Şirket Hesapları (PHASE 03 — OD-24)
+- İki hesap (ADMIN, EMPLOYEE) yalnızca işletmecinin kendi terminalinde `pnpm auth:bootstrap` ile oluşturulur; şifreler gizli girilir, sohbete/issue'ya/kanala yazılmaz. Production'da ayrı ve güçlü şifrelerle yeniden yapılır (PHASE 13).
+- Şifre unutulursa veya hesap ele geçirilirse: `pnpm auth:reset-password` (ilgili hesabın tüm oturumları sonlanır).
+- Secret rotasyonu: `BETTER_AUTH_SECRET` değişirse tüm oturum cookie'leri geçersizleşir (yeniden giriş gerekir); `RATE_LIMIT_KEY_SECRET` değişirse rate limit sayaçları sıfırlanır.

@@ -17,7 +17,7 @@ async function openHome(page: Page) {
     }
   });
 
-  const response = await page.goto("/");
+  const response = await page.goto("/login");
   await page.waitForLoadState("networkidle");
   return { response, consoleErrors, pageErrors, externalRequests };
 }
@@ -26,20 +26,24 @@ async function horizontalOverflow(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 }
 
-test.describe("başlangıç sayfası", () => {
+test.describe("giriş ekranı (ortak temel)", () => {
+  test("kök adres giriş ekranına yönlendirir", async ({ page }) => {
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
   test("açılır, Türkçe içerik gösterir, hata ve harici istek üretmez", async ({ page }) => {
     const { response, consoleErrors, pageErrors, externalRequests } = await openHome(page);
 
     expect(response?.status()).toBe(200);
-    await expect(page).toHaveTitle("CS Global | Vize Danışmanlık Paneli");
+    await expect(page).toHaveTitle("Personel Girişi | CS Global");
     await expect(page.locator("html")).toHaveAttribute("lang", "tr");
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Vize Danışmanlık Yönetim Platformu" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Personel Girişi" })).toBeVisible();
     await expect(page.getByText("CS Global", { exact: true })).toBeVisible();
-    await expect(page.getByText("Platform altyapısı hazırlanıyor.")).toBeVisible();
-    await expect(page.getByText(/güvenli platformda buluşacak/)).toBeVisible();
+    await expect(page.getByText("Vize Danışmanlık Yönetim Platformu")).toBeVisible();
+    await expect(page.getByText("Kullanıcı adınız ve şifrenizle giriş yapın.")).toBeVisible();
 
+    // CSP ihlalleri dahil konsol hatası yok.
     expect(consoleErrors).toEqual([]);
     expect(pageErrors).toEqual([]);
     expect(externalRequests).toEqual([]);
@@ -85,8 +89,13 @@ test.describe("başlangıç sayfası", () => {
     expect(headers["permissions-policy"]).toContain("camera=()");
     expect(headers["cross-origin-opener-policy"]).toBe("same-origin");
     expect(headers["x-robots-tag"]).toBe("noindex, nofollow, noarchive");
-    expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
-    expect(headers["content-security-policy"]).toContain("object-src 'none'");
+    const csp = headers["content-security-policy"] ?? "";
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
+    expect(csp).not.toContain("unsafe-eval");
+    expect(csp).not.toContain("unsafe-inline");
+    expect(headers["cache-control"]).toContain("no-store");
     expect(headers["strict-transport-security"]).toContain("max-age=");
     expect(headers["x-powered-by"]).toBeUndefined();
   });
@@ -104,6 +113,7 @@ test.describe("responsive genişlikler", () => {
       await openHome(page);
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
       await expect(page.getByRole("heading", { level: 1 })).toBeInViewport();
+      await expect(page.getByRole("button", { name: "Giriş Yap" })).toBeInViewport();
     });
   }
 });

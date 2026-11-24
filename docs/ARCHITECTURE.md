@@ -28,7 +28,7 @@ flowchart LR
         subgraph Next["Next.js 16 (Node.js runtime)"]
             RSC[Server Components<br/>dashboard / portal]
             SA[Server Actions]
-            RH[Route Handlers<br/>/b/token, /api/auth,<br/>/api/uploads, /api/files, /api/cron]
+            RH[Route Handlers<br/>/b/token,<br/>/api/uploads, /api/files, /api/cron]
             SVC[Feature servisleri<br/>state machine, kurallar]
             DAL[Data access<br/>server-only, DTO]
             AUTH[Better Auth<br/>username + admin]
@@ -70,7 +70,7 @@ sequenceDiagram
 
     E->>UI: Ad, soyad, telefon, e-posta, hizmet, (not)
     UI->>A: submit(form, idempotencyKey)
-    A->>A: Zod, requireStaff(application:create)
+    A->>A: Zod, requireStaff()
     A->>S: createApplication(input, actor)
     S->>DB: BEGIN
     S->>DB: idempotency kontrolü
@@ -136,9 +136,9 @@ Ek doğrulama adımı yoktur (OD-01). GET hiçbir veriyi değiştirmez (BR-105).
 
 | Kullanım | Mekanizma | Gerekçe |
 |---|---|---|
-| Form mutasyonları (başvuru, müşteri bilgisi, hizmet, şablon, çalışan, inceleme, statü geçişi, not, yorum, bağlantı yenile/iptal, silme) | **Server Action** | Yerleşik Origin/Host CSRF kontrolü, tipli sözleşme, küçük payload (<1 MB) |
+| Form mutasyonları (başvuru, müşteri bilgisi, hizmet, şablon, inceleme, statü geçişi, not, yorum, bağlantı yenile/iptal, silme) | **Server Action** | Proxy köken kontrolü (403, D-069) + yerleşik Origin/Host CSRF kontrolü, tipli sözleşme, küçük payload (<1 MB) |
 | Müşteri gönderimi, dosya kaldırma, upload onayı | **Server Action** | Aynı; müşteri cookie'si action içinde doğrulanır |
-| Better Auth (`/api/auth/[...all]`) | **Route Handler** | Kütüphane handler'ı |
+| Personel girişi / çıkışı | **Server Action** (`auth.api`, D-060) | Better Auth HTTP route'u bağlanmaz; CSRF için Server Action origin kontrolü |
 | Upload token + storage callback (`/api/uploads`) | **Route Handler** | `handleUpload` Request/Response bekler; callback harici HTTP çağrısıdır |
 | PDF görüntüle/indir (`/api/files/[fileId]`) | **Route Handler** | Binary stream, özel header'lar |
 | Bağlantı girişi (`/b/[token]`) | **Route Handler (GET)** | Cookie set + 303; sayfa render etmez |
@@ -155,8 +155,7 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
 ├── docs/
 ├── public/
 ├── scripts/
-│   ├── bootstrap-admin.ts         # İlk ADMIN (PHASE 03)
-│   └── recover-admin.ts           # ADMIN erişim kurtarma (PHASE 03)
+│   └── auth/{bootstrap,reset-password}.ts   # İki hesabı oluşturma / şifre sıfırlama (yerel CLI, PHASE 03)
 ├── tests/{unit,integration,e2e,fixtures}/
 ├── drizzle.config.ts          # PHASE 02
 ├── scripts/db/                # db:init, db:migrate, db:seed, db:verify, db:studio (Node 24 ile doğrudan)
@@ -169,12 +168,13 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
     ├── app/
     │   ├── (auth)/login/page.tsx
     │   ├── (dashboard)/dashboard/
-    │   │   ├── layout.tsx         # requireStaff()
-    │   │   ├── page.tsx           # Dashboard
+    │   │   ├── layout.tsx         # requireStaff() + DashboardShell (PHASE 04)
+    │   │   ├── (overview)/{page,loading}.tsx   # Genel Bakış; iskelet yalnızca burada (404 için)
+    │   │   ├── [...rest]/page.tsx # requireStaff() + notFound() (panel içi 404)
+    │   │   ├── error.tsx, not-found.tsx
     │   │   ├── applications/{page,new/page,[id]/page}.tsx
-    │   │   ├── services/{page,new/page,[id]/page}.tsx    # ADMIN
-    │   │   ├── employees/{page,[id]/page}.tsx            # ADMIN
-    │   │   └── audit-logs/page.tsx                       # ADMIN
+    │   │   ├── services/{page,new/page,[id]/page}.tsx
+    │   │   └── audit-logs/page.tsx                       # iki hesap eşit (OD-24)
     │   ├── (portal)/
     │   │   ├── b/[token]/route.ts
     │   │   ├── portal/{layout,page}.tsx
@@ -185,7 +185,7 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
     ├── components/
     │   ├── ui/                    # shadcn/ui
     │   ├── shared/                # Logo, StatusBadge, EmptyState, ConfirmDialog...
-    │   ├── dashboard/             # Sidebar, Header, Breadcrumb, DataTable
+    │   ├── dashboard/             # PHASE 04: Shell, Sidebar, MobileNavigation, Header, Breadcrumb, PageHeader, StatCard, Empty/Error/Loading, AccountMenu (DataTable PHASE 06)
     │   └── portal/
     ├── features/
     │   ├── auth/          {components, schemas}
@@ -193,12 +193,11 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
     │   ├── services/      {actions, service, queries, schemas, components}
     │   ├── documents/     {actions, service, queries, schemas, components, domain/}
     │   ├── portal/        {actions, service, queries, components}
-    │   ├── employees/     {actions, service, queries, schemas, components}
     │   └── audit/         {service, queries, components}
     ├── server/                    # Tümü `import 'server-only'`
     │   ├── env.ts
     │   ├── db/{client.ts, settings.ts, schema/*.ts, migrations/}   # PHASE 02
-    │   ├── auth/{auth.ts, session.ts, permissions.ts}
+    │   ├── auth/{auth.ts, staff.ts, rate-limit.ts, password-policy.ts}   # PHASE 03 (permissions.ts yok — OD-24)
     │   ├── customer-access/{tokens.ts, portal-session.ts}
     │   ├── storage/{storage.ts, pdf-validation.ts}
     │   ├── security/{crypto.ts, rate-limit.ts, headers.ts}
@@ -226,17 +225,15 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
 |---|---|---|---|---|---|---|---|
 | `/` | `/login` veya `/dashboard`'a yönlendirme (PHASE 03). PHASE 01–02'de statik altyapı önizleme sayfası (veri/işlev yok) | Herkes | — | — | Redirect (PHASE 01: statik) | no-store (PHASE 01: hassas veri yok, statik) | Yok |
 | `/login` | Personel girişi (yalnızca kullanıcı adı + şifre) | Anonim | — | Girişliyse yönlendir | RSC + client form | no-store | Yok |
-| `/dashboard` | Sayaçlar, son başvurular, inceleme bekleyenler | ADMIN, EMPLOYEE | Staff session | `dashboard:read_stats` | RSC | no-store | Orta |
-| `/dashboard/applications` | Tek liste; arama, statü/hizmet/tarih filtresi, sayfalama | ADMIN, EMPLOYEE | ✅ | `application:list` | RSC | no-store | Yüksek |
-| `/dashboard/applications/new` | Başvuru oluşturma + sonuç ekranı | ADMIN, EMPLOYEE | ✅ | `application:create` | RSC + client form | no-store | Yüksek |
-| `/dashboard/applications/[id]` | Detay: müşteri bilgisi, evraklar, inceleme, yorum, not, geçmiş, bağlantı, (ADMIN) geri alma/yeniden açma/silme | ADMIN, EMPLOYEE | ✅ | `application:read` (+ aksiyon izinleri) | RSC + client adalar | no-store | **Çok yüksek** |
-| `/dashboard/services` · `/new` · `/[id]` | Hizmet + evrak şablonu | ADMIN | ✅ | `service:manage` | RSC + client form | no-store | Düşük |
-| `/dashboard/employees` · `/[id]` | Çalışan yönetimi | ADMIN | ✅ | `user:*` | RSC + client form | no-store | Orta |
-| `/dashboard/audit-logs` | Genel işlem geçmişi | ADMIN | ✅ | `audit_log:read` | RSC | no-store | Orta |
+| `/dashboard` | Sayaçlar, son başvurular, inceleme bekleyenler (PHASE 03: korumalı placeholder) | Personel | Staff session | `requireStaff` | RSC | no-store | Orta |
+| `/dashboard/applications` | Tek liste; arama, statü/hizmet/tarih filtresi, sayfalama | Personel | ✅ | `requireStaff` | RSC | no-store | Yüksek |
+| `/dashboard/applications/new` | Başvuru oluşturma + sonuç ekranı | Personel | ✅ | `requireStaff` | RSC + client form | no-store | Yüksek |
+| `/dashboard/applications/[id]` | Detay: müşteri bilgisi, evraklar, inceleme, yorum, not, geçmiş, bağlantı, geri alma/yeniden açma/silme | Personel | ✅ | `requireStaff` + kaynak kontrolü | RSC + client adalar | no-store | **Çok yüksek** |
+| `/dashboard/services` · `/new` · `/[id]` | Hizmet + evrak şablonu | Personel | ✅ | `requireStaff` | RSC + client form | no-store | Düşük |
+| `/dashboard/audit-logs` | Genel işlem geçmişi | Personel | ✅ | `requireStaff` | RSC | no-store | Orta |
 | `GET /b/[token]` | Token doğrula → cookie → 303 `/portal` | Anonim | Token | Token geçerliliği | Route Handler | no-store | Token |
 | `/portal` | Müşteri paneli | CUSTOMER | Portal cookie | Tek başvuru | RSC + client adalar | no-store | **Çok yüksek** |
 | `/link-invalid` | Genel geçersiz bağlantı mesajı | Herkes | — | — | RSC (statik içerik, no-store) | no-store | Yok |
-| `/api/auth/[...all]` | Better Auth (kapalı uç noktalar hariç) | — | Better Auth | — | Route Handler | no-store | Kimlik |
 | `POST /api/uploads` | Upload token / storage callback | Staff, CUSTOMER, storage | Session / callback doğrulaması | `file:upload` + BR-44 | Route Handler | no-store | Metadata |
 | `GET /api/files/[fileId]` | PDF stream | Staff, CUSTOMER | Session | `file:view_download` | Route Handler | no-store | **Belge** |
 | `GET /api/cron/cleanup` | Teknik temizlik | SYSTEM | `CRON_SECRET` | — | Route Handler | no-store | — |
@@ -303,3 +300,18 @@ Kurallar (D-016):
 - Pooler kısıtları: oturum `SET/RESET`, `LISTEN/NOTIFY`, SQL `PREPARE`, oturum düzeyi advisory lock kullanılmaz.
 - Hata logu yalnızca PostgreSQL hata kodunu içerir; bağlantı adresi, kullanıcı adı, şifre, sorgu parametresi veya kişisel veri loglanmaz.
 - Statik başlangıç sayfası ve `next build` veritabanı gerektirmez.
+
+### 12.2 Personel kimlik doğrulaması (PHASE 03 — D-060…D-064)
+- `src/server/auth/auth.ts`: `createAuth()` / `getAuth()` (lazy) — Better Auth, yalnızca sunucu; HTTP route'u yok.
+- `src/server/auth/staff.ts`: `getCurrentStaff()` (istek başına `cache`; cookie yoksa DB'ye gitmez) ve `requireStaff()` — tek ortak kontrol (OD-24).
+- `src/server/auth/rate-limit.ts`: giriş sayaçları; `src/server/auth/credentials-policy.ts`: kullanıcı adı/şifre politikası (CLI ile ortak, saf modül).
+- `src/features/auth/{actions.ts, schemas.ts, components/login-form.tsx}`: `signInAction` / `signOutAction` (Server Action), ortak giriş formu.
+- `src/app/(auth)/login`, `src/app/(dashboard)/dashboard` (korumalı placeholder), `src/app/page.tsx` (yönlendirme), `src/proxy.ts` (nonce'lu CSP).
+- `scripts/auth/{accounts,bootstrap,reset-password,prompt}.ts`: yerel hesap CLI'ı.
+- Ortam: `getAuthEnv()` → `BETTER_AUTH_SECRET`, `RATE_LIMIT_KEY_SECRET`, `APP_URL` (D-066).
+
+## PHASE 04 Notları (uygulandı)
+- **Panel düzeni:** `layout.tsx` oturumu çözer ve `DashboardShell`'i render eder; her sayfa ayrıca `requireStaff()` çağırır. Menü `src/config/navigation.ts` (iki hesap için aynı); aktif durum istemcide `usePathname` ile (`NavLinks`). Mobil drawer Radix Dialog (`radix-ui` paketi); hesap menüsü Radix DropdownMenu.
+- **Genel Bakış verisi:** `src/features/dashboard/queries.ts` — `getDashboardOverview(getDb())` salt okunur REPEATABLE READ transaction, yalnızca DTO döner; hata `{ ok: false }` (boş durumdan ayrı). Sayaç tanımları `src/features/dashboard/domain.ts` (D-070).
+- **Proxy:** önce köken kontrolü (durum değiştiren, `/api/*` dışı istekler → 403), sonra nonce'lu CSP. Proxy kimlik doğrulama yapmaz.
+- **CSP + Radix:** kaydırma kilidinin `<style>` etiketi için nonce `CspNonce` ile `get-nonce`'a verilir (D-071).

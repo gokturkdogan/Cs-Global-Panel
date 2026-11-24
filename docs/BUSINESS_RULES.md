@@ -26,7 +26,7 @@
 
 ## 3. Hizmetler ve Evrak Şablonları
 
-- **BR-20** Hizmetler kodda tanımlanmaz; yalnızca ADMIN panelden yönetir.
+- **BR-20** Hizmetler kodda tanımlanmaz; personel (iki hesap eşit — OD-24) panelden yönetir.
 - **BR-21** Pasif hizmet yeni başvuruda seçilemez (sunucuda da doğrulanır). Mevcut başvurular etkilenmez.
 - **BR-22** Hizmetler fiziksel olarak silinmez; pasifleştirilir.
 - **BR-23** Evrak şablonu alanları: başlık, açıklama, talimat, zorunlu mu, sıra, aktif mi. Dosya tipi, boyut ve sayı **şablon alanı değildir** — tüm sistemde sabittir (BR-40, OD-16).
@@ -52,12 +52,12 @@
 - **BR-43** Tek aktif PDF kuralı veritabanı kısıtıyla garanti edilir (evrak başına `status = 'ACTIVE'` en fazla bir satır). Ayrıca evrak başına aynı anda en fazla **bir devam eden yükleme** olabilir; yeni yükleme isteği, aynı evraktaki tamamlanmamış önceki yüklemeyi iptal eder.
 - **BR-44** Yükleme / değiştirme / kaldırma yetkisi:
 
-  | Başvuru statüsü | CUSTOMER | ADMIN, EMPLOYEE (müşteri adına) |
+  | Başvuru statüsü | CUSTOMER | Personel (müşteri adına) |
   |---|---|---|
   | `AWAITING_DOCUMENTS` | Yükle/değiştir/kaldır: `NOT_UPLOADED`, `UPLOADED` | Müşteriyle aynı |
   | `REVISION_REQUIRED` | Yükle/değiştir/kaldır: `NOT_UPLOADED`, `UPLOADED`, `REVISION_REQUIRED` | Müşteriyle aynı |
   | `UNDER_REVIEW` | **Hiçbir işlem** | **Yükle/değiştir** (kaldırma yok): tüm evrak statüleri (D9) |
-  | `DOCUMENTS_APPROVED`, `IN_PROCESS`, `COMPLETED`, `CANCELLED` | Hiçbir işlem | Hiçbir işlem (önce ADMIN geri alma geçişi gerekir — [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md)) |
+  | `DOCUMENTS_APPROVED`, `IN_PROCESS`, `COMPLETED`, `CANCELLED` | Hiçbir işlem | Hiçbir işlem (önce gerekçeli geri alma/yeniden açma geçişi gerekir — [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md)) |
 
   `APPROVED` ve `PENDING_REVIEW` evraklar müşteri tarafından hiçbir zaman değiştirilemez.
 - **BR-45** Kural hem upload token üretiminde hem de dosyanın aktifleştirilmesi sırasında (transaction + satır kilidi altında) yeniden kontrol edilir. Arada başvuru/evrak durumu değiştiyse dosya `REJECTED (STATE_CHANGED)` olur ve blob silinir.
@@ -83,7 +83,7 @@
 - **BR-59** "Düzeltmeye geri gönder" (`UNDER_REVIEW → REVISION_REQUIRED`): `PENDING_REVIEW` evrak kalmamış **ve** ≥1 evrak `REVISION_REQUIRED`.
 - **BR-60** "Evrakları onayla" (`UNDER_REVIEW → DOCUMENTS_APPROVED`): `PENDING_REVIEW` / `REVISION_REQUIRED` kalmamış, tüm zorunlu evraklar `APPROVED`, aktif dosyası olan tüm isteğe bağlı evraklar `APPROVED`.
 - **BR-61** Başvuru statü geçişleri **manueldir** (D-027).
-- **BR-62** Onaylanmış ve değişmemiş evraklar yeniden yükleme gerektirmez; ADMIN geri alma geçişlerinde (T10–T12) yalnızca açıkça seçilen evrakların onayı geçersiz kılınır (OD-05).
+- **BR-62** Onaylanmış ve değişmemiş evraklar yeniden yükleme gerektirmez; geri alma geçişlerinde (T10–T12) yalnızca açıkça seçilen evrakların onayı geçersiz kılınır (OD-05).
 
 ## 7. Versiyonlama
 
@@ -112,7 +112,7 @@
 - **BR-103** Bağlantı açıldığında sunucu, başvuruya bağlı 7 günlük bir müşteri oturumu oluşturur ve kullanıcıyı token içermeyen `/portal` adresine yönlendirir. Oturum süresi dolduğunda aynı geçerli bağlantıyla yeniden erişilir. Oturum süresi ile bağlantı geçerliliği bağımsızdır.
 - **BR-104** Bağlantı iptali/yenilenmesi veya başvuru silinmesi, o bağlantıyla açılmış **tüm müşteri oturumlarını anında** geçersiz kılar (her istekte bağlantı durumu kontrol edilir).
 - **BR-105** Link önizleme botları ve crawler'lar başvuru durumunu **değiştiremez**: bağlantıyı açmak (GET) hiçbir veriyi değiştirmez ve audit kaydı oluşturmaz.
-- **BR-106** ADMIN ve EMPLOYEE bağlantı yönetiminde eşit yetkilidir: görüntüle, kopyala, WhatsApp ile paylaş, iptal et, yenile, iptal edilmişin yerine yeni oluştur. İptal ve yenileme onay penceresi gerektirir ve audit'lenir (token audit'e yazılmaz).
+- **BR-106** İki şirket hesabı bağlantı yönetiminde eşit yetkilidir (OD-19, OD-24): görüntüle, kopyala, WhatsApp ile paylaş, iptal et, yenile, iptal edilmişin yerine yeni oluştur. İptal ve yenileme onay penceresi gerektirir ve audit'lenir (token audit'e yazılmaz).
 - **BR-107** Bağlantı URL'si yalnızca sunucu yapılandırmasındaki `APP_URL` ile üretilir; request `Host` header'ı kullanılmaz (OD-20).
 
 ## 11. İlerleme Göstergeleri
@@ -146,15 +146,15 @@ Gösterge vize onay olasılığı veya sonuç garantisi ifade etmez.
 - **BR-122** Müşteri yorum yazamaz (MVP).
 - **BR-123** Yorum/not düzenleme ve silme yoktur (başvuru silinmesi hariç).
 
-## 13. Personel Hesapları (OD-11, OD-22)
+## 13. Personel Hesapları (OD-24, OD-11, OD-22)
 
-- **BR-130** Kullanıcı adı: 3–30 karakter, `a-z 0-9 . _`, küçük harfe normalize, benzersiz. Yalnızca ADMIN belirler/değiştirir.
-- **BR-131** Şifre: min **8**, maks 128 karakter (sabit). Şifreyi yalnızca ADMIN belirler; mevcut şifre hiçbir zaman görüntülenemez. EMPLOYEE kendi şifresini/kullanıcı adını değiştiremez; self-servis sıfırlama, "Şifremi unuttum", kayıt ekranı **yoktur**. İlk girişte zorunlu şifre değişimi **yoktur**.
-- **BR-132** Pasifleştirme tüm oturumları iptal eder; pasif kullanıcı giriş yapamaz. Hesaplar silinmez (audit bütünlüğü).
-- **BR-133** ADMIN kendi hesabını pasifleştiremez, kendi rolünü düşüremez; sistemde en az bir aktif ADMIN bulunmalıdır.
-- **BR-134** EMPLOYEE hiçbir hesap yönetimi işlemi yapamaz.
-- **BR-135** Şifre değiştirildiğinde ilgili kullanıcının **tüm** oturumları iptal edilir.
-- **BR-136** Personel oturumu en fazla **7 gün** sürer ve **uzatılmaz** (sliding yok); hareketsizlik zaman aşımı yoktur.
+- **BR-130** Sistemde **tam olarak iki** şirket hesabı vardır: bir ADMIN, bir EMPLOYEE (OD-24). Üçüncü hesap oluşturulamaz (veritabanı kısıtı). İki hesap birebir aynı uygulama yetkilerine sahiptir; hesap türü yalnızca tanımlama ve işlem geçmişinde ayırt etme içindir.
+- **BR-131** Kullanıcı adı: 3–30 karakter, `a-z 0-9 . _`, küçük harfe normalize, benzersiz; iki hesabın kullanıcı adları farklıdır. Şifre: min **8**, maks 128 karakter (sabit); iki hesabın şifreleri farklı olmalı ve kullanıcı adını içermemelidir. Mevcut şifre hiçbir zaman görüntülenemez.
+- **BR-132** Hesaplar yalnızca yerel CLI ile bir kez oluşturulur (`pnpm auth:bootstrap`); mevcut hesapların üzerine yazılmaz. Uygulamada kayıt, hesap oluşturma, silme, pasifleştirme, rol değiştirme, kullanıcı adı değiştirme **yoktur**.
+- **BR-133** Hiçbir hesap uygulama içinden kendi veya diğer hesabın şifresini değiştiremez; "Şifremi unuttum" ve self-servis sıfırlama yoktur. Şifre yalnızca güvenilir işletmecinin yerel CLI'ı ile sıfırlanır (`pnpm auth:reset-password`). İlk girişte zorunlu şifre değişimi yoktur.
+- **BR-134** — (kaldırıldı: EMPLOYEE'ye özgü kısıtlar — OD-24)
+- **BR-135** Şifre sıfırlandığında **yalnızca ilgili hesabın** tüm oturumları iptal edilir; diğer hesabın oturumları etkilenmez. Bir hesabın çıkışı diğerini etkilemez.
+- **BR-136** Personel oturumu en fazla **7 gün** sürer ve **uzatılmaz** (sliding yok); hareketsizlik zaman aşımı ve "beni hatırla" yoktur.
 
 ## 14. Arşivleme — (kaldırıldı, OD-23)
 
@@ -162,7 +162,7 @@ Gösterge vize onay olasılığı veya sonuç garantisi ifade etmez.
 
 ## 15. Manuel Silme (OD-06)
 
-- **BR-150** Başvuruyu yalnızca **ADMIN** silebilir. Otomatik başvuru/müşteri verisi silme ve saklama süresi yönetimi **yoktur**.
+- **BR-150** Başvuruyu her iki şirket hesabı da silebilir (OD-24; başvuru numarası yazılarak onay, gerekçe ve audit zorunlu). Otomatik başvuru/müşteri verisi silme ve saklama süresi yönetimi **yoktur**.
 - **BR-151** Silme, başvuru numarasının yazılmasını isteyen açık bir onay penceresi ve "Bu işlem geri alınamaz" uyarısı gerektirir.
 - **BR-152** Silme kapsamı: bağlantılar (iptal + satır silme), tüm müşteri oturumları (bağlantı kontrolü ile anında), **tüm dosya versiyonlarının blob'ları** (private storage), evrak gereksinimleri, dosya kayıtları, incelemeler, yorumlar, iç notlar, statü geçmişi ve başvuru kaydı. Soft delete (yalnızca `deleted_at`) **gerçek silme sayılmaz**.
 - **BR-153** Silme iki aşamalıdır: (1) başvuru `deletion_requested_at` ile **anında erişilemez** yapılır (bağlantı ve tüm okumalar reddedilir); (2) blob'lar silinip doğrulandıktan sonra DB kayıtları silinir. Blob silme kısmen başarısız olursa başvuru erişilemez durumda kalır; ADMIN "Silmeyi tamamla" ile veya günlük temizlik işiyle güvenli şekilde yeniden denenir (idempotent).

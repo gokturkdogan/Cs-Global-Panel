@@ -125,7 +125,7 @@ shadcn/ui'dan yalnızca ihtiyaç duyulanlar eklenir (Button, Input, Label, Texta
 | Success | Toast (kısa) + kalıcı durum değişimi (rozet) |
 | Empty | İkon + açıklayıcı başlık + (varsa) birincil aksiyon |
 | Skeleton | Liste/kart iskeletleri (`loading.tsx`) |
-| Confirmation | Önemli / geri alınamaz işlemler `AlertDialog`: başvuru iptali (gerekçe), ADMIN yeniden açma/geri alma (gerekçe), **başvuru silme** (başvuru numarasını yazarak onay + "Bu işlem geri alınamaz" uyarısı), çalışan pasifleştirme, yeni şifre atama, bağlantı yenileme/iptal, evrak düzeltme isteği, gönderim, **WhatsApp ile paylaş** (hedef müşteri adı-soyadı ve telefon numarası büyük puntoyla gösterilir — BR-162) |
+| Confirmation | Önemli / geri alınamaz işlemler `AlertDialog`: başvuru iptali (gerekçe), yeniden açma/geri alma (gerekçe), **başvuru silme** (başvuru numarasını yazarak onay + "Bu işlem geri alınamaz" uyarısı), çalışan pasifleştirme, yeni şifre atama, bağlantı yenileme/iptal, evrak düzeltme isteği, gönderim, **WhatsApp ile paylaş** (hedef müşteri adı-soyadı ve telefon numarası büyük puntoyla gösterilir — BR-162) |
 
 Dokunma hedefi: müşteri panelinde tüm etkileşimli öğeler **≥ 44×44 px** (WCAG 2.2 2.5.8 minimumu 24×24; hedef 44).
 
@@ -141,9 +141,9 @@ Tek paylaşılan bileşen `src/components/shared/logo.tsx`: "CS Global" metin lo
 
 ## 6. Şirket Paneli Düzeni
 
-- `lg+`: sol sabit sidebar (240px), üst header (kullanıcı adı + "Çıkış"), içerik alanında breadcrumb + sayfa başlığı + aksiyonlar.
+- `lg+`: sol sabit sidebar (**248px**, PHASE 04), üst header (hesap menüsü: avatar + kullanıcı adı → "Çıkış Yap"), içerik alanında breadcrumb + sayfa başlığı + aksiyonlar.
 - `<lg`: header'da menü butonu → `Sheet` drawer.
-- Sidebar: Dashboard, Başvurular, Hizmetler*, Çalışanlar*, İşlem Geçmişi* (*yalnızca ADMIN — gizleme UX içindir, güvenlik sunucuda). Ayarlar ve hesap sayfası **yok**.
+- Sidebar: Genel Bakış, Başvurular, Hizmetler, İşlem Geçmişi — **iki hesap için aynı** (OD-24); rol bazlı menü yok. Çalışanlar, Ayarlar ve hesap sayfası **yok**.
 - Giriş ekranı: logo + kullanıcı adı + şifre + "Giriş yap". "Şifremi unuttum" / "Kayıt ol" **yok** (OD-11).
 - Başvuru listesi: tek liste; üstte statü sekmeleri/filtreleri: Tüm Başvurular · Evrak Bekleniyor · İncelemede · Düzeltme Bekleniyor · Evraklar Onaylandı · Başvuru İşlemde · Tamamlandı · İptal Edildi (OD-23).
 - Tablolar: sticky header, satır hover, `md` altında kart listesine dönüşüm veya tablo içinde yatay scroll.
@@ -193,3 +193,19 @@ Uzun içerik kuralları: `min-w-0`, `break-words`, `overflow-wrap:anywhere` dosy
 - Canlı bölgeler: yükleme ilerlemesi ve sonuçları `aria-live="polite"`.
 - Renk tek başına anlam taşımaz (ikon + metin).
 - Otomatik test: axe (Playwright `@axe-core/playwright` — bağımlılık PHASE 11'de değerlendirilir) + manuel VoiceOver (iOS) / TalkBack (Android) kontrolü.
+
+## 10. PHASE 04 Uygulanan Panel Bileşenleri
+
+| Bileşen | Dosya | Kurallar |
+|---|---|---|
+| DashboardShell | `src/components/dashboard/dashboard-shell.tsx` | "İçeriğe geç" atlama bağlantısı (ilk odak), sabit sidebar + sticky header + `main#main-content`; içerik `max-w-7xl`, kenar boşluğu 16/24/32px |
+| Sidebar / NavLinks | `sidebar.tsx`, `nav-links.tsx` | Logo "CS GLOBAL" + "Vize Danışmanlık"; öğe yüksekliği ≥44px; aktif: `primary-light` zemin + `primary-dark` metin + `aria-current="page"`; ikonlar dekoratif (`aria-hidden`); altta avatar (baş harf, `tr-TR` büyük harf) + kullanıcı adı + "Çıkış Yap" |
+| MobileNavigation | `mobile-navigation.tsx` | <1024px; "Menüyü aç" (44px) → sol drawer `min(18rem, 85vw)`; Radix Dialog (odak kapanı, Escape, overlay, kaydırma kilidi, odak iadesi); sayfa değişince kapanır; geçiş 150–200ms |
+| DashboardHeader / AccountMenu | `dashboard-header.tsx`, `account-menu.tsx` | Mobilde menü butonu + logo; sağda hesap menüsü (`aria-label="Hesap menüsü: <ad>"`), içerik: kullanıcı adı + "Çıkış Yap" (menü öğesi ≥44px). Hesap/ayar sayfası yok |
+| Breadcrumb / PageHeader | `breadcrumb.tsx`, `page-header.tsx` | `nav[aria-label="Konum"]` + `ol`; son öğe `aria-current="page"`; tek `h1`; açıklama `text-muted-foreground` |
+| StatCard | `stat-card.tsx` | Etiket `h2` + sayı (`text-3xl`, `tabular-nums`, `tr-TR` biçimi) + açıklama; ikon dekoratif; 1 → 2 (≥640px) → 4 (≥1280px) sütun |
+| EmptyState / ErrorState / LoadingSkeleton | `empty-state.tsx`, `error-state.tsx`, `loading-skeleton.tsx` | Boş: nötr ikon + başlık + açıklama (`data-state="empty"`). Hata: `role="alert"`, `destructive-soft` zemin, Türkçe genel mesaj + "Tekrar dene" (`router.refresh`/`reset`) — boş durumdan görsel ve semantik olarak ayrı. Yükleniyor: `aria-busy="true"` + ekran okuyucu metni; pulse reduced-motion'da kapanır |
+| ApplicationStatusBadge | `src/features/applications/components/application-status-badge.tsx` | Etiket + ikon + renk (§1.2); tek kaynak `status-labels.ts`; Badge varyantları `neutral` (Evrak Bekleniyor), `info` (İncelemede), `warning` (Düzeltme), `success` (Onaylandı/Tamamlandı), `processing` (İşlemde), `destructive` (İptal) |
+| NotReadyPage | `not-ready.tsx` | Hazır olmayan modül: konum yolu + başlık + "Henüz kullanıma hazır değil" (sahte aksiyon yok) |
+
+Son başvurular: ≥768px tablo (`caption` sr-only, `th scope="col"`), altında kart listesi (yatay kaydırma yok); satırlar bağlantı değildir (detay PHASE 06). Pasif "Yeni Başvuru" butonu `disabled` + görünür açıklama metni (`aria-describedby`). Ekran görüntüleri (yerel, commit edilmez): `screenshots/phase-04/`.

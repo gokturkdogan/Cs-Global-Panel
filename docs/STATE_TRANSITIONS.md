@@ -1,7 +1,7 @@
 # State Machine'ler ve Geçiş Matrisleri
 
 > Tüm geçişler **sunucu tarafında**, merkezi domain modüllerinde (`src/features/applications/domain/application-status.ts`, `src/features/documents/domain/document-status.ts`, `src/features/documents/domain/file-status.ts`) doğrulanır. Frontend yalnızca sunucunun döndürdüğü "izin verilen aksiyonlar" listesini gösterir.
-> ADMIN yetkisi keyfî statü değişikliği değildir: ADMIN de yalnızca bu matristeki geçişleri yapabilir (OD-05).
+> İki şirket hesabı (ADMIN, EMPLOYEE) eşit yetkilidir (OD-24); "Personel" ikisini birlikte ifade eder. Tam yetki keyfî statü değişikliği değildir: personel yalnızca bu matristeki geçişleri yapabilir (OD-05).
 > Guard'lar [BUSINESS_RULES.md](BUSINESS_RULES.md) kurallarına referans verir.
 
 ## 1. Başvuru Statüleri
@@ -16,7 +16,7 @@
 | `COMPLETED` | Süreç Tamamlandı | CS Global danışmanlık süreciniz tamamlandı. *(Resmî vize sonucu değildir.)* | Evet* |
 | `CANCELLED` | İptal Edildi | Bu başvuru iptal edilmiştir. | Evet* |
 
-\* "Terminal": EMPLOYEE için çıkışı olmayan, müşteri paneli salt okunur statü. Yalnızca ADMIN gerekçeli yeniden açma geçişleriyle (T8, T9) çıkarabilir.
+\* "Terminal": normal akışta çıkışı olmayan, müşteri paneli salt okunur statü. Personel yalnızca gerekçeli yeniden açma geçişleriyle (T8, T9) çıkarabilir.
 
 Başlangıç statüsü: `AWAITING_DOCUMENTS` (`application_status_history`'ye `from_status = NULL`). Arşiv statüsü **yoktur** (OD-23).
 
@@ -36,15 +36,15 @@ stateDiagram-v2
     REVISION_REQUIRED --> CANCELLED: T7 İptal
     DOCUMENTS_APPROVED --> CANCELLED: T7 İptal
     IN_PROCESS --> CANCELLED: T7 İptal
-    CANCELLED --> AWAITING_DOCUMENTS: T8 Yeniden aç (ADMIN, iptal öncesi statüye)
+    CANCELLED --> AWAITING_DOCUMENTS: T8 Yeniden aç (gerekçeli, iptal öncesi statüye)
     CANCELLED --> UNDER_REVIEW: T8
     CANCELLED --> REVISION_REQUIRED: T8
     CANCELLED --> DOCUMENTS_APPROVED: T8
     CANCELLED --> IN_PROCESS: T8
-    COMPLETED --> IN_PROCESS: T9 Yeniden aç (ADMIN)
-    IN_PROCESS --> DOCUMENTS_APPROVED: T10 Geri al (ADMIN)
-    DOCUMENTS_APPROVED --> UNDER_REVIEW: T11 Yeniden incele (ADMIN)
-    DOCUMENTS_APPROVED --> REVISION_REQUIRED: T12 Evrak düzeltmesi iste (ADMIN)
+    COMPLETED --> IN_PROCESS: T9 Yeniden aç (gerekçeli)
+    IN_PROCESS --> DOCUMENTS_APPROVED: T10 Geri al (gerekçeli)
+    DOCUMENTS_APPROVED --> UNDER_REVIEW: T11 Yeniden incele (gerekçeli)
+    DOCUMENTS_APPROVED --> REVISION_REQUIRED: T12 Evrak düzeltmesi iste (gerekçeli)
     IN_PROCESS --> REVISION_REQUIRED: T12
 ```
 
@@ -52,18 +52,18 @@ stateDiagram-v2
 
 | # | From → To | Aksiyon kodu | Roller | Gerekçe | Guard | Yan etkiler | Audit event |
 |---|---|---|---|---|---|---|---|
-| T1 | `AWAITING_DOCUMENTS → UNDER_REVIEW` | `SUBMIT` | CUSTOMER; ADMIN/EMPLOYEE (müşteri adına) | — | BR-50 | `UPLOADED` → `PENDING_REVIEW` (BR-52); `submitted_at` | `APPLICATION_SUBMITTED` |
-| T2 | `UNDER_REVIEW → REVISION_REQUIRED` | `REQUEST_REVISION` | ADMIN, EMPLOYEE | — | BR-59 | Müşteri panelinde düzeltme rozetleri | `APPLICATION_STATUS_CHANGED` |
-| T3 | `UNDER_REVIEW → DOCUMENTS_APPROVED` | `APPROVE_DOCUMENTS` | ADMIN, EMPLOYEE | — | BR-60 | Yükleme kapanır | `APPLICATION_STATUS_CHANGED` |
-| T4 | `REVISION_REQUIRED → UNDER_REVIEW` | `RESUBMIT` | CUSTOMER; ADMIN/EMPLOYEE (müşteri adına) | — | BR-50 | `UPLOADED` → `PENDING_REVIEW` | `APPLICATION_RESUBMITTED` |
-| T5 | `DOCUMENTS_APPROVED → IN_PROCESS` | `START_PROCESSING` | ADMIN, EMPLOYEE | — | — | — | `APPLICATION_STATUS_CHANGED` |
-| T6 | `IN_PROCESS → COMPLETED` | `COMPLETE` | ADMIN, EMPLOYEE | — | — | Panel salt okunur (bağlantı açık kalır) | `APPLICATION_STATUS_CHANGED` |
-| T7 | `{AWAITING_DOCUMENTS, UNDER_REVIEW, REVISION_REQUIRED, DOCUMENTS_APPROVED, IN_PROCESS} → CANCELLED` | `CANCEL` | ADMIN, EMPLOYEE | **Zorunlu** | — | Panel salt okunur; devam eden yüklemeler iptal (`EXPIRED`); evrak statüleri **değişmez**; bağlantı açık kalır | `APPLICATION_STATUS_CHANGED` |
-| T8 | `CANCELLED → <iptal öncesi statü>` | `REOPEN_CANCELLED` | **ADMIN** | **Zorunlu** | Hedef = son `→ CANCELLED` geçmiş kaydının `from_status`'u (sunucu belirler; istemci hedef seçemez) | Evrak statüleri iptal öncesindeki gibi olduğundan tutarlılık korunur | `APPLICATION_STATUS_CHANGED` (`metadata.action = REOPEN_CANCELLED`) |
-| T9 | `COMPLETED → IN_PROCESS` | `REOPEN_COMPLETED` | **ADMIN** | **Zorunlu** | — | Evraklar/onaylar korunur | `APPLICATION_STATUS_CHANGED` |
-| T10 | `IN_PROCESS → DOCUMENTS_APPROVED` | `REVERT_TO_DOCUMENTS_APPROVED` | **ADMIN** | **Zorunlu** | — | — | `APPLICATION_STATUS_CHANGED` |
-| T11 | `DOCUMENTS_APPROVED → UNDER_REVIEW` | `REVERT_TO_REVIEW` | **ADMIN** | **Zorunlu** | — | Evrak kararları korunur; personel D6 ile kararları değiştirebilir, D9 ile dosya değiştirebilir | `APPLICATION_STATUS_CHANGED` |
-| T12 | `{DOCUMENTS_APPROVED, IN_PROCESS} → REVISION_REQUIRED` | `REVERT_FOR_REVISION` | **ADMIN** | **Zorunlu** (iç) + seçilen her evrak için **müşteri açıklaması** (BR-56) | ≥1 evrak seçilmiş; seçilenler `APPROVED` | Seçilen evraklar `APPROVED → REVISION_REQUIRED` (D10; aktif dosyaya bağlı yeni review kaydı); diğer onaylar korunur; müşteri yeniden yükleyebilir | `APPLICATION_STATUS_CHANGED` + `DOCUMENT_REVISION_REQUESTED` (her evrak) |
+| T1 | `AWAITING_DOCUMENTS → UNDER_REVIEW` | `SUBMIT` | CUSTOMER; Personel (müşteri adına) | — | BR-50 | `UPLOADED` → `PENDING_REVIEW` (BR-52); `submitted_at` | `APPLICATION_SUBMITTED` |
+| T2 | `UNDER_REVIEW → REVISION_REQUIRED` | `REQUEST_REVISION` | Personel | — | BR-59 | Müşteri panelinde düzeltme rozetleri | `APPLICATION_STATUS_CHANGED` |
+| T3 | `UNDER_REVIEW → DOCUMENTS_APPROVED` | `APPROVE_DOCUMENTS` | Personel | — | BR-60 | Yükleme kapanır | `APPLICATION_STATUS_CHANGED` |
+| T4 | `REVISION_REQUIRED → UNDER_REVIEW` | `RESUBMIT` | CUSTOMER; Personel (müşteri adına) | — | BR-50 | `UPLOADED` → `PENDING_REVIEW` | `APPLICATION_RESUBMITTED` |
+| T5 | `DOCUMENTS_APPROVED → IN_PROCESS` | `START_PROCESSING` | Personel | — | — | — | `APPLICATION_STATUS_CHANGED` |
+| T6 | `IN_PROCESS → COMPLETED` | `COMPLETE` | Personel | — | — | Panel salt okunur (bağlantı açık kalır) | `APPLICATION_STATUS_CHANGED` |
+| T7 | `{AWAITING_DOCUMENTS, UNDER_REVIEW, REVISION_REQUIRED, DOCUMENTS_APPROVED, IN_PROCESS} → CANCELLED` | `CANCEL` | Personel | **Zorunlu** | — | Panel salt okunur; devam eden yüklemeler iptal (`EXPIRED`); evrak statüleri **değişmez**; bağlantı açık kalır | `APPLICATION_STATUS_CHANGED` |
+| T8 | `CANCELLED → <iptal öncesi statü>` | `REOPEN_CANCELLED` | Personel | **Zorunlu** | Hedef = son `→ CANCELLED` geçmiş kaydının `from_status`'u (sunucu belirler; istemci hedef seçemez) | Evrak statüleri iptal öncesindeki gibi olduğundan tutarlılık korunur | `APPLICATION_STATUS_CHANGED` (`metadata.action = REOPEN_CANCELLED`) |
+| T9 | `COMPLETED → IN_PROCESS` | `REOPEN_COMPLETED` | Personel | **Zorunlu** | — | Evraklar/onaylar korunur | `APPLICATION_STATUS_CHANGED` |
+| T10 | `IN_PROCESS → DOCUMENTS_APPROVED` | `REVERT_TO_DOCUMENTS_APPROVED` | Personel | **Zorunlu** | — | — | `APPLICATION_STATUS_CHANGED` |
+| T11 | `DOCUMENTS_APPROVED → UNDER_REVIEW` | `REVERT_TO_REVIEW` | Personel | **Zorunlu** | — | Evrak kararları korunur; personel D6 ile kararları değiştirebilir, D9 ile dosya değiştirebilir | `APPLICATION_STATUS_CHANGED` |
+| T12 | `{DOCUMENTS_APPROVED, IN_PROCESS} → REVISION_REQUIRED` | `REVERT_FOR_REVISION` | Personel | **Zorunlu** (iç) + seçilen her evrak için **müşteri açıklaması** (BR-56) | ≥1 evrak seçilmiş; seçilenler `APPROVED` | Seçilen evraklar `APPROVED → REVISION_REQUIRED` (D10; aktif dosyaya bağlı yeni review kaydı); diğer onaylar korunur; müşteri yeniden yükleyebilir | `APPLICATION_STATUS_CHANGED` + `DOCUMENT_REVISION_REQUESTED` (her evrak) |
 
 **Matriste olmayan her geçiş reddedilir** (`INVALID_STATUS_TRANSITION`). Yeniden açma ve geri alma geçişlerinde evraklar, dosya versiyonları, önceki onaylar ve geçmiş kayıtları **silinmez**.
 
@@ -79,7 +79,7 @@ stateDiagram-v2
 | `COMPLETED` | Hayır | Hayır | Hayır | Hayır | Salt okunur |
 | `CANCELLED` | Hayır | Hayır | Hayır | Hayır | Salt okunur, minimal bilgi |
 
-ADMIN bir başvuruyu yeniden açtığında/geri aldığında, hedef statünün satırındaki işlemler otomatik olarak yeniden açılır.
+Personel bir başvuruyu yeniden açtığında/geri aldığında (T8–T12), hedef statünün satırındaki işlemler otomatik olarak yeniden açılır.
 
 ### 1.4 Statü geçmişi
 Her geçiş `application_status_history`'ye yazılır: `from_status`, `to_status`, `actor_type`, `actor_user_id`, `actor_access_token_id`, `on_behalf_of_customer`, `reason` (T7–T12'de zorunlu), `created_at`. Kayıtlar değiştirilemez (başvuru silinmesi hariç). Müşteri paneli geçmişten yalnızca statü + tarih gösterir; gerekçe ve aktör gösterilmez.
@@ -113,7 +113,7 @@ stateDiagram-v2
     NOT_UPLOADED --> PENDING_REVIEW: D9 Personel yükledi (UNDER_REVIEW)
     APPROVED --> PENDING_REVIEW: D9
     REVISION_REQUIRED --> PENDING_REVIEW: D9
-    APPROVED --> REVISION_REQUIRED: D10 ADMIN T12
+    APPROVED --> REVISION_REQUIRED: D10 T12 içinde
 ```
 
 ### 2.2 Geçiş Matrisi
@@ -124,13 +124,13 @@ stateDiagram-v2
 | — | `UPLOADED → UPLOADED` | Değiştirme: yeni dosya aktif, eskisi `SUPERSEDED` | Aynı | Statü değişmez, `version` artar |
 | D2 | `UPLOADED → NOT_UPLOADED` | Aktif dosyanın kaldırılması (`REMOVED`) | Aynı | BR-44 |
 | D3 | `UPLOADED → PENDING_REVIEW` | T1/T4 transaction'ı | — | BR-52 |
-| D4 | `PENDING_REVIEW → APPROVED` | ADMIN, EMPLOYEE | `UNDER_REVIEW` | BR-57: `fileId` = aktif dosya |
-| D5 | `PENDING_REVIEW → REVISION_REQUIRED` | ADMIN, EMPLOYEE | `UNDER_REVIEW` | BR-56, BR-57 |
-| D6 | `APPROVED ↔ REVISION_REQUIRED` | ADMIN, EMPLOYEE | Yalnızca `UNDER_REVIEW` | BR-57, BR-58 |
+| D4 | `PENDING_REVIEW → APPROVED` | Personel | `UNDER_REVIEW` | BR-57: `fileId` = aktif dosya |
+| D5 | `PENDING_REVIEW → REVISION_REQUIRED` | Personel | `UNDER_REVIEW` | BR-56, BR-57 |
+| D6 | `APPROVED ↔ REVISION_REQUIRED` | Personel | Yalnızca `UNDER_REVIEW` | BR-57, BR-58 |
 | D7 | `REVISION_REQUIRED → UPLOADED` | Yeni dosya aktif (müşteri/personel) | `REVISION_REQUIRED` | Eski dosya `SUPERSEDED` |
 | D8 | `REVISION_REQUIRED → NOT_UPLOADED` | Aktif dosyanın kaldırılması | `REVISION_REQUIRED` | Yalnızca `is_required = false`. Zorunlu evrakta kaldırma yapılırsa statü `REVISION_REQUIRED` kalır |
 | D9 | `{NOT_UPLOADED, PENDING_REVIEW, APPROVED, REVISION_REQUIRED} → PENDING_REVIEW` | **Personel** yeni dosya yükledi/değiştirdi | Yalnızca `UNDER_REVIEW` (OD-17) | BR-48: önceki onay aktarılmaz; `PENDING_REVIEW → PENDING_REVIEW` için yalnızca `version` artar |
-| D10 | `APPROVED → REVISION_REQUIRED` | ADMIN, T12 içinde | `DOCUMENTS_APPROVED`, `IN_PROCESS` | Müşteri açıklaması zorunlu; review kaydı aktif dosyaya bağlı |
+| D10 | `APPROVED → REVISION_REQUIRED` | Personel, T12 içinde | `DOCUMENTS_APPROVED`, `IN_PROCESS` | Müşteri açıklaması zorunlu; review kaydı aktif dosyaya bağlı |
 
 Not: `UNDER_REVIEW` sırasında personel yükleme yaparsa, aynı anda o evrağı inceleyen başka bir personelin kararı BR-57 gereği `CONFLICT` ile reddedilir.
 

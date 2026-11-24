@@ -9,13 +9,15 @@ const baseURL = `http://localhost:${PORT}`;
  */
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
-    trace: "retain-on-failure",
+    // Trace kapalı: trace dosyaları istek header'larını (oturum cookie'si dahil) diske yazar (D-067).
+    trace: "off",
   },
   projects: [
     { name: "Desktop Chrome", use: { ...devices["Desktop Chrome"] } },
@@ -28,6 +30,7 @@ export default defineConfig({
     url: baseURL,
     timeout: 240_000,
     reuseExistingServer: !process.env.CI,
-    env: { NEXT_TELEMETRY_DISABLED: "1" },
+    // Better Auth'un güvenilen origin'i test sunucusunun adresiyle eşleşmeli.
+    env: { NEXT_TELEMETRY_DISABLED: "1", APP_ENV: "development", APP_URL: baseURL },
   },
 });

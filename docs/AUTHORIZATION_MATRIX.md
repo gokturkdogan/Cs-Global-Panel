@@ -1,106 +1,53 @@
-# Yetkilendirme Matrisi
+# Yetkilendirme Modeli
 
-> Yetkilendirme iki katmanlıdır:
-> 1. **RBAC** — rol bu aksiyona izin veriyor mu? (`can(role, permission)`)
-> 2. **Kaynak bazlı** — aktör *bu* kaynağa erişebilir mi + iş kuralı guard'ları ([STATE_TRANSITIONS.md](STATE_TRANSITIONS.md)). Personel için kaynak kontrolü: başvuru var ve silinme sürecinde değil. Müşteri için: kaynak, oturumun bağlı olduğu tek başvuruya ait.
->
-> Kontroller her Server Action / Route Handler / veri okuma fonksiyonunun **içinde** yapılır. `proxy.ts` yalnızca iyimser yönlendirme yapar.
+> **OD-24 (2026-11-24):** Sistemde yalnızca **iki sabit şirket hesabı** vardır: bir `ADMIN`, bir `EMPLOYEE`. İkisi **birebir aynı uygulama yetkilerine** sahiptir. Rol bazlı (RBAC) veya izin bazlı yetkilendirme, izin matrisi, kullanıcıya özel yetki, rol bazlı menü ve ADMIN-only sayfa/işlem **yoktur**. Hesap türü yalnızca hesabı tanımlamak ve işlem geçmişinde ayırt etmek içindir.
+> Önceki rol × izin matrisi ve `can(role, permission)` tasarımı kaldırıldı (geçmiş: [DECISION_LOG.md](DECISION_LOG.md) OD-24).
 
-## 1. Aktör Tipleri
+## 1. Erişim Kategorileri
 
-| Aktör | Kimlik kaynağı | Kapsam |
+| Kategori | Kimlik kaynağı | Kapsam |
 |---|---|---|
-| `ADMIN` | Better Auth session (`users.role = 'admin'`) | Tüm sistem |
-| `EMPLOYEE` | Better Auth session (`users.role = 'employee'`) | **Tüm başvurular** (OD-03) — yönetim işlemleri hariç |
-| `CUSTOMER` | Müşteri oturum cookie'si (bağlantıyla oluşturulur) | **Yalnızca** oturumun bağlı olduğu tek başvuru |
-| `SYSTEM` | Cron / Blob callback (secret veya SDK doğrulaması) | Tanımlı teknik işler |
+| **Authenticated Staff** | Better Auth personel oturumu (geçerli, süresi dolmamış, veritabanında doğrulanan) + hesabın mevcut olması + hesap türünün `admin` veya `employee` olması | Şirket panelinin **tamamı** — iki hesap için **eşit** |
+| **Customer** | Müşteri oturum cookie'si (bağlantıyla oluşturulur — PHASE 07) | **Yalnızca** oturumun bağlı olduğu tek başvuru; müşteri DTO'su |
+| **Unauthenticated** | — | Korumalı hiçbir veri ve işlem yok (yalnızca giriş ekranı, geçersiz bağlantı sayfası) |
 
-Pasif (`banned = true`) kullanıcı her istekte reddedilir. Atama, "yalnızca atananlar" kapsamı, kapsam ayarı **yoktur** (OD-03). Tüm başvurulara erişim, EMPLOYEE'ye yönetici yetkisi vermez.
+`SYSTEM` (cron, storage callback) secret/SDK doğrulamasıyla çalışan teknik işlerdir; kullanıcı kategorisi değildir.
 
-## 2. İzin Matrisi
+## 2. Authenticated Staff — eşit erişim
 
-Lejant: ✅ izinli · ❌ yasak · 🔶 koşullu (BR / guard referansı)
+Her iki hesap aşağıdakilerin **tamamını** yapabilir. Hesap türüne göre fark yoktur:
 
-### 2.1 Başvurular
+- Dashboard; tüm başvuruları görüntüleme, arama, filtreleme (atama yok — OD-03).
+- Başvuru oluşturma ve müşteri bilgilerini düzenleme.
+- Hizmet oluşturma/düzenleme/pasifleştirme; evrak şablonu yönetimi.
+- Müşteri adına PDF yükleme ve değiştirme (BR-44), evrak inceleme, onay, düzeltme talebi.
+- Statü geçişleri T1–T12 (iptal, iptal edilmişi/tamamlanmışı yeniden açma, izin verilen önceki statülere dönme dahil).
+- Müşteri bağlantısını görüntüleme, kopyalama, WhatsApp ile paylaşma, iptal etme, yenileme.
+- Şirket içi notlar; yorumlar; başvurunun işlem geçmişi; genel audit log görüntüleme.
+- Başvurunun ve ilgili müşteri verilerinin/PDF'lerinin manuel kalıcı silinmesi (BR-150…BR-155).
 
-| İzin kodu | ADMIN | EMPLOYEE | CUSTOMER |
-|---|---|---|---|
-| `application:list` | ✅ | ✅ | ❌ |
-| `application:read` | ✅ | ✅ | 🔶 yalnızca kendi oturum başvurusu, müşteri DTO'su |
-| `application:create` | ✅ | ✅ | ❌ |
-| `application:update_customer_info` | ✅ | ✅ | ❌ |
-| `application:submit` (T1/T4) | ✅ müşteri adına | ✅ müşteri adına | 🔶 kendi başvurusu, BR-50 |
-| `application:transition` (T2, T3, T5, T6) | ✅ | ✅ | ❌ |
-| `application:cancel` (T7, gerekçeli) | ✅ | ✅ | ❌ |
-| `application:reopen_revert` (T8–T12, gerekçeli) | ✅ | ❌ | ❌ |
-| `application:delete` (BR-150) | ✅ | ❌ | ❌ |
-| `application:read_status_history` | ✅ tam | ✅ tam | 🔶 statü + tarih |
-| `application:read_activity` (başvurunun işlem geçmişi) | ✅ | ✅ | ❌ |
+Eşit ve tam yetki şu anlama **gelmez**:
+- Keyfî statü değişikliği: her iki hesap da yalnızca [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) matrisindeki geçişleri, guard'larıyla yapar.
+- Hassas işlemlerdeki onay, gerekçe, transaction ve audit gereksinimlerinin atlanması (iptal gerekçesi, silmede başvuru numarası onayı, bağlantı yenileme onayı).
+- Audit kayıtlarının değiştirilmesi veya silinmesi (hiçbir hesap yapamaz — D-039).
+- Veritabanı sahip yetkisi (uygulama her zaman en az yetkili `cs_app_runtime` ile çalışır — D-054).
+- Müşterilerin şirket paneline erişmesi.
 
-### 2.2 Müşteri bağlantısı (OD-19)
+**Hesap yönetimi uygulamada yoktur.** Hiçbir hesap uygulama içinden kendi veya diğer hesabın şifresini değiştiremez, kullanıcı oluşturamaz/silemez/pasifleştiremez, rol değiştiremez. Hesaplar yalnızca yerel CLI ile oluşturulur (`pnpm auth:bootstrap`) ve şifre yalnızca yerel CLI ile sıfırlanır (`pnpm auth:reset-password`) — SECURITY §2.
 
-| İzin | ADMIN | EMPLOYEE | CUSTOMER |
-|---|---|---|---|
-| `access_link:view_copy` (görüntüle, kopyala, WhatsApp ile paylaş) | ✅ | ✅ | ❌ |
-| `access_link:rotate` (yenile / iptal edilmişin yerine yeni oluştur) | ✅ | ✅ | ❌ |
-| `access_link:revoke` (iptal) | ✅ | ✅ | ❌ |
-
-### 2.3 Evraklar ve dosyalar
-
-| İzin | ADMIN | EMPLOYEE | CUSTOMER |
-|---|---|---|---|
-| `document:read` (liste, statü) | ✅ | ✅ | 🔶 kendi başvurusu |
-| `file:view_download` | ✅ `ACTIVE`/`SUPERSEDED`/`REMOVED` | ✅ aynı | 🔶 yalnızca kendi başvurusunun `ACTIVE` dosyaları |
-| `file:upload` / `file:replace` | 🔶 müşteri adına, BR-44 (UNDER_REVIEW dahil) | 🔶 aynı | 🔶 BR-44 (UNDER_REVIEW hariç) |
-| `file:remove` | 🔶 BR-44 (UNDER_REVIEW hariç) | 🔶 aynı | 🔶 BR-44 |
-| `document:review` (onay / düzeltme) | 🔶 D4–D6, BR-57 | 🔶 aynı | ❌ |
-| `document:read_versions` | ✅ | ✅ | ❌ |
-| `document_comment:create` | ✅ | ✅ | ❌ |
-| `document_comment:read` | ✅ | ✅ | 🔶 kendi başvurusu |
-
-### 2.4 Şirket içi notlar
-
-| İzin | ADMIN | EMPLOYEE | CUSTOMER |
-|---|---|---|---|
-| `internal_note:create` | ✅ | ✅ | ❌ |
-| `internal_note:read` | ✅ | ✅ | ❌ **(hiçbir payload'da yer almaz — BR-121)** |
-
-### 2.5 Yönetim
-
-| İzin | ADMIN | EMPLOYEE | CUSTOMER |
-|---|---|---|---|
-| `service:read` (aktif hizmetler — başvuru formu) | ✅ | ✅ | ❌ |
-| `service:manage` (oluştur/düzenle/aktif-pasif/sırala) | ✅ | ❌ | ❌ |
-| `document_template:manage` | ✅ | ❌ | ❌ |
-| `user:list` / `user:read` | ✅ | ❌ | ❌ |
-| `user:create` (kullanıcı adı + şifre belirler) | ✅ | ❌ | ❌ |
-| `user:update` (ad, kullanıcı adı, e-posta) | ✅ (BR-133) | ❌ | ❌ |
-| `user:set_role` | ✅ (BR-133) | ❌ | ❌ |
-| `user:deactivate` / `reactivate` | ✅ (BR-133) | ❌ | ❌ |
-| `user:set_password` (yeni şifre atar, mevcut şifreyi göremez; oturumları iptal eder) | ✅ (kendi hesabı dahil) | ❌ | ❌ |
-| `user:revoke_sessions` | ✅ | ❌ | ❌ |
-| `user:change_own_password` / self-servis sıfırlama | ❌ (ADMIN `user:set_password` kullanır) | ❌ (OD-11) | ❌ |
-| `user:impersonate` | ❌ (devre dışı) | ❌ | ❌ |
-| `audit_log:read` (genel işlem geçmişi sayfası) | ✅ | ❌ | ❌ |
-| `dashboard:read_stats` | ✅ | ✅ | ❌ |
-
-Ayarlar sayfası ve `settings:*` izinleri **yoktur** (sabit yapılandırma — OD-12, OD-14, OD-16, OD-22).
-
-## 3. Kapalı Better Auth Uç Noktaları
-
-Doğrudan API çağrısıyla yetki aşımını engellemek için (OD-11) aşağıdakiler HTTP üzerinden **kullanılamaz** olmalıdır: `sign-up/*`, `sign-in/email`, `change-password`, `change-email`, `update-user`, `delete-user`, `request-password-reset` / `forget-password`, `reset-password`, `is-username-available`, `admin/impersonate-user`, `admin/stop-impersonating`. Admin plugin uç noktaları (`admin/*`) HTTP'den çağrılamaz; yalnızca sunucudaki Server Action'lar `auth.api` ile kullanır (audit ve BR-133 kontrolleri atlanmasın diye). Uygulama yöntemi (`disabledPaths` + `hooks.before`) ve `auth.api` çağrılarına etkisi PHASE 03'te doğrulanır (TD-03).
-
-## 4. Müşteri Erişimi Kuralları
+## 3. Customer (PHASE 07)
 
 - Müşteri oturumu tam olarak **bir** `application_id`'ye bağlıdır. Tüm müşteri sorguları oturumdan gelen `applicationId` ile kapsanır; istemciden gelen `applicationId` **kabul edilmez**.
 - Her müşteri isteğinde: oturum imzası + süresi + bağlı bağlantının iptal edilmemiş olması + başvurunun silinme sürecinde olmaması kontrol edilir (BR-104).
+- Müşteri yalnızca kendi başvurusunda: bilgileri ve statüyü görme, izinli durumlarda yükleme/değiştirme/kaldırma (BR-44), gönderme (BR-50), kendi `ACTIVE` dosyalarını görüntüleme/indirme, kendisine yazılan yorumları okuma.
 - Müşteri dosya isteği: dosyanın `application_id`'si oturumla eşleşmiyorsa veya dosya `ACTIVE` değilse **404**.
-- Müşteri DTO'ları whitelist alanlardan oluşur; iç notlar, personel adları, aktörler, gerekçeler, `rejection_reason` kodu, eski versiyonlar, audit verisi **hiçbir zaman** dahil edilmez.
+- Müşteri DTO'ları whitelist alanlardan oluşur; iç notlar, personel adları, aktörler, gerekçeler, `rejection_reason` kodu, eski versiyonlar, audit verisi **hiçbir zaman** dahil edilmez (BR-121).
 
-## 5. Uygulama Kuralları (kod)
+## 4. Uygulama Kuralları (kod)
 
-1. İzinler `src/server/auth/permissions.ts` içinde tek yerde (`Permission` union + rol → izin haritası).
-2. Her Server Action: **(1) Zod doğrula → (2) aktörü sunucuda çöz → (3) RBAC → (4) kaynak kontrolü → (5) domain guard (kilit altında) → (6) transaction → (7) audit → (8) DTO**.
-3. Mass assignment engeli: input şemaları `.strict()`; `role`, `status`, `version`, `created_by` istemciden alınmaz (statü için aksiyon kodu alınır).
-4. Yetki hataları genel mesajla döner ("Bu işlem için yetkiniz bulunmuyor."). Müşteri için kapsam dışı kaynak = 404.
-5. Matristeki her ❌ ve 🔶 hücre için en az bir test ([TESTING_STRATEGY.md](TESTING_STRATEGY.md) §4).
+1. Tek ortak personel kontrolü: `getCurrentStaff()` (oturum yoksa `null`) ve `requireStaff()` (yoksa `/login`'e yönlendirir; Route Handler'da 401). `requireAdmin()`, `requirePermission()`, `can()` veya rol bazlı guard **yoktur**.
+2. Her Server Action / Route Handler / hassas veri okuyan Server Component kontrolü **kendi içinde** yapar. `proxy.ts`, layout, menü gizleme veya istemci kontrolü güvenlik sınırı değildir.
+3. Akış: **(1) Zod doğrula → (2) personel/müşteri oturumunu sunucuda çöz → (3) kaynak kontrolü → (4) domain guard (kilit altında) → (5) transaction → (6) audit → (7) DTO**.
+4. İstemciden gelen kullanıcı ID'si, rol, `status`, `version`, `created_by` kabul edilmez (Zod `.strict()`); audit ve kayıtlardaki aktör kimliği yalnızca doğrulanmış oturumdan alınır.
+5. Oturumu olmayan istek: sayfada `/login`'e yönlendirme, Route Handler'da 401. Müşteri için kapsam dışı kaynak = 404.
+6. Testler: her korumalı giriş noktası için oturumsuz erişim reddi; her iki hesabın aynı kontrolden geçtiği; manipüle edilmiş rol/aktör bilgisinin etkisiz olduğu ([TESTING_STRATEGY.md](TESTING_STRATEGY.md)).

@@ -71,3 +71,6 @@ $RECYCLE.BIN/
 # --- Yerel veri (gerçek müşteri verisi / PDF repoya girmez) ---
 /uploads/
 /local-data/
+
+# --- PHASE raporu ekran görüntüleri (yerel; gerçek veri içermez, commit edilmez) ---
+screenshots/

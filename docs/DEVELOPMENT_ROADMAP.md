@@ -2,6 +2,7 @@
 
 > Her faz sonunda PROJECT_STATE, CHANGELOG, (gerekirse) DECISION_LOG güncellenir; faz raporu sunulur; **kullanıcı açıkça onaylamadan sonraki faza geçilmez**.
 > **Ortak Definition of Done (tüm fazlar):** `typecheck` + `lint` + `format:check` + ilgili testler yeşil · `pnpm audit` yüksek/kritik yok · dokümanlar güncel · yeni secret yok · gerçek veri yok · ücretli servis yok · test edilmeyen iş "tamamlandı" raporlanmaz.
+> Revizyon 2026-11-24 (PHASE 03): iki sabit hesap ve eşit yetki (OD-24) — RBAC, rol yönetimi ve personel yönetimi görevleri kaldırıldı.
 > Revizyon 2026-11-24: OTP, e-posta, müşteri eşleştirme, çalışan atama, arşiv, ayarlar, otomatik saklama/süre sonu, harici AV, dinamik limitler kaldırıldı; ADMIN yeniden açma/geri alma, manuel silme, tek aktif PDF, sabit yapılandırma eklendi.
 
 ---
@@ -24,7 +25,7 @@
 - **Acceptance:** `pnpm build` başarılı; kalite kapıları yeşil; header'lar mevcut; `.env.local` git tarafından ignore ediliyor (test).
 - **DoD:** Ortak DoD + TECH_STACK kurulu sürümlerle güncel.
 
-## PHASE 02 — Database Foundation (tamamlandı — kullanıcı onayı bekliyor; tek veritabanı D-059)
+## PHASE 02 — Database Foundation (tamamlandı — Product Owner onayı 2026-11-24; tek veritabanı D-059)
 - **Scope:** Neon Free non-prod projesi (kullanıcı onayıyla, ücretsiz), Drizzle + `pg` pool, 13 domain tablosu + CHECK/partial unique index/trigger/GRANT migration'ları, `pg_trgm`, sahte seed (demo hizmetler, şablonlar, sahte başvurular), normalizasyon yardımcıları (telefon, e-posta, arama).
 - **Deliverables:** `src/server/db/schema/*`, migration SQL'leri, `db:generate`, `db:migrate`, `db:seed`, integration test altyapısı.
 - **Dependencies:** PHASE 01; D-005, D-006, D-007, D-008, D-039.
@@ -33,35 +34,37 @@
 - **Acceptance:** Boş DB'ye migration'lar baştan uygulanır; seed çalışır; integration yeşil.
 - **DoD:** Ortak DoD + DATABASE_SCHEMA gerçek şemayla senkron.
 
-## PHASE 03 — Authentication & Authorization
-- **Scope:** Better Auth (username + admin plugin, `nextCookies`), Drizzle adapter, `/api/auth/[...all]`, `disableSignUp`, `disabledPaths` + `hooks.before` ile kapalı uç noktalar, `disableIpTracking` + session hook (UA null) + DB CHECK, uygulama limitleyicisiyle giriş sınırlaması, 7 gün sabit oturum (`disableSessionRefresh`), cookie cache kapalı, `requireStaff`, `permissions.ts`, `/login` (yalnızca kullanıcı adı + şifre), `proxy.ts` iyimser yönlendirme, `admin:bootstrap` ve `admin:recover` script'leri, auth audit event'leri.
-- **Deliverables:** Çalışan giriş/çıkış, bootstrap/recover, izin altyapısı.
-- **Dependencies:** PHASE 02; TD-03, TD-04, TD-05.
-- **Security checks:** Kapalı uç noktalara doğrudan istek; IP/UA'nın yazılmadığı; oturumun uzamadığı; enumeration; cookie flag'leri; trusted origins; rate limiting'in serverless çoklu instance ortamında güvenilir olması (Postgres `rate_limit_buckets`, bellek içi sayaç yok; yalnızca kısa ömürlü HMAC'li anahtarlar, kalıcı IP/cihaz verisi yok); nonce'lu CSP (`proxy.ts`, D-048).
-- **Test requirements:** Unit: izin matrisi. Integration: §3 "Personel auth", "Oturum parametreleri", "IP/UA saklamama", "Giriş sınırlaması". E2E: login/logout, S05, S18, S24.
-- **Acceptance:** Public kayıt/self-servis şifre işlemi mümkün değil; bootstrap ikinci kez çalışmaz; `sessions` satırlarında IP/UA NULL.
-- **DoD:** Ortak DoD + TECH_STACK §3.5 doğrulanamayanları kapatıldı.
+## PHASE 03 — Authentication & Equal Staff Access (tamamlandı — gerçek hesaplar oluşturuldu; D-065 koşullu)
+- **Scope:** İki sabit şirket hesabı (OD-24): Better Auth (yalnızca username plugin + `nextCookies`; admin plugin yok), Drizzle adapter; Better Auth HTTP route'u **bağlanmaz** — giriş/çıkış Server Action'ları içinde sunucu tarafı `auth.api` ile (kayıt, şifre sıfırlama, e-posta, kullanıcı yönetimi uç noktaları HTTP'den erişilemez); hesap başına tek kayıt veritabanı kısıtı (en fazla 2 hesap); `pnpm auth:bootstrap` (iki hesap, gizli şifre girişi) ve `pnpm auth:reset-password` (yalnızca ilgili hesabın oturumlarını iptal eder); ortak `getCurrentStaff()`/`requireStaff()`; 7 gün sabit oturum (`disableSessionRefresh`, cookie cache kapalı); IP/UA saklamama (`disableIpTracking` + session hook + DB CHECK); Postgres tabanlı giriş rate limiting (kullanıcı adı + genel); nonce'lu CSP (`proxy.ts`); tek ortak giriş ekranı; korumalı `/dashboard` placeholder; auth audit event'leri.
+- **Deliverables:** Çalışan giriş/çıkış, iki hesap bootstrap'ı, şifre kurtarma CLI'ı, ortak personel erişim kontrolü.
+- **Dependencies:** PHASE 02; TD-04 (IP header — hosting'de, PHASE 13).
+- **Security checks:** Kapalı uç noktalara doğrudan istek (404); üçüncü hesap ve eşzamanlı bootstrap; IP/UA'nın yazılmadığı; oturumun uzamadığı; genel hata mesajı/enumeration; cookie flag'leri; CSRF (Server Action origin kontrolü); open redirect; rate limiting'in fail-closed ve çoklu instance'ta güvenilir olması; nonce'lu CSP; runtime rol yetkilerinin genişlememesi.
+- **Test requirements:** Unit: şifre/kullanıcı adı politikası, rate limit anahtarı, env. Integration (gerçek Postgres): hesap modeli, bootstrap eşzamanlılığı, giriş/çıkış, oturum süresi/uzamama, şifre sıfırlamanın oturum iptali, IP/UA, rate limit, audit. E2E: ortak giriş ekranı, giriş/çıkış, korumalı sayfa, kapalı uç noktalar, CSRF, CSP, responsive.
+- **Acceptance:** Bir ADMIN ve bir EMPLOYEE hesabı oluşturulabilir, üçüncüsü oluşturulamaz; iki hesap aynı kontrolden geçer; public kayıt/self-servis şifre işlemi mümkün değil; `sessions` satırlarında IP/UA NULL.
+- **DoD:** Ortak DoD.
 
-## PHASE 04 — Dashboard Foundation
-- **Scope:** Dashboard layout (sidebar, header, breadcrumb, mobil drawer), rol bazlı navigasyon (Ayarlar/Hesap sayfası yok), ortak bileşenler (DataTable, Pagination, EmptyState, ConfirmDialog, StatusBadge, Skeleton), hata/404 sayfaları.
+## PHASE 04 — Dashboard Foundation (tamamlandı — kullanıcı onayı bekliyor)
+- **Scope:** Her iki hesap için **aynı** dashboard layout (sidebar, header, breadcrumb, mobil drawer), aynı navigasyon ve menüler — rol bazlı UI farkı yok (OD-24); Ayarlar/Hesap/Çalışanlar sayfası yok; ortak bileşenler (DataTable, Pagination, EmptyState, ConfirmDialog, StatusBadge, Skeleton), hata/404 sayfaları.
 - **Deliverables:** Gezinilebilir panel iskeleti.
 - **Dependencies:** PHASE 03.
-- **Security checks:** Her layout/page `requireStaff`; `Cache-Control`; CSP nonce entegrasyonu.
-- **Test requirements:** E2E: ADMIN vs EMPLOYEE menüsü, responsive drawer, klavye navigasyonu, axe.
+- **Security checks:** Her layout/page `requireStaff`; `Cache-Control: no-store`; CSP nonce.
+- **Ek kapsam (Product Owner, PHASE 03 sonu):** P4-01 kalıcı kimliği doğrulanmış test stratejisi (gerçek hesaplara dokunmadan, bypass/test endpoint'i olmadan); P4-02 CSRF reddinin kontrollü hata biçimi; P4-03 global login rate limit DoS riski değerlendirmesi; P4-04 HTTPS'te `Secure` cookie doğrulamasının deployment öncesi planı (PROJECT_STATE).
+- **Test requirements:** E2E: iki hesap aynı menüyü görür, responsive drawer, klavye navigasyonu, axe; P4-01 ile hesap testlerinin bootstrap sonrası da çalışması.
 - **Acceptance:** 1024/1440'ta sidebar, <1024'te drawer; tüm sayfalar dinamik ve no-store.
+- **Sonuç (2026-11-24):** Düzen, Genel Bakış (gerçek veri), bilgilendirme sayfaları, 404, P4-01/P4-02 çözüldü, P4-03 azaltıldı, P4-04 yapılandırma düzeyinde. DataTable, Pagination ve ConfirmDialog ilk kullanıldıkları fazlara (PHASE 05/06) bırakıldı (kullanılmayan bileşen üretilmez). axe taraması PHASE 12.
 - **DoD:** Ortak DoD.
 
 ## PHASE 05 — Service & Document Template Management
-- **Scope:** Hizmet CRUD (silme yok), aktif/pasif, sıralama; evrak şablonu CRUD (başlık, açıklama, talimat, zorunlu/isteğe bağlı, sıra, aktif/pasif). Dosya boyutu/sayısı/tipi alanı **yok**.
+- **Scope:** Hizmet CRUD (silme yok), aktif/pasif, sıralama; evrak şablonu CRUD (başlık, açıklama, talimat, zorunlu/isteğe bağlı, sıra, aktif/pasif). Dosya boyutu/sayısı/tipi alanı **yok**. Her iki hesap yönetebilir (OD-24).
 - **Deliverables:** `/dashboard/services*`.
 - **Dependencies:** PHASE 04.
-- **Security checks:** `service:manage` yalnızca ADMIN; `.strict()` şemalar.
-- **Test requirements:** Unit: şemalar. Integration: CRUD, yetki, pasif hizmetin aktif listede olmaması. E2E: ADMIN hizmet + şablon; EMPLOYEE erişemez.
+- **Security checks:** `requireStaff` her action'da; `.strict()` şemalar; `created_by_user_id` oturumdan (D-053).
+- **Test requirements:** Unit: şemalar. Integration: CRUD, oturumsuz erişim reddi, pasif hizmetin aktif listede olmaması. E2E: her iki hesap hizmet + şablon yönetir.
 - **Acceptance:** Pasif hizmet başvuru formunda listelenmez.
 - **DoD:** Ortak DoD.
 
 ## PHASE 06 — Customer & Application Management
-- **Scope:** Başvuru formu (müşteri bilgileri her başvuruda yeniden girilir; eşleştirme yok), atomik oluşturma (numara, snapshot, token), sonuç ekranı (Kopyala, **kişiselleştirilmiş WhatsApp paylaşımı** + onay penceresi, Detaya git), tek başvuru listesi (arama, statü/hizmet/tarih filtresi, sayfalama), detay (müşteri bilgisi düzenleme, statü geçmişi, iç notlar, bağlantı göster/kopyala/paylaş/yenile/iptal/yeni oluştur), ADMIN manuel silme (iki aşamalı; storage silme PHASE 08 storage modülü hazır olduğunda tamamlanır — bu fazda dosyasız başvurular için).
+- **Scope:** Başvuru formu (müşteri bilgileri her başvuruda yeniden girilir; eşleştirme yok), atomik oluşturma (numara, snapshot, token), sonuç ekranı (Kopyala, **kişiselleştirilmiş WhatsApp paylaşımı** + onay penceresi, Detaya git), tek başvuru listesi (arama, statü/hizmet/tarih filtresi, sayfalama), detay (müşteri bilgisi düzenleme, statü geçmişi, iç notlar, bağlantı göster/kopyala/paylaş/yenile/iptal/yeni oluştur), manuel silme (her iki hesap) (iki aşamalı; storage silme PHASE 08 storage modülü hazır olduğunda tamamlanır — bu fazda dosyasız başvurular için).
 - **Deliverables:** `/dashboard/applications*`.
 - **Dependencies:** PHASE 05; D-011, D-033, D-036.
 - **Security checks:** Token üretimi/HMAC/AES-GCM; bağlantı gösteriminin audit'i; tek aktif token; `APP_URL` ile URL üretimi; idempotency; silme sonrası erişilemezlik.
@@ -88,21 +91,21 @@
 - **DoD:** Ortak DoD + SDK API'leri TECH_STACK'te doğrulandı.
 
 ## PHASE 09 — Document Review & Application Workflow
-- **Scope:** Gönderim (müşteri + müşteri adına), evrak inceleme (onay/düzeltme + gerekçe, `fileId` bağlı), karar değişikliği, müşteri yorumları, T2–T7, **ADMIN T8–T12** (gerekçeli, evrak seçimli), izin verilen aksiyonlar, müşteri panelinde düzeltme gösterimi, yeniden gönderim, statü geçmişi.
+- **Scope:** Gönderim (müşteri + müşteri adına), evrak inceleme (onay/düzeltme + gerekçe, `fileId` bağlı), karar değişikliği, müşteri yorumları, T2–T7, **T8–T12** (her iki hesap; gerekçeli, evrak seçimli), izin verilen aksiyonlar, müşteri panelinde düzeltme gösterimi, yeniden gönderim, statü geçmişi.
 - **Deliverables:** Tam iş akışı.
 - **Dependencies:** PHASE 08; D-027, D-041.
 - **Security checks:** Sunucu tarafı state machine; kilit + version; BR-57; aktör kaydı.
-- **Test requirements:** Unit: geçiş matrisleri %100. Integration: eşzamanlılık, ADMIN geçişleri. E2E: §5.1 ana senaryo (tamamı), E1–E3, S13, S14, S23.
+- **Test requirements:** Unit: geçiş matrisleri %100. Integration: eşzamanlılık, T8–T12 geçişleri (iki hesapla). E2E: §5.1 ana senaryo (tamamı), E1–E3, S13, S14, S23.
 - **Acceptance:** Ana senaryonun 19 adımı desktop + mobilde yeşil.
 - **DoD:** Ortak DoD.
 
 ## PHASE 10 — Administration & Operations
-- **Scope:** Çalışan yönetimi (oluştur, kullanıcı adı/şifre belirle, düzenle, rol, aktif/pasif, yeni şifre ata + oturum iptali, oturum sonlandırma), dashboard istatistikleri, audit log ekranı (filtre, sayfalama), başvuru detayında işlem geçmişi.
-- **Deliverables:** `/dashboard/employees*`, `/dashboard/audit-logs`, dashboard sayaçları.
+- **Scope:** Dashboard istatistikleri, audit log ekranı (filtre, sayfalama), başvuru detayında işlem geçmişi, manuel başvuru/müşteri verisi silme akışının tamamlanması ve ilgili storage temizliği, operasyonel bakım gereksinimleri. Her iki hesap eşit erişir (OD-24). **Kaldırılanlar:** çalışan CRUD, kullanıcı yönetim ekranı, rol/izin yönetimi, hesap aktif/pasif ekranı, personel hesabı oluşturma ekranı.
+- **Deliverables:** `/dashboard/audit-logs`, dashboard sayaçları, silme operasyonu.
 - **Dependencies:** PHASE 09.
-- **Security checks:** BR-133 son admin koruması; audit yalnızca ADMIN; şifrelerin hiçbir yanıtta/logda olmaması.
-- **Test requirements:** Integration: kullanıcı yönetimi, son admin koruması, istatistik doğruluğu. E2E: S05, S06, E6.
-- **Acceptance:** AUTHORIZATION_MATRIX yönetim satırlarının tamamı testli.
+- **Security checks:** `requireStaff`; audit salt okunur (hiçbir hesap değiştiremez); silmede onay + audit; secret/şifre/PII'nin hiçbir yanıtta/logda olmaması.
+- **Test requirements:** Integration: istatistik doğruluğu, audit filtreleri, silmenin iki aşaması. E2E: iki hesapla audit görüntüleme, E5.
+- **Acceptance:** Audit ve silme her iki hesapla çalışır; audit kayıtları değiştirilemez.
 - **DoD:** Ortak DoD.
 
 ## PHASE 11 — UI/UX & Performance Optimization
@@ -114,7 +117,7 @@
 - **DoD:** Ortak DoD.
 
 ## PHASE 12 — Quality Assurance & Security Audit
-- **Scope:** Tam regresyon, yetki matrisi %100, S01–S24, tehdit modeli gözden geçirme, manuel sızma testi (ASVS L2 seçkisi), bağımlılık denetimi, log/payload sızıntı incelemesi, production blocker durumu.
+- **Scope:** Tam regresyon, personel/müşteri erişim izolasyonu %100 (oturumsuz ve kapsam dışı erişim reddi), iki hesap modeli, S01–S24, tehdit modeli gözden geçirme, manuel sızma testi (ASVS L2 seçkisi), bağımlılık denetimi, log/payload sızıntı incelemesi, production blocker durumu.
 - **Dependencies:** PHASE 11.
 - **Security checks:** SECURITY §11 PB-04, PB-05, PB-07, PB-09, PB-10.
 - **Test requirements:** Tüm suite.
@@ -122,7 +125,7 @@
 - **DoD:** Ortak DoD.
 
 ## PHASE 13 — Production Deployment
-- **Scope:** Ticari kullanıma uygun ücretsiz (veya kullanıcının açıkça onayladığı) hosting/DB/storage değerlendirmesi ve seçimi (DEPLOYMENT §6.3), production ortamı, env/secrets, sağlayıcı alt alan adı (`APP_URL`), GitHub branch koruma + secret scanning, migration, bootstrap admin, günlük temizlik zamanlaması, yedek/geri yükleme provası, izleme, olay müdahale planı, smoke test.
+- **Scope:** Ticari kullanıma uygun ücretsiz (veya kullanıcının açıkça onayladığı) hosting/DB/storage değerlendirmesi ve seçimi (DEPLOYMENT §6.3), production ortamı, env/secrets, sağlayıcı alt alan adı (`APP_URL`), GitHub branch koruma + secret scanning, migration, iki hesap bootstrap'ı (`pnpm auth:bootstrap`, production'da ayrı ve güçlü şifrelerle), günlük temizlik zamanlaması, yedek/geri yükleme provası, izleme, olay müdahale planı, smoke test.
 - **Dependencies:** PHASE 12; PB-01, PB-02, PB-03, PB-06, PB-08, PB-11 kapalı.
 - **Security checks:** MFA, en az yetki, izolasyon, rotasyon prosedürü, sağlayıcı log politikası incelemesi (TM-15).
 - **Test requirements:** Production smoke test (sahte başvuru, sonra silinir), geri yükleme provası.

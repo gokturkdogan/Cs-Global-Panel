@@ -1,13 +1,13 @@
 # Karar Kaydı (Decision Log)
 
 > Durumlar: **Proposed** · **Accepted** · **Rejected** · **Superseded**.
-> Bölüm A: Product Owner tarafından onaylanan ürün kararları (OD-01…OD-23). Bölüm B: teknik kararlar (D-001…D-059). Bölüm C: faz onayları.
+> Bölüm A: Product Owner tarafından onaylanan ürün kararları (OD-01…OD-24). Bölüm B: teknik kararlar (D-001…D-066). Bölüm C: faz onayları.
 > Bir ürün kararının **ACCEPTED** olması, ilgili riskin güvenlik denetiminden geçtiği veya hukuki uygunluğun doğrulandığı anlamına gelmez — bkz. [THREAT_MODEL.md](THREAT_MODEL.md), [DATA_PRIVACY.md](DATA_PRIVACY.md), [SECURITY.md](SECURITY.md) §11.
 > Geçmiş kararlar silinmez; yerine geçilenler **Superseded** olarak işaretlenir.
 
 ---
 
-## A. Ürün Kararları (OD-01…OD-23)
+## A. Ürün Kararları (OD-01…OD-24)
 
 Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date: 2026-11-24**
 
@@ -34,6 +34,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Faz:** PHASE 07.
 
 ### OD-03 — Tüm çalışanlar tüm başvuruları görür
+- **Durum güncellemesi (2026-11-24):** **PARTIALLY SUPERSEDED by OD-24** — "ADMIN/EMPLOYEE fonksiyonel farkları korunur" ifadesi geçersiz; iki hesap eşit yetkilidir. Atama/kapsam olmaması aynen geçerli.
 - **Önceki öneri:** Ayarlanabilir kapsam (`ALL` / `ASSIGNED_ONLY`) + atama (D-014).
 - **Nihai karar:** Atama, assigned-only, kapsam ayarı yok. ADMIN/EMPLOYEE fonksiyonel farkları korunur.
 - **Ürün tercihi:** Küçük ekip; sade operasyon.
@@ -56,6 +57,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Faz:** PHASE 06–07.
 
 ### OD-05 — İptal ve yeniden açma
+- **Durum güncellemesi (2026-11-24):** **PARTIALLY SUPERSEDED by OD-24** — "yalnızca ADMIN yeniden açar/geri alır" geçersiz; her iki hesap T8–T12'yi gerekçeyle yapar. Gerekçe zorunluluğu, merkezi domain logic ve matris dışı geçiş yasağı aynen geçerli.
 - **Önceki öneri:** İptal ADMIN+EMPLOYEE; yeniden açma MVP'de yok.
 - **Nihai karar:** ADMIN ve EMPLOYEE gerekçeyle iptal eder. Yalnızca ADMIN gerekçeyle iptali/tamamlanmışı yeniden açar ve izin verilen önceki aşamalara döndürür; merkezi domain logic doğrular; evraklar/versiyonlar/onaylar/geçmiş korunur; gerektiğinde seçilen evrakların onayı geçersiz kılınır; COMPLETED/CANCELLED paneli salt okunur.
 - **Ürün tercihi:** Hatalı kapatma/iptallerin düzeltilebilmesi.
@@ -67,6 +69,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Faz:** PHASE 09.
 
 ### OD-06 — Otomatik saklama/silme yok; ADMIN manuel silme
+- **Durum güncellemesi (2026-11-24):** **PARTIALLY SUPERSEDED by OD-24** — "yalnızca ADMIN siler" geçersiz; her iki hesap manuel siler. Otomatik silme olmaması, onay penceresi, iki aşamalı gerçek silme ve hukuki uyarılar aynen geçerli.
 - **Önceki öneri:** Ayarlanabilir saklama süreleri, otomatik imha işleri.
 - **Nihai karar:** Otomatik başvuru/müşteri/versiyon silme ve saklama ayarı yok. Yalnızca ADMIN; onay penceresi, geri dönüşsüz uyarısı; bağlantı + oturumlar + tüm dosya versiyonları + DB kayıtları gerçekten silinir; minimum audit; kısmi hatalarda retry/reconciliation. Teknik temizlik ayrı tutulur. KVKK yükümlülüklerini şirket takip eder.
 - **Ürün tercihi:** Basitlik; silme kontrolünün şirkette olması.
@@ -122,6 +125,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Faz:** PHASE 02, 06.
 
 ### OD-11 — Personel şifreleri tamamen ADMIN tarafından yönetilir
+- **Durum güncellemesi (2026-11-24):** **PARTIALLY SUPERSEDED by OD-24** — ADMIN'in uygulama içinde hesap/şifre/aktif-pasif yönetmesi geçersiz. Yeni model: iki sabit hesap yalnızca yerel CLI ile oluşturulur (`pnpm auth:bootstrap`), şifre yalnızca yerel CLI ile sıfırlanır (`pnpm auth:reset-password`); hiçbir hesap uygulama içinde şifre/kullanıcı adı/rol değiştiremez. Self-servis sıfırlama ve zorunlu ilk değişimin olmaması aynen geçerli.
 - **Önceki öneri:** ADMIN geçici şifre + ilk girişte zorunlu değişim; kullanıcı kendi şifresini değiştirebilir (D-020).
 - **Nihai karar:** ADMIN hesap, kullanıcı adı, şifre, yeni şifre, aktif/pasif yönetir. EMPLOYEE kendi şifresini/kullanıcı adını değiştiremez; sıfırlama talebi/self-servis yok; ilk girişte zorunlu değişim yok; giriş ekranında "Şifremi unuttum/Kayıt ol" yok. Mevcut şifre görüntülenemez. Şifre değişimi ve pasifleştirmede oturumlar iptal. Yetkisiz change/reset uç noktaları engellenir. Bootstrap + recovery korunur.
 - **Ürün tercihi:** Merkezi kontrol; e-posta yok.
@@ -177,6 +181,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Faz:** PHASE 05, 08.
 
 ### OD-17 — Personel `UNDER_REVIEW` sırasında yükleyebilir
+- **Durum güncellemesi (2026-11-24):** OD-24 ile çelişmez; "ADMIN/EMPLOYEE" = iki eşit personel hesabı. Değişiklik yok.
 - **Önceki öneri:** Personel de müşteriyle aynı kurala tabi (yükleme yok).
 - **Nihai karar:** CUSTOMER `UNDER_REVIEW`'da yükleyemez/değiştiremez/silemez. ADMIN/EMPLOYEE müşteri adına yükleyip değiştirebilir; yeni versiyon doğrulanır, onay aktarılmaz, yeniden incelemeye girer, geçmiş korunur, audit'lenir; eski versiyon onayı yeni dosyayı onaylamaz.
 - **Mimari etki:** D9 evrak geçişi; review `fileId` eşleşmesi (BR-57).
@@ -193,6 +198,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Faz:** PHASE 06.
 
 ### OD-19 — Bağlantı yetkileri ADMIN = EMPLOYEE
+- **Durum güncellemesi (2026-11-24):** OD-24 ile tutarlı (zaten eşit). Değişiklik yok.
 - **Önceki öneri:** EMPLOYEE yalnızca görüntüle/kopyala; yenileme onaya bağlı.
 - **Nihai karar:** Her iki rol görüntüler, kopyalar, WhatsApp ile paylaşır, iptal eder, yeniler, yeni oluşturur; onay pencereleri; audit (token'sız); tekrar görüntüleme zorunlu; hash + authenticated encryption; anahtarlar DB dışında sunucuda; iptal/yenileme oturumları anında geçersiz kılar.
 - **Mimari etki:** D-011 ürün gereksinimi olarak onaylandı.
@@ -224,12 +230,28 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Faz:** PHASE 03, 07.
 
 ### OD-23 — Arşivleme yok
+- **Durum güncellemesi (2026-11-24):** **PARTIALLY SUPERSEDED by OD-24** — "yalnızca ADMIN manuel silme" geçersiz; her iki hesap manuel siler. Arşiv olmaması aynen geçerli.
 - **Önceki öneri:** ADMIN, yalnızca terminal statülerde arşivleme (BR-140 eski).
 - **Nihai karar:** Arşiv, arşiv sayfası, geri çıkarma, otomatik arşiv, ayarlar, ARCHIVED statüsü, `archived_*` alanları yok; tek liste + statü filtreleri; yalnızca ADMIN manuel silme.
 - **Mimari etki:** Arşiv route/action/filtreleri kaldırıldı.
 - **Veri modeli etkisi:** `archived_at`, `archived_by_user_id` ve ilgili CHECK/index kaldırıldı.
 - **Etkilenen dokümanlar:** BUSINESS_RULES §14, BR-82, DATABASE_SCHEMA, API_CONTRACTS, DESIGN_SYSTEM §6, TESTING_STRATEGY.
 - **Faz:** PHASE 06.
+
+---
+
+### OD-24 — Fixed Two-Account Model & Equal Staff Permissions
+- **Status:** **ACCEPTED** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 başlangıcı)
+- **Önceki model:** Sınırsız personel hesabı; ADMIN ve EMPLOYEE arasında RBAC (izin matrisi); ADMIN-only hizmet/şablon, çalışan yönetimi, audit, silme ve T8–T12; uygulama içi hesap yönetimi (oluşturma, şifre atama, pasifleştirme, rol).
+- **Nihai karar:** Yalnızca **iki** şirket hesabı: bir ADMIN, bir EMPLOYEE. Ayrı kullanıcı adı, şifre ve oturumlar; bağımsız giriş/çıkış. **Birebir aynı uygulama yetkileri** — uygulamanın tüm işlevleri (dashboard, başvurular, hizmet/şablon, evrak inceleme, statü geçişleri T1–T12, bağlantı yönetimi, iç notlar, işlem geçmişi, audit log, manuel kalıcı silme). Hesap türü yalnızca tanımlama, işlem geçmişinde ayırt etme ve ileride yetki eklenebilmesi içindir. Üçüncü hesap oluşturulamaz.
+- **Kapsam dışı:** RBAC, izin bazlı yetkilendirme, izin matrisi, dinamik/kullanıcıya özel yetkiler, rol bazlı menü, ADMIN-only sayfa/API, çalışan atama, personel yönetim modülü, hesap oluşturma/silme/pasifleştirme ekranı, rol/yetki düzenleme ekranı.
+- **Korunanlar:** İş kuralları ve statü geçiş matrisi (tam yetki keyfî geçiş değildir); hassas işlemlerin onay, gerekçe, transaction ve audit gereksinimleri; append-only audit (hiçbir hesap değiştiremez); en az yetkili `cs_app_runtime`; müşteri/şirket izolasyonu.
+- **Mimari etki:** Tek ortak `requireStaff()` kontrolü; `permissions.ts`/`can()` yok; `/dashboard/employees` ve `features/employees` yok; hesap oluşturma ve şifre sıfırlama yalnızca yerel CLI (`auth:bootstrap`, `auth:reset-password`).
+- **Veri modeli etkisi:** `users.role` başına en fazla bir hesap (veritabanı kısıtı → en fazla 2 hesap); admin plugin alanları (`banned`, `ban_reason`, `ban_expires`, `impersonated_by`) gereksiz (D-061).
+- **Güvenlik etkisi:** Her iki hesap da kalıcı silme dahil tüm operasyonel yetkilere sahip → tek hesabın ele geçirilmesinin etkisi büyür (THREAT_MODEL TM-44); hesap pasifleştirme yok → olay müdahalesinde şifre sıfırlama (oturumları iptal eder) kullanılır.
+- **Superseded:** OD-03, OD-05, OD-06, OD-11, OD-23 (kısmen — her birinin altında not); D-021 (pasifleştirme = `banUser`), D-041'in rol kısmı ("ADMIN" → personel), BR-133/134 eski içerikleri, AUTHORIZATION_MATRIX rol × izin matrisi.
+- **Etkilenen dokümanlar:** tümü (PHASE 03 revizyonu — CHANGELOG).
+- **Faz:** PHASE 03 ve sonrası.
 
 ---
 
@@ -308,7 +330,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Status:** **Superseded** by OD-11.
 
 ### D-021 — Pasifleştirme = Better Auth `banUser`
-- **Status:** Proposed
+- **Status:** **Superseded (OD-24)** — hesap pasifleştirme yok; admin plugin kullanılmaz.
 
 ### D-022 — Ortam izolasyonu
 - **Status:** Proposed · Revizyon: dev/demo ücretsiz planlarda (Neon Free non-prod projesi, ayrı Blob store'lar); production ayrı hesap/proje — sağlayıcı açık.
@@ -384,7 +406,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Decision:** Sunucuda `src/server/storage/storage.ts`, client'ta `src/lib/upload-client.ts`; tüm storage çağrıları yalnızca bu iki dosyadan. Çoklu sağlayıcı arayüzü/adaptör katmanı yok.
 
 ### D-041 — ADMIN yeniden açma/geri alma geçiş seti
-- **Date:** 2026-11-24 · **Status:** Proposed (OD-05 uygulaması)
+- **Date:** 2026-11-24 · **Status:** Proposed (OD-05 uygulaması) — **rol kısmı Superseded (OD-24)**: geçiş seti aynen geçerli, "ADMIN" yerine iki eşit personel hesabı.
 - **Decision:** T8 `CANCELLED → iptal öncesi statü` (hedefi sunucu belirler), T9 `COMPLETED → IN_PROCESS`, T10 `IN_PROCESS → DOCUMENTS_APPROVED`, T11 `DOCUMENTS_APPROVED → UNDER_REVIEW`, T12 `{DOCUMENTS_APPROVED, IN_PROCESS} → REVISION_REQUIRED` (seçilen evrakların onayı geçersiz). Tümü gerekçeli.
 - **Alternatives:** ADMIN'in serbest hedef statü seçmesi (keyfî değişikliğe açık — reddedildi); daha az geçiş (operasyonel ihtiyaçları karşılamayabilir).
 - **Consequences:** Evrak statüleriyle tutarlılık korunur; yeni geçiş ihtiyacı ayrı karar gerektirir.
@@ -440,37 +462,37 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Decision:** `agentRules: false`; ajan talimatlarının tek kaynağı `CLAUDE.md`. Faydalı ipucu (sürüme uygun dokümanlar `node_modules/next/dist/docs/`) CLAUDE.md'ye eklendi.
 
 ### D-052 — Veritabanı düzeyinde ilişki bütünlüğü: bileşik FK'lar ve NULL-güvenli CHECK'ler
-- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 başlangıcı)
 - **Context:** Şemadaki tek kolonlu FK'lar (`document_reviews.file_id` vb.) bir incelemenin başka evrağın/başvurunun dosyasına bağlanmasını engellemiyordu (INV-09/INV-10). Ayrıca `reason`/`customer_message` CHECK'leri NULL değerde "geçti" sayılıyordu (PostgreSQL CHECK'te NULL = geçer).
 - **Decision:** `application_document_requirements (id, application_id)`, `application_document_files (id, requirement_id, application_id)`, `application_access_tokens (id, application_id)` üzerinde UNIQUE hedefler; dosya → evrak, inceleme → dosya/evrak, yorum/iç not → evrak, dosya/statü geçmişi → token ilişkileri **bileşik FK** (aynı başvuru zorunlu). Token referansları (`uploaded_by_access_token_id`, `actor_access_token_id`) doküman taslağındaki `SET NULL` yerine bileşik FK + `NO ACTION` (token'lar yalnızca başvuru silinince CASCADE ile silinir; bileşik FK'da `SET NULL` NOT NULL `application_id`'yi de boşaltırdı). CHECK'ler NULL durumunu açıkça ele alır. Ek kısıtlar: storage yolu kimliklerden türetilmiş `.pdf` yolu olmak zorunda (kişisel veri giremez), doğrulanmış dosyada boyut/sha256/aktivasyon zamanı zorunlu, token hash 64 hex, ciphertext `v1:<keyId>:` önekli, kullanıcı adı `^[a-z0-9_.]{3,30}$`, `sessions.impersonated_by` NULL (impersonation kullanılmaz), audit metadata yalnızca izinli üst düzey anahtarlar.
 - **Migration etkisi:** Yalnızca ilk migration (henüz hiçbir ortamda veri yok). İş kurallarını değiştirmez; yanlış uygulama kodunu DB'de durdurur.
 
 ### D-053 — Hizmet/şablon `created_by_user_id` NULL olabilir (sistem/seed kaydı)
-- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 başlangıcı)
 - **Context:** Development seed hizmet ve evrak şablonu oluşturmalı, ancak bu fazda personel hesabı oluşturulmaz (PHASE 03) ve sahte şifre hash'li kullanıcı yazılmaz.
 - **Alternatives:** Giriş yapamayan "sistem" kullanıcısı (personel listelerini kirletir, Better Auth tablosuna yapay kayıt); seed'i PHASE 03'e ertelemek (bu fazın seed gereksinimini karşılamaz).
 - **Decision:** `services.created_by_user_id` ve `service_document_requirements.created_by_user_id` NULL olabilir; NULL = sistem/seed kaydı. Personelin oluşturduğu kayıtlarda değer PHASE 05'te uygulama katmanında zorunludur (test edilecek). Başvuru, token, inceleme vb. tablolarda aktör kolonları NOT NULL kalır.
 
 ### D-054 — En az yetkili runtime rolü ve veritabanı güvenlik kontrolleri
-- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 başlangıcı)
 - **Context:** Neon'da Console/API ile oluşturulan roller `neon_superuser` üyesidir (CREATEDB, CREATEROLE, BYPASSRLS, REPLICATION); SQL ile oluşturulan roller yalnızca temel `public` yetkileri alır (neon.com/docs/manage/roles, 2026-11-24).
 - **Decision:** Migration/yönetim: projenin sahip rolü (tabloların sahibi). Runtime: SQL ile oluşturulan `cs_app_runtime` (`pnpm db:init`): LOGIN, NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOINHERIT; hiçbir role üye değil, hiçbir nesnenin sahibi değil. Tablo bazında yalnızca gereken GRANT'lar (migration 0002): değiştirilemez kayıtlar (inceleme, yorum, iç not, statü geçmişi, audit) yalnızca SELECT+INSERT; hizmet/kullanıcı DELETE yok; TRUNCATE/REFERENCES/TRIGGER hiçbir tabloda yok; `drizzle` şemasına erişim yok; `public`'te CREATE ve veritabanında TEMP PUBLIC'ten geri alındı. Başvuru alt kayıtları CASCADE ile silinir (referans eylemleri tablo sahibinin yetkisiyle çalışır). Rol düzeyinde `statement_timeout=15s`, `lock_timeout=5s`, `idle_in_transaction_session_timeout=15s` (pooler oturum SET'ini korumadığı için rol düzeyinde). Audit: runtime'a UPDATE/DELETE/TRUNCATE yok + sahip dahil herkes için engelleyen trigger. RLS kullanılmaz (yetkilendirme uygulama katmanında — ARCHITECTURE).
 - **Sınır:** Tablo sahibi rol trigger'ı kapatabilir/tabloyu değiştirebilir; audit koruması bu role karşı mutlak değildir (THREAT_MODEL TM-41).
 
 ### D-055 — Bağlantı yapılandırması ve hedef doğrulama
-- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed — **kısmen Superseded (D-059)**: ayrı test veritabanı ve veritabanı ortam işareti kaldırıldı
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 başlangıcı) — **kısmen Superseded (D-059)**: ayrı test veritabanı ve veritabanı ortam işareti kaldırıldı
 - **Decision:** `DATABASE_URL` = runtime (Neon pooled uç nokta, `cs_app_runtime`); `DATABASE_URL_UNPOOLED` = migration/yönetim (pooler olmayan uç nokta, sahip rol). Uzak bağlantıda `sslmode=verify-full` zorunlu (Neon önerisi); runtime adresinde rol adı `cs_app_runtime` olmak zorunda; production'da yerel adres reddedilir. Doğrulama lazy (`getDatabaseEnv()` → `getDb()`), hata mesajında adres parçası yok. Ayrı `DATABASE_URL_TEST` yok: integration testleri aynı sunucudaki `cs_global_test` veritabanını kullanır (adres türetilir). Her veritabanı `COMMENT ON DATABASE … IS 'cs.environment=<ortam>'` ile işaretlenir (ilk tasarım `ALTER DATABASE … SET cs.environment` idi; PostgreSQL 15+'ta özel ayarı veritabanı düzeyinde yazmak süper kullanıcı istediği için Neon'da reddedildi — 42501); migrate/seed/studio/test yazmadan önce bu işareti doğrular (APP_ENV'e tek başına güvenilmez). Pool: süreç başına tek Pool (`max 5`, `idleTimeoutMillis 10s`, `connectionTimeoutMillis 10s`), dev hot reload'da `globalThis` ile yeniden kullanım. Sürücü: `pg` + `drizzle-orm/node-postgres` (interaktif transaction ve `FOR UPDATE` gerektiği için HTTP sürücüsü kullanılmaz — D-006).
 
 ### D-056 — Migration akışı
-- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 başlangıcı)
 - **Decision:** `drizzle-kit generate` (şemadan SQL) + elle yazılan SQL migration'ları (`--custom`: extension, trigger, GRANT). Sıra: `0000_extensions` (pg_trgm) → `0001_initial_schema` → `0002_security_and_privileges`. Uygulama `pnpm db:migrate` (drizzle-orm migrator, tek transaction, `drizzle.__drizzle_migrations`) ile; hedef işareti doğrulanmadan çalışmaz. `drizzle-kit push` kullanılmaz; uygulanmış migration dosyası değiştirilmez, düzeltme yeni migration ile yapılır; `db:reset`/`db:drop` komutu yoktur. Migration'lar gerçek veritabanından önce PGlite (PostgreSQL WASM, yalnızca scratch dizininde) üzerinde ön kontrol edildi. Production hedefi PHASE 13'te eklenir.
 
 ### D-057 — Veritabanı CLI'ı Node 24 ile doğrudan; `tsx` yok
-- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 başlangıcı)
 - **Decision:** `scripts/db/*.ts` Node 24.22'nin yerleşik TypeScript tip ayıklamasıyla çalışır (uyarısız doğrulandı); ek script runner kurulmaz. Script'ler `.ts` uzantılı göreli import kullanır (`allowImportingTsExtensions`, `noEmit` ile). `.env.local` Node'un `process.loadEnvFile` ile okunur (mevcut değişkenler ezilmez). Paylaşılan saf modül `src/server/db/settings.ts` `server-only` içermez (CLI'da çalışabilmesi için); Drizzle şema dosyaları da aynı nedenle `server-only` içermez — bunlar secret içermez ve client'tan import ESLint sınırıyla engellidir. `getDb()` içeren `client.ts` `server-only`'dir.
 
 ### D-058 — Şema kolon adlandırması ve `updated_at`
-- **Date:** 2026-11-24 (PHASE 02) · **Status:** Proposed
+- **Date:** 2026-11-24 (PHASE 02) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 başlangıcı)
 - **Decision:** Kolon adları şemada açıkça snake_case yazılır (Drizzle `casing` seçeneğine bağlı kalınmaz); TS alan adları camelCase. Better Auth tablolarında TS alan adları Better Auth 1.7.27'nin alan adlarıyla birebir aynıdır (adapter `schema[model][field]` ile arar — kaynak koddan doğrulandı). `updated_at` veritabanı trigger'ıyla güncellenir (uygulama kodu unutsa da tutarlı). Statü değerleri `text` + CHECK; değer listeleri tek kaynak `src/config/statuses.ts`'ten üretilir.
 
 ### D-059 — Tek veritabanı; ortam ayrımı yok (Product Owner kararı)
@@ -480,6 +502,90 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Riskler (kabul edildi, production öncesi yeniden değerlendirilmeli — PB-06):** (1) Veritabanında gerçek müşteri verisi olduğunda `pnpm test:integration` sentetik kayıtları aynı veritabanına yazar; testlerin audit kayıtları silinemez ve kalır. (2) `pnpm db:seed` demo hizmetleri gerçek kataloğun yanına ekler. (3) Hatalı bir test temizliği gerçek veriyi etkileyebilir (temizlik yalnızca test kimlikleriyle sınırlıdır). (4) CLAUDE.md'deki "gerçek müşteri verisi dev/test/demo'da kullanılmaz" kuralı, ortamlar tek veritabanında birleştiği için ancak gerçek veri girmeden önce ayrı production veritabanına geçilerek korunabilir.
 - **Consequences:** PB-06 (production ortam izolasyonu) açık kalır; gerçek müşteri verisi girmeden önce ayrı production veritabanı veya bu kararın yazılı risk kabulü gerekir.
 
+### D-060 — Better Auth: HTTP route'u yok, yalnızca sunucu tarafı `auth.api`
+- **Date:** 2026-11-24 (PHASE 03) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 sonu)
+- **Context:** Önceki plan `/api/auth/[...all]` route'u + `disabledPaths`/`hooks.before` ile kapalı uç noktalar (TD-03: `auth.api` etkileşimi doğrulanmamıştı).
+- **Decision:** Better Auth HTTP route'u **bağlanmaz**. Giriş/çıkış Next.js Server Action'larında `auth.api.signInUsername`/`signOut` (`nextCookies` cookie'yi yazar); oturum `auth.api.getSession`. Yalnızca `username` plugin; admin plugin yok. `emailAndPassword.enabled: false`, `disableSignUp: true`; `databaseHooks.user/account.create.before → false` (Better Auth üzerinden hesap oluşturma imkânsız). Yerleşik rate limiter ve telemetri kapalı.
+- **Rationale:** Kullanılmayan uç noktaları tek tek kapatmak yerine hiç açmamak (TD-03 çözüldü). CSRF koruması Server Action origin kontrolünden gelir.
+- **Consequences:** İstemci tarafı Better Auth SDK'sı kullanılmaz. Gelecekte HTTP uç noktası gerekirse yeni karar.
+
+### D-061 — İki hesap modelinin veritabanı karşılığı
+- **Date:** 2026-11-24 (PHASE 03) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 sonu)
+- **Decision:** Migration 0003: `users_one_account_per_role` (UNIQUE `role`) + mevcut `role IN ('admin','employee')` → en fazla iki hesap; `role` varsayılansız; `username` NOT NULL; `email = id || '@staff.invalid'` CHECK (kişisel veri olmayan, değişmez iç kimlik — TD-05 çözüldü); admin plugin kolonları (`users.banned`, `ban_reason`, `ban_expires`, `sessions.impersonated_by`) ve ilgili CHECK kaldırıldı (veri yoktu). Rol/izin tablosu yok.
+- **Alternatives:** Uygulama kodunda sayım kontrolü (yarışa açık); trigger ile sayım (gereksiz karmaşıklık).
+
+### D-062 — Hesap oluşturma ve şifre sıfırlama yalnızca yerel CLI
+- **Date:** 2026-11-24 (PHASE 03) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 sonu)
+- **Decision:** `pnpm auth:bootstrap` (eksik hesapları tek transaction'da oluşturur; mevcutların üzerine yazmaz; ikisi de varsa hiçbir şey yapmaz) ve `pnpm auth:reset-password` (seçilen hesabın şifresini sıfırlar, yalnızca onun oturumlarını siler). Yalnızca etkileşimli TTY; şifreler gizli (raw mode) ve iki kez; argüman/env/pipe ile şifre alınmaz. Better Auth `hashPassword` (scrypt) ve `generateId` kullanılır. En az yetkili `cs_app_runtime` rolüyle çalışır. Audit: `USER_CREATED`, `USER_PASSWORD_SET`, `USER_SESSIONS_REVOKED`. İki hesabın kullanıcı adı ve şifresi farklı olmak zorunda.
+- **Sınır:** Komut, `.env.local`'a ve veritabanına erişimi olan güvenilir işletmeciye dayanır.
+
+### D-063 — Giriş rate limiting
+- **Date:** 2026-11-24 (PHASE 03) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 sonu)
+- **Decision:** Postgres `rate_limit_buckets` atomik sabit pencere sayaçları: kullanıcı adı (HMAC'li anahtar) 10 deneme/15 dk + genel 100 deneme/15 dk. Deneme sayılır (şifre kontrolünden önce) → eşzamanlı denemelerle aşılamaz; başarılı giriş kullanıcı adı sayacını sıfırlar; kalıcı kilit yok; hata → giriş reddi (fail-closed); süresi dolmuş anahtarlar her denemede en fazla 100 adet temizlenir. IP bazlı limit, güvenilir istemci IP header'ı hosting'de doğrulanana kadar uygulanmaz (TD-04).
+- **Risk:** Genel limit, saldırgan tarafından iki hesabın girişini 15 dk engellemek için kullanılabilir (kabul — geçici).
+- **Not (PHASE 04):** Genel limit (`login:global`) kısmının **D-068** ile değiştirilmesi önerildi (Proposed); D-068 onaylanırsa bu kısım Superseded olur. Kullanıcı adı başına limit aynen geçerlidir.
+
+### D-064 — Nonce'lu CSP ve dinamik render
+- **Date:** 2026-11-24 (PHASE 03) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 sonu)
+- **Decision:** `src/proxy.ts` her istekte 16 baytlık nonce ve CSP üretir (Next.js 16 CSP rehberi); `'unsafe-inline'` yok, `'unsafe-eval'` yalnızca development; `upgrade-insecure-requests` yalnızca https APP_URL. Root layout `connection()` ile tüm sayfaları dinamik render eder. `next.config.ts`'teki temel CSP kaldırıldı (diğer header'lar orada). Proxy kimlik doğrulama yapmaz.
+
+### D-065 — Tek veritabanında iki hesap sınırıyla test stratejisi
+- **Date:** 2026-11-24 (PHASE 03) · **Status:** **Conditionally Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 sonu)
+- **Context:** D-059 (tek veritabanı) + OD-24 (en fazla iki hesap): testler gerçek hesaplarla çakışabilir.
+- **Decision:** Hesap gerektiren integration/E2E testleri yalnızca veritabanında **hiç hesap yokken**, `test-` önekli geçici hesaplarla (rastgele şifre) çalışır ve sonunda bunları siler; gerçek hesaplar varsa bu testler gerekçesiyle **atlanır** (NOT VERIFIED). Gerçek hesaplar test amacıyla oluşturulmaz, silinmez, şifreleri değiştirilmez, kullanıcı tablosunda güncellenmez. Diğer testler FK hedefi olarak mevcut hesabı salt okunur kullanır. Global teardown yarıda kalmış `test-` kayıtlarını temizler. Testlerin audit kayıtları (sentetik kimlikli) değiştirilemez olduğu için kalır.
+- **Consequences:** Gerçek hesaplar oluşturulduktan sonra giriş/oturum testleri yerelde atlanır; sonraki fazlarda kimliği doğrulanmış E2E için yeni yaklaşım gerekir (PROJECT_STATE Known Issues).
+- **Onay koşulları (Product Owner, 2026-11-24):** Bu yaklaşım **geçicidir**; hesap testlerinin bootstrap sonrasında sürekli atlanması kalıcı test stratejisi olarak kabul edilmez. PHASE 04 kapsamında, gerçek hesapları riske atmayan, authentication bypass veya test amaçlı public endpoint oluşturmayan, güvenli ve tekrar çalıştırılabilir bir integration/E2E test stratejisi geliştirilmelidir (PHASE 04 açık teknik konu P4-01).
+- **Not (PHASE 04):** Koşulu karşılamak için **D-067** önerildi (Proposed). D-067 onaylanırsa "gerçek hesaplar varsa hesap testleri atlanır" kısmı Superseded olur; geçici hesaplarla tam yaşam döngüsü testi (hesap yokken) korunur.
+
+### D-066 — Kimlik doğrulama ortam değişkenleri
+- **Date:** 2026-11-24 (PHASE 03) · **Status:** **Accepted** · **Approved By:** Product Owner · **Approval Date:** 2026-11-24 (PHASE 03 sonu)
+- **Decision:** `BETTER_AUTH_SECRET` ve `RATE_LIMIT_KEY_SECRET` (≥32 karakter, birbirinden farklı) — `getAuthEnv()` lazy, fail-closed, hata mesajı değer içermez. Better Auth base URL ve güvenilen origin `APP_URL`'dir; ayrı `BETTER_AUTH_URL` kullanılmaz (tek kaynak — OD-20). Secure cookie, APP_URL https iken. Owner veritabanı bağlantısı web uygulamasında kullanılmaz.
+
+### D-067 — Kimliği doğrulanmış testler: tek veritabanı + kısa ömürlü test oturumları (P4-01)
+- **Date:** 2026-11-24 (PHASE 04) · **Status:** **Proposed** · Kullanıcı onayı bekleniyor
+- **Context:** D-065 koşullu onayı; D-059 tek veritabanı; Product Owner'ın PHASE 04 yanıtı: "herhangi bir farklı veritabanına gerek yok direk prod veritabanını kullanabiliriz henüz önemli bilgi paylaşmıyoruz". Gerçek hesapların şifreleri bilinmez ve istenmez.
+- **Decision:**
+  1. Tüm integration/E2E testleri tek veritabanında (`neondb`) çalışır; ayrı/izole veritabanı yoktur.
+  2. **Hesap yokken:** `test-` önekli geçici hesaplarla tam yaşam döngüsü (bootstrap, şifreyle giriş, şifre sıfırlama) — PHASE 03'teki gibi; sonunda silinir.
+  3. **Gerçek hesaplar varken:** gerçek hesaplara yalnızca okuma ve **etkisiz** işlemler (no-op bootstrap — eşzamanlı dahil, rollback içinde üçüncü hesap denemesi, politikaya aykırı şifre sıfırlamanın yazmadan reddi, yanlış şifre/var olmayan kullanıcı için aynı 401). Oturum davranışı testin kendi oluşturduğu **kısa ömürlü (30 dk)** oturum satırıyla doğrulanır: runtime rolüyle `sessions`'a `test-session-<rastgele>` kimlikli satır eklenir, Better Auth'un doğruladığı imzalı cookie (`token.HMAC-SHA256(BETTER_AUTH_SECRET)`) test sürecinde üretilir (`tests/support/staff-session.ts`). Uygulama koduna bypass, özel header, test endpoint'i veya test kullanıcısı **eklenmez**: oturum, uygulamanın her istekte veritabanından doğruladığı normal bir oturumdur.
+  4. Testler: kullanıcı adı/şifre/credential/rol kayıtlarını değiştirmez (parmak izi testin başında ve sonunda karşılaştırılır — hash değeri belleğe alınmaz, `md5` özeti karşılaştırılır); mevcut gerçek oturumları silmez/değiştirmez (doğrulanır); yalnızca kendi `test-session-*` satırlarını siler; global setup/teardown yarıda kalmış test oturumlarını temizler.
+  5. Token/cookie yalnızca bellekte; Playwright **trace kapalı** (trace dosyaları cookie header'larını diske yazar); ekran görüntülerinde kullanıcı adları ve başvuru satırları maskelenir.
+  6. Sentetik başvuru verisi: integration'da REPEATABLE READ transaction içinde eklenip **geri alınır**; E2E'de tek projede (Desktop Chrome, sıralı) eklenir ve `finally` ile silinir.
+- **Consequences:** Bootstrap sonrası oturum/çıkış/iptal/süre/IP-UA/sliding/CSRF/dashboard testleri sürekli çalışır. **Doğrulanamayan (gerçek hesaplar varken):** doğru şifreyle giriş (Set-Cookie dahil), bootstrap'ın hesap oluşturması, şifre sıfırlamanın etkisi — bunlar yalnızca hesap yokken (PHASE 03'te) doğrulandı.
+- **Risks:** (a) Testin `BETTER_AUTH_SECRET`'a erişmesi gerekir (yalnızca yerel `.env.local`; CI'da veritabanı yok → testler atlanır). (b) Test sırasında gerçek hesap adına kısa ömürlü oturum ve çıkış testinde gerçek hesap kimliğiyle `USER_LOGOUT` audit kaydı oluşur (tek projede, değiştirilemez kayıt — kabul edilen gürültü). (c) Sentetik başvurular E2E sırasında birkaç saniye gerçek panelde görünür. (d) Gerçek müşteri verisi girildikten sonra testlerin aynı veritabanında çalışması TM-43/PB-06 kapsamında yeniden değerlendirilmelidir.
+- **Alternatives:** İzole/ephemeral veritabanı (embedded-postgres — Product Owner gereksiz buldu); test endpoint'i/bypass header'ı (yasak); gerçek şifreyi CI secret'ı yapmak (yasak).
+
+### D-068 — Giriş rate limiting: genel limit yerine bilinmeyen kullanıcı adı limiti (P4-03)
+- **Date:** 2026-11-24 (PHASE 04) · **Status:** **Proposed** · D-063'ün genel limit kısmını değiştirir
+- **Context:** `login:global` (100/15 dk) yalnızca 100 istekle iki hesabın girişini 15 dk engelleyebiliyordu (DoS). IP bazlı limit, güvenilir istemci IP header'ı hosting seçilmeden kullanılamaz (TD-04); `X-Forwarded-For`'a güvenilmez.
+- **Decision:** (1) Kullanıcı adı başına limit aynen: 10 deneme / 15 dk (HMAC'li anahtar, deneme sayılır, başarılı giriş sıfırlar). (2) Genel limit **kaldırıldı**; yerine yalnızca **var olmayan** kullanıcı adlarıyla yapılan denemelerin ortak sayacı: `login:unknown-usernames` **50 / 15 dk**. Var olan iki hesabın girişleri bu sayaçtan etkilenmez. (3) Ortak limit aşıldığında kullanıcı adı başına satır **oluşturulmaz** (tablo rastgele adlarla büyümez) ve kullanıcıya genel "Kullanıcı adı veya şifre hatalı." mesajı gösterilir; zamanlama farkını azaltmak için şifre yine scrypt ile hash'lenir. (4) Kontrol tek transaction'da, fail-closed. Kalıcı IP/cihaz bilgisi saklanmaz.
+- **Consequences:** Saldırgan artık genel sayacı doldurarak iki hesabın girişini engelleyemez; dağıtık sözlük saldırısı hesap başına 10/15 dk ile sınırlı kalır.
+- **Kalan riskler (açık):** (a) **Hesap başına kilitleme DoS'u**: kullanıcı adını bilen saldırgan 10 denemeyle o hesabı 15 dk engelleyebilir (iki hesap olduğundan kullanıcı adları tahmin edilebilir) — IP bazlı limit (TD-04, PHASE 13) olmadan tam çözüm yok. (b) Ortak bilinmeyen-ad limiti dolu iken, bir adın 11. denemesinde "çok fazla deneme" mesajı alınması o adın var olduğunu ele verebilir (aday başına 11 istek gerektiren sınırlı kullanıcı adı tespiti). (c) Hash maliyeti CPU tabanlı yük oluşturabilir (PHASE 12 yük testi).
+- **Alternatives:** Genel limiti yükseltmek (DoS'u ötelemekten öte çözmez); IP bazlı limit (TD-04); CAPTCHA/harici servis (yasak/ücretli).
+
+### D-069 — Durum değiştiren isteklerde proxy köken kontrolü → kontrollü 403 (P4-02)
+- **Date:** 2026-11-24 (PHASE 04) · **Status:** **Proposed**
+- **Context:** Next.js Server Action Origin/Host kontrolü başka origin'den gelen isteği **500 "Invalid Server Actions request"** ile reddediyordu; Origin header'ı olmayan istekler yalnızca uyarıyla işleniyordu.
+- **Decision:** `src/proxy.ts`, `/api/*` dışındaki tüm GET/HEAD/OPTIONS olmayan isteklerde `Origin`'in `APP_URL` origin'i ile **tam eşleşmesini** ve `x-forwarded-host` (yoksa `Host`) değerinin `APP_URL` host'u ile eşleşmesini ister; aksi halde **403**, `text/plain` "İstek reddedildi.", `Cache-Control: no-store`. Origin yok, `"null"`, bozuk, farklı şema/port/alt alan adı, güvenilmeyen Host/X-Forwarded-Host → 403. APP_URL production'da yoksa fail-closed (tüm durum değiştiren istekler reddedilir). Saf fonksiyon `src/server/security/request-origin.ts` (unit testli). Next.js'in kendi kontrolü **kapatılmaz** (ikinci katman). `/api/*` Route Handler'ları kendi kontrollerini yapar (Blob callback'i Origin göndermez — PHASE 08).
+- **Consequences:** CSRF reddi 500 yerine 403; Origin'siz POST da reddedilir (tarayıcılar POST'ta Origin gönderir). Reddedilen istekler Server Action'a ulaşmadığı için rate limit sayacı ve audit kaydı oluşturmaz.
+- **Risks:** Hosting'in `Host`/`X-Forwarded-Host` davranışı (ör. Vercel) PHASE 13'te doğrulanmalı; yanlış APP_URL tüm formları kırar (fail-closed — güvenli taraf).
+
+### D-070 — Şirket paneli temeli: düzen, Genel Bakış verisi ve bileşenler
+- **Date:** 2026-11-24 (PHASE 04) · **Status:** **Proposed**
+- **Decision:**
+  1. **Düzen:** `src/app/(dashboard)/dashboard/layout.tsx` (`requireStaff()` + `DashboardShell`); her sayfa ayrıca kendi `requireStaff()` çağrısını yapar. ≥1024px sabit 248px sidebar; altında header'daki menü butonuyla drawer (Radix Dialog: odak kapanı, Escape, overlay, kaydırma kilidi, odak iadesi; sayfa değişince kapanır). Menü: Genel Bakış, Başvurular, Hizmetler, İşlem Geçmişi — iki hesap için aynı (`src/config/navigation.ts`).
+  2. **Hazır olmayan modüller:** `/dashboard/applications`, `/dashboard/services`, `/dashboard/audit-logs` "Henüz kullanıma hazır değil" sayfası (404 veya sahte aksiyon yok). "Yeni Başvuru" pasif + açıklama. Panel içi tanımsız yol: oturum kontrolünden sonra panel düzeninde gerçek HTTP 404 (yükleme iskeleti yalnızca `(overview)` route group'unda olduğu için akış başlamadan `notFound()`).
+  3. **Sayaç tanımları (`src/features/dashboard/domain.ts`):** Toplam = tüm başvurular; **Evrak Bekleyen = `AWAITING_DOCUMENTS` + `REVISION_REQUIRED`** (her ikisi de müşteriden evrak bekler); İncelemede = `UNDER_REVIEW`; Tamamlanan = `COMPLETED`. **Silme talebi verilmiş (`deletion_requested_at IS NOT NULL`) başvurular hiçbir sayaca ve listeye girmez** (BR-153). `DOCUMENTS_APPROVED`, `IN_PROCESS`, `CANCELLED` yalnızca Toplam'da.
+  4. **Sorgu:** runtime rolü (`getDb()`), tek salt okunur REPEATABLE READ transaction (tutarlı görünüm); yalnızca gerekli kolonlar (numara, ad, soyad, hizmet adı snapshot'ı, statü, tarih) — telefon, e-posta, arama metni, token, iç not **sorgulanmaz**; DTO'da başvuru kimliği yok. Son 5 başvuru: `created_at DESC, application_number DESC`. İnceleme kuyruğu: `UNDER_REVIEW`, `status_changed_at ASC, application_number ASC`, en fazla 5. Hata boş durumdan ayrı sonuç döner; log'a yalnızca hata türü/kodu yazılır.
+  5. **Bileşenler:** `src/components/dashboard/*` (DashboardShell, Sidebar, MobileNavigation, DashboardHeader, Breadcrumb, PageHeader, StatCard, EmptyState, ErrorState, LoadingSkeleton, AccountMenu, NotReadyPage, RetryButton, UserAvatar, SignOutButton), `src/features/applications/components/application-status-badge.tsx`, statü sunumu `src/features/applications/domain/status-labels.ts` (`satisfies Record<ApplicationStatus,…>` ile eksiksizlik derleme zamanında). Dialog/DropdownMenu mevcut `radix-ui` paketinden; `shadcn add` ve `tw-animate-css` **kullanılmadı** — drawer/menü geçişleri `globals.css`'te küçük keyframe'ler (reduced-motion'da kapanır). Badge'e `neutral` ve `processing` varyantları eklendi.
+- **Consequences:** Rol bazlı UI farkı yok (E2E ile iki hesap karşılaştırılır).
+
+### D-071 — `get-nonce@1.0.1` doğrudan bağımlılık (CSP nonce'u ile kaydırma kilidi)
+- **Date:** 2026-11-24 (PHASE 04) · **Status:** **Proposed**
+- **Context:** Radix Dialog'un kaydırma kilidi (react-remove-scroll → react-style-singleton) çalışma anında `<style>` etiketi ekler; CSP `style-src 'self' 'nonce-…'` (D-064) bunu engelliyordu (konsol hatası, kilit stili uygulanmıyordu).
+- **Decision:** react-style-singleton'ın nonce kaynağı olan `get-nonce` (MIT, 1.0.1, deprecated değil, kilit dosyasında zaten aynı sürümle mevcut — yeni kod indirilmez) exact sürümle doğrudan bağımlılık yapıldı; dashboard layout'u istek nonce'unu (`x-nonce`) istemci bileşeni `CspNonce` ile `setNonce`'a verir. `'unsafe-inline'` eklenmedi.
+- **Risks:** Nonce RSC yükünde istemciye gider (zaten HTML'deki script etiketlerinde bulunur; istek başına değişir). Radix/react-remove-scroll sürüm değişikliğinde `get-nonce` tekilliği (aynı modül örneği) yeniden doğrulanmalı (E2E: drawer açılırken konsol/CSP hatası yok).
+
 ---
 
 ## C. Faz Onayları
@@ -488,3 +594,6 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 |---|---|---|---|---|
 | PHASE 00 — Project Foundation & Architecture (+ revizyon) | **ACCEPTED** | Product Owner | 2026-11-24 | D-002 (TS 6.0.3), D-003 (Node 24 LTS), D-004 (pnpm 10.34.9), D-031 (.gitignore) aynı onayla kabul edildi. PHASE 01 başlatma yetkisi verildi (yalnızca PHASE 01). Bu onay production güvenliği veya KVKK uyumluluğu onayı **değildir**; PB-01…PB-11 açık kalır. |
 | PHASE 01 — Project Initialization | **ACCEPTED** | Product Owner | 2026-11-24 | D-042…D-051 aynı onayla kabul edildi. PHASE 02 başlatma yetkisi verildi (yalnızca PHASE 02). Onay mevcut güvenlik risklerini ve PB-01…PB-11'i kapatmaz. |
+| PHASE 02 — Database Foundation | **ACCEPTED** | Product Owner | 2026-11-24 | D-052…D-058 kabul edildi; D-055'in D-059 ile geçersiz kılınan kısımları (ayrı test veritabanı, ortam işareti) yeniden etkinleştirilmez. Owner şifresi sıfırlandı. PHASE 03 başlatma yetkisi (yalnızca PHASE 03). |
+| PHASE 03 — Authentication & Equal Staff Access | **ACCEPTED** (PHASE 04 başlatıldı) | Product Owner | 2026-11-24 | OD-24 uygulandı; D-060…D-064, D-066 Accepted; D-065 koşullu Accepted. Gerçek ADMIN ve EMPLOYEE hesapları kullanıcı tarafından `pnpm auth:bootstrap` ile oluşturuldu ve salt okunur doğrulandı. PHASE 04 açık konuları P4-01…P4-04 (PROJECT_STATE). PB-01…PB-11 açık. |
+| PHASE 04 — Dashboard Foundation | **COMPLETED (teknik)** — kullanıcı onayı bekleniyor | — | 2026-11-24 | D-067…D-071 Proposed. P4-01, P4-02 çözüldü; P4-03 azaltıldı (hesap başına kilitleme DoS'u açık); P4-04 yapılandırma düzeyinde doğrulandı, gerçek HTTPS doğrulaması PHASE 13'e kaldı. PB-01…PB-11 açık. |

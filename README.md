@@ -3,21 +3,21 @@ CS Global Customer Panel
 
 **CS Global Visa Management Platform** — CS Global'in vize danışmanlık süreçlerinde müşteri evraklarının toplanması, incelenmesi ve süreç takibi için geliştirilen web platformu.
 
-- **Şirket Yönetim Paneli:** Yönetici ve çalışanlar için başvuru, evrak inceleme, hizmet ve çalışan yönetimi.
+- **Şirket Yönetim Paneli:** İki sabit şirket hesabı (ADMIN ve EMPLOYEE, eşit yetkili) için başvuru, evrak inceleme ve hizmet yönetimi.
 - **Müşteri Paneli:** Başvuruya özel bağlantı ile doğrudan erişilen, mobil öncelikli evrak yükleme ve süreç takip ekranı.
 
 > Bu platform bir konsolosluk veya resmî vize başvuru sistemi değildir.
 
 ## Durum
 
-**PHASE 02 — Veritabanı altyapısı** üzerinde çalışılıyor. Uygulama yalnızca **altyapı aşamasındadır**: Next.js iskeleti, tasarım sistemi, test araçları ve veritabanı şeması/migration'ları vardır. Giriş sistemi, şirket paneli, müşteri paneli ve dosya yükleme **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
+**PHASE 04 — Dashboard Foundation** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi ve şirket panelinin temeli (menü, Genel Bakış sayaçları, son başvurular, inceleme kuyruğu) vardır. Başvuru oluşturma, hizmet yönetimi, müşteri paneli ve dosya yükleme **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
 
-Sonraki faz: **PHASE 03 — Authentication & Authorization**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Sonraki faz: **PHASE 05 — Service & Document Template Management**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 
-- **Kurulu:** Next.js 16.4.6 (App Router, Turbopack) · React 19.3.1 · TypeScript 6.0.3 (strict) · Tailwind CSS 4.3.5 · shadcn/ui (Radix) · Lucide · Geist · Zod 4 · ESLint 10 + Prettier · Vitest 5 · Playwright 1.65 · Drizzle ORM 0.45.4 + Drizzle Kit 0.31.11 + pg 8.23.1 · Neon PostgreSQL.
-- **Sonraki fazlarda:** Better Auth (PHASE 03) · Vercel Private Blob (PHASE 08).
+- **Kurulu:** Better Auth 1.7.27 · Next.js 16.4.6 (App Router, Turbopack) · React 19.3.1 · TypeScript 6.0.3 (strict) · Tailwind CSS 4.3.5 · shadcn/ui (Radix) · Lucide · Geist · Zod 4 · ESLint 10 + Prettier · Vitest 5 · Playwright 1.65 · Drizzle ORM 0.45.4 + Drizzle Kit 0.31.11 + pg 8.23.1 · Neon PostgreSQL.
+- **Sonraki fazlarda:** Vercel Private Blob (PHASE 08).
 
 Hedef aylık altyapı maliyeti: 0. Kurulu sürümler: [docs/TECH_STACK.md](docs/TECH_STACK.md) §0.
 
@@ -69,6 +69,8 @@ pnpm dev                     # http://localhost:3000
 | `pnpm check:bundle` | Build sonrası client bundle'da secret adı kontrolü |
 | `pnpm test:integration` | Gerçek PostgreSQL ile integration testleri (projenin tek veritabanında; yalnızca kendi sentetik kayıtlarını siler) |
 | `pnpm audit` | Bağımlılık güvenlik taraması (yüksek/kritik = hata) |
+| `pnpm auth:bootstrap` | İki şirket hesabını (ADMIN, EMPLOYEE) oluşturur — yalnızca etkileşimli terminal, gizli şifre |
+| `pnpm auth:reset-password` | Bir hesabın şifresini sıfırlar; yalnızca o hesabın oturumlarını sonlandırır |
 
 ## Ortam Değişkenleri
 
@@ -91,3 +93,24 @@ Tek veritabanı (D-059): Neon projesindeki `neondb` uygulama, migration, seed ve
 | `pnpm db:check` | Migration dosyalarının tutarlılık kontrolü | Bağlantı gerekmez |
 
 Kurallar: uygulanmış migration dosyası değiştirilmez (yeni migration yazılır); `drizzle-kit push`, `db:reset`/`db:drop` yoktur; Seed verileri **demo** amaçlıdır, resmî vize evrak gereksinimi değildir.
+
+## Şirket Hesapları (PHASE 03)
+
+Yalnızca **iki** şirket hesabı vardır: bir ADMIN, bir EMPLOYEE — **eşit yetkili** (OD-24). Uygulamada kayıt, hesap yönetimi veya şifre değiştirme yoktur.
+
+1. `.env.local`'da `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `BETTER_AUTH_SECRET`, `RATE_LIMIT_KEY_SECRET` tanımlı olmalı ve `pnpm db:migrate` çalıştırılmış olmalı.
+2. Kendi terminalinizde `pnpm auth:bootstrap` çalıştırın; kullanıcı adlarını ve şifreleri (gizli, iki kez) girin. Şifreleri kimseyle paylaşmayın, sohbete yazmayın.
+3. `pnpm dev` → `http://localhost:3000/login`.
+
+Şifre unutulursa: `pnpm auth:reset-password`.
+
+## Testler (PHASE 04)
+
+Testler projenin tek veritabanını kullanır (`.env.local`). Gerçek hesaplar varken testler hesaplara yalnızca okuma/etkisiz işlem yapar; kimliği doğrulanmış testler her test için 30 dakikalık geçici oturum oluşturup siler (D-067). Gerçek şifreler testlerde kullanılmaz.
+
+```bash
+pnpm test                 # unit
+pnpm test:integration     # gerçek veritabanı (sentetik kayıtlar silinir/geri alınır)
+pnpm test:e2e             # production build + Playwright (Chrome, WebKit, mobil)
+E2E_SCREENSHOTS=1 pnpm test:e2e   # ayrıca screenshots/phase-04/ (maskeli, commit edilmez)
+```

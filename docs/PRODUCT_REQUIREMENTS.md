@@ -7,29 +7,29 @@
 
 | Rol | Tanım |
 |---|---|
-| **ADMIN** | Tüm başvuru işlemleri + hizmet/şablon, çalışan, audit log yönetimi; yeniden açma/geri alma; manuel silme. |
-| **EMPLOYEE** | **Tüm başvuruları** görür ve yönetir (atama yok — OD-03); yönetim işlemleri yok. |
+| **ADMIN** | Tek ADMIN hesabı. EMPLOYEE ile **birebir aynı** uygulama yetkileri (OD-24); fark yalnızca hesap türü ve işlem geçmişindeki kimliktir. |
+| **EMPLOYEE** | Tek EMPLOYEE hesabı. Uygulamanın **tüm** işlevlerine ADMIN ile eşit erişir (atama yok — OD-03). |
 | **CUSTOMER** | Hesapsız; yalnızca kendisine gönderilen bağlantı ile kendi başvurusuna erişir (OD-01). |
 
 ## 2. Fonksiyonel Gereksinimler
 
 ### 2.1 Personel kimlik doğrulama
 - **FR-01** Kullanıcı adı + şifre ile giriş. Kayıt, "Şifremi unuttum", self-servis sıfırlama **yok**.
-- **FR-02** Hesapları yalnızca ADMIN oluşturur; kullanıcı adını ve şifreyi ADMIN belirler.
-- **FR-03** İlk ADMIN güvenli bootstrap komutu; ADMIN erişimi kaybedilirse güvenli kurtarma komutu (CLI). Hardcoded şifre yok.
-- **FR-04** ADMIN hesabı aktif/pasif yapar; pasifleştirmede tüm oturumlar sonlanır.
-- **FR-05** ADMIN yeni şifre atar (mevcut şifreyi göremez); atamada kullanıcının tüm oturumları sonlanır.
-- **FR-06** ADMIN bir kullanıcının oturumlarını sonlandırabilir.
-- **FR-07** EMPLOYEE kendi şifresini/kullanıcı adını değiştiremez. İlk girişte zorunlu şifre değişimi yok.
+- **FR-02** Yalnızca iki şirket hesabı vardır (bir ADMIN, bir EMPLOYEE); üçüncü hesap oluşturulamaz (OD-24).
+- **FR-03** İki hesap yerel CLI ile güvenli şekilde oluşturulur (`pnpm auth:bootstrap`, gizli şifre girişi); varsayılan veya hardcoded şifre yok.
+- **FR-04** — (kaldırıldı: hesap pasifleştirme — OD-24)
+- **FR-05** Şifre yalnızca yerel CLI ile sıfırlanır (`pnpm auth:reset-password`); ilgili hesabın tüm oturumları sonlanır, diğer hesap etkilenmez.
+- **FR-06** — (kaldırıldı: uygulama içi oturum sonlandırma yönetimi — OD-24)
+- **FR-07** Hiçbir hesap uygulama içinden şifre, kullanıcı adı veya rol değiştiremez; hesap yönetim ekranı yoktur. İlk girişte zorunlu şifre değişimi yok.
 - **FR-08** Şifre min 8 karakter; oturum en fazla 7 gün, uzatılmaz; hareketsizlik zaman aşımı yok (sabit).
 
-### 2.2 Hizmet ve evrak şablonu yönetimi (ADMIN)
+### 2.2 Hizmet ve evrak şablonu yönetimi (personel)
 - **FR-10** Hizmet oluşturma, düzenleme, aktif/pasif, sıralama.
 - **FR-11** Hizmete evrak gereksinimi ekleme/düzenleme/pasifleştirme/sıralama: başlık, açıklama, talimat, zorunlu/isteğe bağlı.
 - **FR-12** Pasif hizmet yeni başvuruda seçilemez; mevcut başvurular etkilenmez.
 - **FR-13** Dosya kuralları tüm sistemde sabit: yalnızca PDF, dosya başına 10 MB, evrak başına 1 aktif PDF (panelden değiştirilemez).
 
-### 2.3 Başvuru oluşturma (ADMIN, EMPLOYEE)
+### 2.3 Başvuru oluşturma (personel)
 - **FR-20** Form: İsim*, Soyisim*, Telefon*, E-posta*, Hizmet* (aktif hizmetler combobox), Şirket içi not.
 - **FR-21** Müşteri bilgileri her başvuruda yeniden girilir; müşteri profili, eşleştirme, mükerrer kontrolü, birleştirme **yok** (OD-10).
 - **FR-22** Tek transaction: başvuru (müşteri bilgileriyle) → numara → bağlantı → evrak snapshot → `AWAITING_DOCUMENTS` → oluşturan → geçmiş → audit.
@@ -41,11 +41,11 @@
 - **FR-30** Tek liste (arşiv yok — OD-23): ad, telefon, e-posta, başvuru no ile arama (Türkçe karakter duyarsız); statü (Tüm Başvurular + 7 statü), hizmet, tarih filtreleri; server-side sayfalama.
 - **FR-31** Detay: müşteri bilgileri, başvuru bilgileri, hizmet, statü, evraklar (aktif dosya + versiyon geçmişi), PDF görüntüle/indir, müşteri adına yükleme, inceleme, yorumlar, iç notlar, statü geçmişi, bağlantı, işlem geçmişi.
 - **FR-32** Müşteri bilgilerini düzenleme (yalnızca o başvuruyu etkiler).
-- **FR-33** Bağlantı yönetimi (ADMIN = EMPLOYEE): görüntüle, kopyala, WhatsApp ile paylaş, iptal, yenile, iptal edilmişin yerine yeni oluştur — iptal/yenileme onay pencereli ve audit'li.
+- **FR-33** Bağlantı yönetimi (iki hesap eşit): görüntüle, kopyala, WhatsApp ile paylaş, iptal, yenile, iptal edilmişin yerine yeni oluştur — iptal/yenileme onay pencereli ve audit'li.
 - **FR-34** Şirket içi not ekleme.
-- **FR-35** İptal (ADMIN, EMPLOYEE; gerekçeli).
-- **FR-36** ADMIN: iptal edilmiş/tamamlanmış başvuruyu yeniden açma ve izin verilen önceki aşamalara döndürme (gerekçeli; evrak/onay/geçmiş korunur; seçilen evrakların onayı geçersiz kılınabilir).
-- **FR-37** ADMIN: başvuruyu kalıcı olarak silme (onay penceresi, geri dönüşsüz uyarısı, bağlantı + oturumlar + tüm dosya versiyonları + kayıtlar; minimum audit).
+- **FR-35** İptal (personel; gerekçeli).
+- **FR-36** Personel: iptal edilmiş/tamamlanmış başvuruyu yeniden açma ve izin verilen önceki aşamalara döndürme (gerekçeli; evrak/onay/geçmiş korunur; seçilen evrakların onayı geçersiz kılınabilir).
+- **FR-37** Personel: başvuruyu kalıcı olarak silme (onay penceresi, geri dönüşsüz uyarısı, bağlantı + oturumlar + tüm dosya versiyonları + kayıtlar; minimum audit).
 
 ### 2.5 Müşteri paneli
 - **FR-40** Geçerli bağlantıyı açan müşteri **ek adım olmadan** panele erişir; bağlantı 7 günlük bir oturum oluşturur ve token'sız adrese yönlendirir. Oturum dolunca aynı bağlantıyla yeniden erişilir.
@@ -67,7 +67,7 @@
 
 ### 2.7 Yönetim
 - **FR-60** Dashboard: toplam, aktif, evrak bekleyen, incelemede, düzeltme bekleyen, işlemde, tamamlanan; son başvurular; inceleme bekleyenler.
-- **FR-61** Audit log sayfası (ADMIN): filtre + sayfalama.
+- **FR-61** Audit log sayfası (personel, iki hesap eşit): filtre + sayfalama.
 - Ayarlar sayfası **yok** (şirket iletişim bilgileri, limitler, şifre/oturum parametreleri sabit yapılandırmadır).
 
 ## 3. Fonksiyonel Olmayan Gereksinimler
@@ -91,10 +91,10 @@
 
 ## 4. Kullanıcı Hikâyeleri (özet)
 
-1. **Çalışan olarak**, müşteri bilgilerini girip hizmet seçerek başvuru oluşturmak ve kişiselleştirilmiş mesajla bağlantıyı WhatsApp'tan göndermek istiyorum.
+1. **Personel olarak**, müşteri bilgilerini girip hizmet seçerek başvuru oluşturmak ve kişiselleştirilmiş mesajla bağlantıyı WhatsApp'tan göndermek istiyorum.
 2. **Müşteri olarak**, bağlantıya dokununca hiçbir şey girmeden kendi başvuru panelimi görmek istiyorum.
 3. **Müşteri olarak**, PDF'lerimi telefonumdan yükleyip ilerlemeyi görmek ve tek tuşla incelemeye göndermek istiyorum.
-4. **Çalışan olarak**, evrakları tek tek inceleyip onaylamak veya düzeltme istemek; gerekirse müşteri adına doğru belgeyi yüklemek istiyorum.
+4. **Personel olarak**, evrakları tek tek inceleyip onaylamak veya düzeltme istemek; gerekirse müşteri adına doğru belgeyi yüklemek istiyorum.
 5. **Müşteri olarak**, hangi evrakın neden düzeltilmesi gerektiğini görüp yalnızca onu yeniden yüklemek istiyorum.
 6. **Yönetici olarak**, hizmetleri ve evrak listelerini koddan bağımsız yönetmek istiyorum.
 7. **Yönetici olarak**, gerektiğinde başvuruyu gerekçeyle geri almak/yeniden açmak ve talep halinde kalıcı olarak silmek istiyorum.

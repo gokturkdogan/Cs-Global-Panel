@@ -18,20 +18,20 @@ type ActionResult<T> =
 
 ## 2. Server Actions — Personel
 
-Tümü `requireStaff(permission)` ile başlar.
+Tümü `requireStaff()` ile başlar — iki hesap için aynı kontrol, rol/izin farkı yok (OD-24). "Erişim" kolonu yalnızca kimin çağırabileceğini gösterir.
 
 ### 2.1 Başvurular (`features/applications/actions.ts`)
-| Action | Input | Çıktı | İzin | Audit |
+| Action | Input | Çıktı | Erişim | Audit |
 |---|---|---|---|---|
-| `createApplicationAction` | `{ idempotencyKey, firstName, lastName, phone, email, serviceId, internalNote? }` | `{ applicationId, applicationNumber, customerFullName, customerPhone, serviceName, accessLink, whatsappUrl }` | `application:create` | `APPLICATION_CREATED`, `ACCESS_LINK_CREATED` |
-| `updateCustomerInfoAction` | `{ applicationId, expectedVersion, firstName, lastName, phone, email }` | `{ version }` | `application:update_customer_info` | `APPLICATION_UPDATED` |
-| `transitionApplicationAction` | `{ applicationId, expectedVersion, action: TransitionCode, reason?, revisionItems?: { requirementId, fileId, customerMessage }[] }` | `{ status, version }` | `application:transition` · `application:cancel` · `application:reopen_revert` (aksiyona göre) | `APPLICATION_STATUS_CHANGED` (+ T12'de `DOCUMENT_REVISION_REQUESTED`) |
-| `submitOnBehalfAction` | `{ applicationId, expectedVersion }` | `{ status, version }` | `application:submit` | `APPLICATION_SUBMITTED` / `RESUBMITTED` |
-| `revealAccessLinkAction` | `{ applicationId }` | `{ accessLink, whatsappUrl, customerFullName, customerPhone } \| { accessLink: null }` | `access_link:view_copy` | `ACCESS_LINK_VIEWED` |
-| `rotateAccessLinkAction` | `{ applicationId, expectedVersion }` (yenileme ve iptal edilmişin yerine yeni oluşturma) | `{ accessLink, whatsappUrl }` | `access_link:rotate` | `ACCESS_LINK_ROTATED` / `ACCESS_LINK_CREATED` |
-| `revokeAccessLinkAction` | `{ applicationId, expectedVersion }` | `void` | `access_link:revoke` | `ACCESS_LINK_REVOKED` |
-| `addInternalNoteAction` | `{ applicationId, requirementId?, body }` | `{ noteId }` | `internal_note:create` | `INTERNAL_NOTE_ADDED` |
-| `deleteApplicationAction` (ADMIN; idempotent — "Silmeyi tamamla" için de kullanılır) | `{ applicationId, confirmApplicationNumber }` | `{ status: 'DELETED' \| 'PENDING_RETRY' }` | `application:delete` | `APPLICATION_DELETION_REQUESTED`, `APPLICATION_DELETED` |
+| `createApplicationAction` | `{ idempotencyKey, firstName, lastName, phone, email, serviceId, internalNote? }` | `{ applicationId, applicationNumber, customerFullName, customerPhone, serviceName, accessLink, whatsappUrl }` | Personel | `APPLICATION_CREATED`, `ACCESS_LINK_CREATED` |
+| `updateCustomerInfoAction` | `{ applicationId, expectedVersion, firstName, lastName, phone, email }` | `{ version }` | Personel | `APPLICATION_UPDATED` |
+| `transitionApplicationAction` | `{ applicationId, expectedVersion, action: TransitionCode, reason?, revisionItems?: { requirementId, fileId, customerMessage }[] }` | `{ status, version }` | Personel (aksiyona göre) | `APPLICATION_STATUS_CHANGED` (+ T12'de `DOCUMENT_REVISION_REQUESTED`) |
+| `submitOnBehalfAction` | `{ applicationId, expectedVersion }` | `{ status, version }` | Personel | `APPLICATION_SUBMITTED` / `RESUBMITTED` |
+| `revealAccessLinkAction` | `{ applicationId }` | `{ accessLink, whatsappUrl, customerFullName, customerPhone } \| { accessLink: null }` | Personel | `ACCESS_LINK_VIEWED` |
+| `rotateAccessLinkAction` | `{ applicationId, expectedVersion }` (yenileme ve iptal edilmişin yerine yeni oluşturma) | `{ accessLink, whatsappUrl }` | Personel | `ACCESS_LINK_ROTATED` / `ACCESS_LINK_CREATED` |
+| `revokeAccessLinkAction` | `{ applicationId, expectedVersion }` | `void` | Personel | `ACCESS_LINK_REVOKED` |
+| `addInternalNoteAction` | `{ applicationId, requirementId?, body }` | `{ noteId }` | Personel | `INTERNAL_NOTE_ADDED` |
+| `deleteApplicationAction` (personel; idempotent — "Silmeyi tamamla" için de kullanılır) | `{ applicationId, confirmApplicationNumber }` | `{ status: 'DELETED' \| 'PENDING_RETRY' }` | Personel | `APPLICATION_DELETION_REQUESTED`, `APPLICATION_DELETED` |
 
 `TransitionCode` (sunucudaki domain modülü doğrular): `REQUEST_REVISION`, `APPROVE_DOCUMENTS`, `START_PROCESSING`, `COMPLETE`, `CANCEL` (reason zorunlu), `REOPEN_CANCELLED`, `REOPEN_COMPLETED`, `REVERT_TO_DOCUMENTS_APPROVED`, `REVERT_TO_REVIEW`, `REVERT_FOR_REVISION` (reason + `revisionItems` zorunlu) — [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) T2–T12. `REOPEN_CANCELLED` hedef statü almaz; sunucu geçmişten belirler.
 
@@ -42,17 +42,17 @@ Okuma (RSC'den çağrılan server-only fonksiyonlar): `listApplications(actor, f
 Liste filtreleri (`searchParams`, Zod): `q` (2–100), `status` (`ALL` \| 7 statü), `serviceId`, `createdFrom`, `createdTo` (Europe/Istanbul günü → UTC), `page`, `pageSize`, `sort` (`created_desc`). Arşiv filtresi yok.
 
 ### 2.2 Evraklar (`features/documents/actions.ts`)
-| Action | Input | Çıktı | İzin | Audit |
+| Action | Input | Çıktı | Erişim | Audit |
 |---|---|---|---|---|
-| `reviewDocumentAction` | `{ requirementId, fileId, expectedVersion, decision: 'APPROVED' \| 'REVISION_REQUIRED', customerMessage? }` | `{ status, version, reviewId }` | `document:review` | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` |
-| `addDocumentCommentAction` | `{ applicationId, requirementId?, body }` | `{ commentId }` | `document_comment:create` | `DOCUMENT_COMMENT_ADDED` |
-| `removeFileAction` | `{ fileId, expectedVersion }` | `{ requirementStatus }` | `file:remove` | `DOCUMENT_DELETED` |
+| `reviewDocumentAction` | `{ requirementId, fileId, expectedVersion, decision: 'APPROVED' \| 'REVISION_REQUIRED', customerMessage? }` | `{ status, version, reviewId }` | Personel | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` |
+| `addDocumentCommentAction` | `{ applicationId, requirementId?, body }` | `{ commentId }` | Personel | `DOCUMENT_COMMENT_ADDED` |
+| `removeFileAction` | `{ fileId, expectedVersion }` | `{ requirementStatus }` | Personel | `DOCUMENT_DELETED` |
 | `confirmUploadAction` (ortak) | `{ fileId }` | `{ fileId, status: 'VALIDATING' \| 'ACTIVE' \| 'REJECTED', message? }` | yüklemeyi başlatan aktör | `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` / `DOCUMENT_VALIDATION_REJECTED` |
 | `getUploadStatusAction` (ortak) | `{ fileId }` | `{ status, message? }` | yüklemeyi başlatan aktör | — |
 
 `reviewDocumentAction`: `fileId` kilit altında aktif dosya değilse `CONFLICT` (BR-57).
 
-### 2.3 Hizmetler (`features/services/actions.ts`) — ADMIN
+### 2.3 Hizmetler (`features/services/actions.ts`) — personel
 | Action | Input | Audit |
 |---|---|---|
 | `createServiceAction` | `{ name, description?, isActive }` | `SERVICE_CREATED` |
@@ -65,23 +65,10 @@ Liste filtreleri (`searchParams`, Zod): `q` (2–100), `status` (`ALL` \| 7 stat
 
 Dosya boyutu/sayısı/tipi alanları yoktur (OD-16).
 
-### 2.4 Çalışanlar (`features/employees/actions.ts`) — ADMIN
-Better Auth admin plugin'in **sunucu tarafı** `auth.api` çağrıları; istemcide admin client yok.
-
-| Action | Input | Audit |
-|---|---|---|
-| `createEmployeeAction` | `{ name, username, email?, role, password }` | `USER_CREATED` |
-| `updateEmployeeAction` | `{ userId, name, username, email? }` | `USER_UPDATED` |
-| `setEmployeeRoleAction` | `{ userId, role }` (BR-133) | `USER_ROLE_CHANGED` |
-| `deactivateEmployeeAction` / `reactivateEmployeeAction` | `{ userId, reason? }` | `USER_DEACTIVATED` / `REACTIVATED` |
-| `setEmployeePasswordAction` | `{ userId, newPassword }` → ardından tüm oturumları iptal | `USER_PASSWORD_SET`, `USER_SESSIONS_REVOKED` |
-| `revokeEmployeeSessionsAction` | `{ userId }` | `USER_SESSIONS_REVOKED` |
-
-`email?`: Better Auth zorunlu alanı için politika TD-05. Şifreler yalnızca action input'u olarak sunucuya gider, loglanmaz, hiçbir yanıtta dönmez.
-Kaldırılan: `changeOwnPasswordAction`, `revokeOwnOtherSessionsAction`, `resetEmployeePasswordAction` (→ `setEmployeePasswordAction`).
-
+### 2.4 Kimlik doğrulama (`features/auth/actions.ts`) — çalışan yönetimi kaldırıldı (OD-24)
+Uygulamada hesap yönetimi action'ı yoktur. Personel kimlik doğrulaması: `signInAction({ username, password })` ve `signOutAction()` (`features/auth/actions.ts`, PHASE 03). Hesap oluşturma ve şifre sıfırlama yalnızca yerel CLI'dır (`pnpm auth:bootstrap`, `pnpm auth:reset-password`).
 ### 2.5 Audit (okuma)
-`listAuditLogs(actor, { action?, actorUserId?, resourceType?, applicationId?, from?, to?, page, pageSize })` — ADMIN.
+`listAuditLogs(actor, { action?, actorUserId?, resourceType?, applicationId?, from?, to?, page, pageSize })` — personel.
 
 ## 3. Server Actions — Müşteri (`features/portal/actions.ts`)
 
@@ -119,8 +106,8 @@ type CustomerPortalDTO = {
 
 ## 4. Route Handlers
 
-### 4.1 `GET|POST /api/auth/[...all]`
-`toNextJsHandler(auth)`. Açık: `sign-in/username`, `sign-out`, `get-session`. Kapalı (SECURITY §2): `sign-up/*`, `sign-in/email`, `change-password`, `change-email`, `update-user`, `delete-user`, `request-password-reset`, `reset-password`, `is-username-available`, `admin/*` (HTTP), impersonation.
+### 4.1 `/api/auth/*` — **bağlanmaz** (D-060)
+Better Auth HTTP route'u yoktur; tüm `/api/auth/*` istekleri 404 döner. Personel girişi ve çıkışı Server Action'lardır (`signInAction`, `signOutAction` — §2.4); oturum sunucuda `auth.api.getSession` ile okunur. Kayıt, e-posta ile giriş, şifre değiştirme/sıfırlama, e-posta değiştirme, kullanıcı güncelleme/silme, impersonation ve admin uç noktaları HTTP'den erişilemez.
 
 ### 4.2 `POST /api/uploads`
 `handleUpload`:
@@ -149,7 +136,7 @@ Her yanıt: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots
 | Başvuru (oluştur, müşteri bilgisi, geçiş, müşteri adına gönder, bağlantı göster/yenile/iptal, not, sil) | 9 | SA |
 | Evrak/dosya (karar, yorum, kaldır, upload onayı, upload durumu) | 5 + upload RH | SA + RH |
 | Hizmet/şablon | 7 | SA |
-| Çalışan | 6 | SA |
+| Personel kimlik doğrulama (giriş/çıkış) | 2 | SA |
 | Müşteri (gönder, kaldır, upload onayı/durumu) | 4 | SA |
 | Auth | Better Auth (giriş/çıkış) | RH |
 | Teknik | 1 | RH (cron) |

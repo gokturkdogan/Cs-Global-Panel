@@ -123,3 +123,46 @@ export function getDatabaseEnv(): DatabaseEnv {
   cachedDatabaseEnv ??= parseDatabaseEnv(process.env);
   return cachedDatabaseEnv;
 }
+
+export type AuthEnv = {
+  readonly appEnv: AppEnv;
+  /** Better Auth base URL ve güvenilen origin — tek kaynak APP_URL (OD-20). */
+  readonly appUrl: string;
+  /** Oturum cookie'si imzası ve Better Auth iç şifrelemesi. */
+  readonly authSecret: string;
+  /** Giriş rate limit anahtarlarının HMAC'i (kullanıcı adı düz metin saklanmaz). */
+  readonly rateLimitKeySecret: string;
+  /** https APP_URL'de Secure cookie zorunlu. */
+  readonly secureCookies: boolean;
+};
+
+const MIN_SECRET_LENGTH = 32;
+
+/**
+ * Kimlik doğrulama ortamını doğrular (D-066). Yalnızca giriş/oturum işlemlerinde çağrılır;
+ * secret eksik veya kısa ise işlem fail-closed reddedilir. Hata mesajı değer içermez.
+ */
+export function parseAuthEnv(source: EnvSource): AuthEnv {
+  const { appEnv, appUrl } = parseServerEnv(source);
+  const missing = (["BETTER_AUTH_SECRET", "RATE_LIMIT_KEY_SECRET"] as const).filter(
+    (name) => (source[name]?.length ?? 0) < MIN_SECRET_LENGTH,
+  );
+  if (missing.length > 0) throw new EnvValidationError(missing);
+  if (source.BETTER_AUTH_SECRET === source.RATE_LIMIT_KEY_SECRET) {
+    throw new EnvValidationError(["RATE_LIMIT_KEY_SECRET"]);
+  }
+  return {
+    appEnv,
+    appUrl,
+    authSecret: source.BETTER_AUTH_SECRET as string,
+    rateLimitKeySecret: source.RATE_LIMIT_KEY_SECRET as string,
+    secureCookies: appUrl.startsWith("https://"),
+  };
+}
+
+let cachedAuthEnv: AuthEnv | undefined;
+
+export function getAuthEnv(): AuthEnv {
+  cachedAuthEnv ??= parseAuthEnv(process.env);
+  return cachedAuthEnv;
+}

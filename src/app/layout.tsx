@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 import { GeistSans } from "geist/font/sans";
 
 import "./globals.css";
@@ -17,7 +18,9 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Nonce'lu CSP için tüm sayfalar istek anında render edilir (D-064; Next.js CSP rehberi).
+  await connection();
   return (
     <html lang="tr" className={GeistSans.variable}>
       <body>{children}</body>

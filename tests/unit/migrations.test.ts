@@ -28,10 +28,19 @@ describe("migration dosyaları", () => {
     );
   });
 
-  it("yıkıcı ifade içermez", () => {
-    expect(allSql).not.toMatch(/\bDROP\s+(TABLE|SCHEMA|DATABASE|COLUMN|INDEX|CONSTRAINT)\b/i);
-    expect(allSql).not.toMatch(/^\s*TRUNCATE\b/im);
-    expect(allSql).not.toMatch(/\bDELETE\s+FROM\b/i);
+  it("yıkıcı ifade içermez (yalnızca gerekçeli izin listesi hariç)", () => {
+    // Bilinçli ve gerekçeli yıkıcı ifadeler (veri içermeyen kolon/kısıtlar — D-061).
+    const ALLOWED_DESTRUCTIVE: Record<string, RegExp> = {
+      "0003_fixed_two_account_model.sql":
+        /ALTER TABLE "(users|sessions)" DROP (COLUMN|CONSTRAINT) "(impersonated_by|banned|ban_reason|ban_expires|sessions_no_impersonation_check|users_username_format_check)";/g,
+    };
+    for (const file of sqlFiles) {
+      const allowed = ALLOWED_DESTRUCTIVE[file];
+      const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf8").replace(allowed ?? /$^/, "");
+      expect(sql, file).not.toMatch(/\bDROP\s+(TABLE|SCHEMA|DATABASE|COLUMN|INDEX|CONSTRAINT)\b/i);
+      expect(sql, file).not.toMatch(/^\s*TRUNCATE\b/im);
+      expect(sql, file).not.toMatch(/\bDELETE\s+FROM\b/i);
+    }
   });
 
   it("secret, şifre veya bağlantı adresi içermez", () => {
@@ -69,6 +78,14 @@ describe("migration dosyaları", () => {
     [
       "INV-12 IP/UA saklanmaz",
       /"sessions_no_ip_ua_check" CHECK \("sessions"\."ip_address" IS NULL AND "sessions"\."user_agent" IS NULL\)/,
+    ],
+    [
+      "OD-24 hesap türü başına tek hesap",
+      /UNIQUE INDEX "users_one_account_per_role" ON "users" USING btree \("role"\)/,
+    ],
+    [
+      "OD-24 e-posta iç kimlik",
+      /"users_email_internal_check" CHECK \("users"\."email" = "users"\."id" \|\| '@staff\.invalid'\)/,
     ],
     ["INV-13 audit UPDATE/DELETE trigger", /BEFORE UPDATE OR DELETE ON audit_logs/],
     ["INV-13 audit TRUNCATE trigger", /BEFORE TRUNCATE ON audit_logs/],

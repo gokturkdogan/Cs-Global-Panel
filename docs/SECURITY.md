@@ -14,39 +14,41 @@
 6. **Gizli bilgi loglanmaz** — token, şifre, session/cookie değeri, PDF içeriği, gereksiz PII.
 7. **Sabit güvenlik parametreleri** — şifre/oturum/dosya limitleri koddaki sabitlerdir; panelden değiştirilemez (OD-16, OD-22).
 
-## 2. Personel Kimlik Doğrulaması (Better Auth)
+## 2. Personel Kimlik Doğrulaması (Better Auth 1.7.27 — PHASE 03, uygulandı)
 
 | Konu | Uygulama |
 |---|---|
-| Giriş | Username plugin, `POST /api/auth/sign-in/username`. E-posta ile giriş kapalı. |
-| Kayıt | Public sign-up yok (`emailAndPassword.disableSignUp: true` — seçenek adı doğrulandı). Hesapları yalnızca ADMIN, Server Action içinde `auth.api` (admin plugin `createUser`) ile oluşturur. |
-| Giriş ekranı | Yalnızca kullanıcı adı + şifre. "Şifremi unuttum", "Kayıt ol", "Yeni hesap oluştur" **yok** (OD-11). |
-| Kapalı uç noktalar | `disabledPaths` (seçenek varlığı doğrulandı) ile: `/sign-up/email`, `/sign-in/email`, `/change-password`, `/change-email`, `/update-user`, `/delete-user`, `/request-password-reset`, `/reset-password`, `/is-username-available`. `admin/*` uç noktalarının HTTP'den çağrılması `hooks.before` (path bazlı `APIError` — doğrulandı) ile engellenir. `disabledPaths`'in `auth.api` sunucu çağrılarını da engelleyip engellemediği **dokümante değil** → PHASE 03'te test edilir (TD-03). |
-| Enumeration | Tek tip hata: "Kullanıcı adı veya şifre hatalı." Pasif hesap da aynı mesajı alır. |
-| Şifre hash | Better Auth varsayılanı **scrypt** — değiştirilmez. |
-| Şifre politikası | Min **8**, maks 128 (`minPasswordLength`/`maxPasswordLength` varsayılanları; seçenek adları doğrulandı) — OD-22. Şifreyi yalnızca ADMIN belirler (`setUserPassword`); mevcut şifre hiçbir yerde gösterilmez/loglanmaz. Risk: THREAT_MODEL TM-09. |
-| Şifre değişimi | ADMIN yeni şifre atadığında aynı Server Action'da `revokeUserSessions` çağrılır → kullanıcının tüm oturumları sonlanır (BR-135). |
-| Oturum süresi | `session.expiresIn = 7 gün`, `session.disableSessionRefresh: true` → oturum `updateAge`'e bağlı olarak **uzatılmaz** (seçenek doğrulandı; "süre sonunun uzamadığı" etkisi PHASE 03'te testle kanıtlanır). Hareketsizlik zaman aşımı yok (OD-22). |
-| Cookie cache | **Kapalı** — iptal edilen oturum anında geçersiz olsun. |
-| Cookie | `HttpOnly`, production'da `Secure` (`useSecureCookies: true`), `SameSite=Lax`. |
-| CSRF | Better Auth origin kontrolü + `trustedOrigins = [APP_URL]`. Server Actions için Next.js Origin/Host kontrolü. `disableCSRFCheck` / `disableOriginCheck` **asla**. |
-| IP / UA saklamama (OD-09) | `advanced.ipAddress.disableIpTracking: true` (doğrulandı: yeni oturumlarda istemci adresini kaydetmez; **yerleşik rate limiter'ı da kapatır**). User-agent için `databaseHooks.session.create.before` dönüşünde `userAgent: null` (genel `{ data }` değiştirme mekanizması doğrulandı; session özelinde PHASE 03'te test). Son savunma: `sessions` tablosunda `CHECK (ip_address IS NULL AND user_agent IS NULL)`. |
-| Giriş sınırlaması | Yerleşik limiter kapalı olduğundan `hooks.before` (`/sign-in/username`) içinde uygulama limitleyicisi (`rate_limit_buckets`): IP başına 15 dk'da 20 deneme; kullanıcı adı başına 15 dk'da 10 **başarısız** deneme → 15 dk geçici blok (aynı genel mesaj). IP yalnızca HMAC'lenmiş, kısa ömürlü anahtar olarak (DATABASE_SCHEMA §4.12). Vercel'de güvenilir istemci IP header'ı PHASE 03'te doğrulanır. |
-| Pasifleştirme | Admin plugin `banUser` → giriş engeli + tüm oturumların iptali (doğrulandı). Ek olarak `requireStaff()` her istekte `banned` kontrol eder. |
-| Impersonation | Kullanılmaz; uç noktalar engellenir. |
-| İlk ADMIN (bootstrap) | `pnpm admin:bootstrap` (PHASE 03): hedef DB'de aktif ADMIN varsa reddeder; kullanıcı adını argüman, şifreyi **gizli etkileşimli prompt** ile alır (env/argv/shell geçmişinde şifre yok); `auth.api` ile oluşturur; audit `USER_CREATED` (`SYSTEM`). Hardcoded şifre yok. |
-| ADMIN kurtarma | `pnpm admin:recover` (PHASE 03): DB erişimi olan yetkili operatör, mevcut bir ADMIN'e gizli prompt ile yeni şifre atar veya pasif bir ADMIN'i yeniden etkinleştirir; tüm oturumlarını iptal eder; audit `USER_PASSWORD_SET` (`SYSTEM`). Yalnızca CLI, HTTP uç noktası yok. |
+| Hesap modeli (OD-24) | Yalnızca iki hesap: bir ADMIN, bir EMPLOYEE — eşit yetki. `users_one_account_per_role` (UNIQUE `role`) + `role IN ('admin','employee')` → en fazla 2 hesap; eşzamanlı oluşturma bu kısıtla durur (testli). |
+| Better Auth HTTP route'u | **Bağlanmaz** (D-060): `/api/auth/*` 404. Giriş/çıkış Server Action'ları sunucu tarafında `auth.api.signInUsername` / `signOut` çağırır. Kayıt, e-posta girişi, şifre değiştirme/sıfırlama, e-posta değiştirme, kullanıcı güncelleme/silme, impersonation, admin uç noktaları HTTP'den erişilemez (E2E: 11 yol 404). |
+| Eklentiler | Yalnızca `username` + `nextCookies`. Admin plugin, organization, social login, OTP, magic link, 2FA **yok**. |
+| Kayıt / hesap oluşturma | `emailAndPassword.enabled: false`, `disableSignUp: true`; ayrıca `databaseHooks.user.create.before` ve `account.create.before` → `false`: Better Auth üzerinden kullanıcı/hesap oluşturulamaz. Hesaplar yalnızca yerel CLI `pnpm auth:bootstrap` ile oluşturulur. |
+| Giriş ekranı | Tek ortak ekran (`/login`): kullanıcı adı + şifre + göster/gizle. "Şifremi unuttum", "Kayıt ol", e-posta alanı **yok**. Başarılı giriş her iki hesap için `/dashboard`; yönlendirme parametresi kabul edilmez (open redirect yok). |
+| Enumeration | Tek tip hata: "Kullanıcı adı veya şifre hatalı." Better Auth var olmayan kullanıcıda da şifre hash'ler (zamanlama farkı yok — kaynak koddan doğrulandı; aynı yanıt testli). |
+| Şifre hash | Better Auth varsayılanı **scrypt** (`hashPassword` — CLI aynı fonksiyonu kullanır). Düz şifre hiçbir yerde saklanmaz/loglanmaz. |
+| Şifre politikası | Min **8**, maks 128 (OD-22); baş/son boşluk yok; kullanıcı adını içeremez; en az 4 farklı karakter; iki hesabın şifreleri farklı (CLI, diğer hesabın hash'iyle karşılaştırır). 12+ karakterlik rastgele şifre önerilir. |
+| Şifre sıfırlama | Yalnızca yerel CLI `pnpm auth:reset-password` (gizli giriş, tekrar): hash günceller, **yalnızca o hesabın** tüm oturumlarını siler (BR-135), audit `USER_PASSWORD_SET` + `USER_SESSIONS_REVOKED {count}`. Uygulama içinde şifre değişimi yok. |
+| E-posta alanı | Better Auth zorunlu kılar; kişisel veri değil: `<id>@staff.invalid` (CHECK ile zorunlu, değişmez — TD-05 çözüldü). E-posta gönderimi yok. |
+| Oturum süresi | `expiresIn = 7 gün`, `disableSessionRefresh: true` → kullanımla **uzamaz** (2 gün eski oturumda tekrarlı doğrulamayla `expires_at` değişmediği testli). Hareketsizlik zaman aşımı ve "beni hatırla" yok. |
+| Oturum doğrulama | Cookie cache **kapalı**; her istekte veritabanından doğrulama (iptal/sıfırlama anında etkili). Değiştirilmiş, süresi dolmuş, silinmiş oturum reddedilir (testli). |
+| Cookie | `cs.session_token` (production'da `__Secure-` önekli): `HttpOnly`, `SameSite=Lax`, `Path=/`, Domain yok (host-only), Max-Age 7 gün; `Secure` APP_URL https iken (`useSecureCookies`); https'te ad `__Secure-cs.session_token` + `Secure` + `HttpOnly` + `SameSite=Lax` — **yapılandırma düzeyinde integration testli (PHASE 04)**. Gerçek HTTPS tarayıcı doğrulaması deployment öncesi zorunlu (P4-04 → PHASE 13; sistem sertifika deposu değişikliği veya deployment gerektirdiği için yapılmadı). |
+| CSRF | **İki katman (PHASE 04, D-069):** (1) `src/proxy.ts`, `/api/*` dışındaki tüm durum değiştiren isteklerde (`POST/PUT/PATCH/DELETE`) `Origin`'in APP_URL origin'iyle tam eşleşmesini ve `X-Forwarded-Host`/`Host`'un APP_URL host'uyla eşleşmesini ister; aksi halde **403 "İstek reddedildi."** (`no-store`). Origin yok, `"null"`, bozuk, farklı şema/port/alt alan adı ve güvenilmeyen Host reddedilir (unit + E2E). (2) Next.js Server Action Origin/Host kontrolü açık kalır. Reddedilen istek action'a ulaşmaz (rate limit/audit oluşmaz). Better Auth `trustedOrigins = [APP_URL]`; `disableCSRFCheck`/`disableOriginCheck` kullanılmaz. `X-Forwarded-Host` davranışı hosting'de doğrulanacak (PHASE 13). |
+| IP / UA saklamama (OD-09) | `advanced.ipAddress.disableIpTracking: true` + `databaseHooks.session.create.before` IP/UA'yı `null` yapar + DB CHECK. Sahte `User-Agent`/`X-Forwarded-For` ile girişte satırların NULL kaldığı testli. |
+| Giriş sınırlaması | §6 — uygulama limitleyicisi (`rate_limit_buckets`); Better Auth yerleşik limiter'ı kapalı (HTTP route'u yok). |
+| Hesap pasifleştirme | **Yok** (OD-24). Olay müdahalesi: `pnpm auth:reset-password` → ilgili hesabın tüm oturumları sonlanır. |
+| Telemetri | Better Auth telemetrisi kapalı (`telemetry.enabled: false`). |
 
-### Sunucu tarafı oturum çözümü (taslak)
+### Sunucu tarafı oturum çözümü (uygulandı — `src/server/auth/staff.ts`)
 ```ts
-// src/server/auth/session.ts (PHASE 03)
-export const requireStaff = cache(async (permission?: Permission) => {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || session.user.banned) redirect('/login');
-  if (permission && !can(session.user.role, permission)) forbidden();
-  return toActor(session);
+export const getCurrentStaff = cache(async (): Promise<Staff | null> => {
+  const requestHeaders = await headers();
+  if (getSessionCookie(requestHeaders, { cookiePrefix: "cs" }) === null) return null; // DB'ye gitmez
+  const session = await getAuth().api.getSession({ headers: requestHeaders });     // DB doğrulaması
+  if (session === null || !isStaffRole(session.user.role)) return null;
+  return { userId, username, accountType: role, sessionId };                       // rol yetki için kullanılmaz
 });
+export async function requireStaff() { const s = await getCurrentStaff(); if (!s) redirect("/login"); return s; }
 ```
+`requireAdmin`, `requirePermission`, `can()` yoktur (OD-24).
 
 ## 3. Müşteri Bağlantısı (bearer credential)
 
@@ -67,8 +69,8 @@ export const requireStaff = cache(async (permission?: Permission) => {
 | Olay | Etki |
 |---|---|
 | Oluşturma | Başvuru transaction'ında (`ACCESS_LINK_CREATED`) |
-| Yenileme (ADMIN/EMPLOYEE, onay penceresi) | Eski token `revoked_at` + `ROTATED`; yeni token; eski bağlantıyla açılmış oturumlar bir sonraki istekte reddedilir (`ACCESS_LINK_ROTATED`) |
-| İptal (ADMIN/EMPLOYEE, onay penceresi) | `REVOKED`; aktif bağlantı kalmaz; "Yeni bağlantı oluştur" ile yenisi üretilir (`ACCESS_LINK_REVOKED`) |
+| Yenileme (personel — iki hesap eşit, onay penceresi) | Eski token `revoked_at` + `ROTATED`; yeni token; eski bağlantıyla açılmış oturumlar bir sonraki istekte reddedilir (`ACCESS_LINK_ROTATED`) |
+| İptal (personel — iki hesap eşit, onay penceresi) | `REVOKED`; aktif bağlantı kalmaz; "Yeni bağlantı oluştur" ile yenisi üretilir (`ACCESS_LINK_REVOKED`) |
 | Başvuru silme | `APPLICATION_DELETION` + satır silinir |
 | Zaman / statü | **Etkisi yok** (OD-04) |
 
@@ -103,8 +105,10 @@ Tek aktif bağlantı: DB partial unique index + `applications FOR UPDATE` (OD-18
 
 ## 5. HTTP Güvenlik Header'ları
 
-`next.config.ts` `headers()` + `src/proxy.ts` (nonce'lu CSP).
+`next.config.ts` `headers()` + `src/proxy.ts` (nonce'lu CSP — **PHASE 03'te uygulandı**, D-064).
 
+> **PHASE 03 durumu (D-064):** CSP her istekte yeni nonce ile `src/proxy.ts`'ten gelir: `default-src 'self'; script-src 'self' 'nonce-…' 'strict-dynamic'` (+ yalnızca development'ta `'unsafe-eval'`); `style-src 'self' 'nonce-…'`; `img-src 'self' blob: data:`; `font-src 'self'`; `connect-src 'self'`; `object-src 'none'`; `base-uri 'none'`; `form-action 'self'`; `frame-ancestors 'none'`; `upgrade-insecure-requests` yalnızca https APP_URL'de. Tüm sayfalar dinamik render edilir (root layout `connection()`); `Cache-Control` dinamik sayfalarda `no-store` (E2E). `unsafe-inline` yok; CSP ihlali konsol hatası olarak E2E'de yakalanır.
+>
 > **PHASE 01 durumu (D-048):** Tüm yanıtlarda `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Strict-Transport-Security`, `X-Robots-Tag` ve script çalıştırmayı etkilemeyen temel CSP (`base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'`) gönderilir; `X-Powered-By` kapalı. E2E ile doğrulandı. Henüz uygulanmayanlar: nonce'lu `script-src`/`style-src` CSP (PHASE 03, `proxy.ts`), rota bazlı `no-referrer` (PHASE 07/08), `Cache-Control: no-store` (korumalı rotalarla birlikte), PDF yanıtı CSP'si (PHASE 08).
 
 | Header | Değer | Kapsam |
@@ -126,13 +130,14 @@ Tümü Postgres `rate_limit_buckets` (D-019); bellek içi sayaç kullanılmaz.
 
 | Kapsam | Anahtar | Limit (sabit) |
 |---|---|---|
-| Personel girişi (IP) | `login:ip:<hmac>` | 20 / 15 dk |
-| Personel girişi (kullanıcı adı, başarısız) | `login:user:<hmac(username)>` | 10 / 15 dk → 15 dk blok |
+| Personel girişi (kullanıcı adı) | `login:user:<hmac(username)>` | 10 **deneme** / 15 dk sabit pencere; başarılı giriş sayacı sıfırlar (PHASE 03, D-063) |
+| Personel girişi (bilinmeyen kullanıcı adları) | `login:unknown-usernames` | 50 deneme / 15 dk — **yalnızca var olmayan** kullanıcı adlarıyla yapılan denemelerin ortak sayacı (PHASE 04, D-068). Var olan hesapların girişini etkilemez; aşımda kullanıcı adı başına satır oluşturulmaz ve genel "hatalı" mesajı (şifre yine hash'lenir). Önceki genel limit `login:global` (100/15 dk) DoS riski nedeniyle kaldırıldı. |
+| Personel girişi (IP) | `login:ip:<hmac>` | **Uygulanmadı** — güvenilir istemci IP header'ı hosting'e bağlı (TD-04, PHASE 13) |
 | Bağlantı açma | `link:ip:<hmac>` | 30 / 10 dk |
 | Upload token | `upload:actor:<userId \| accessTokenId>` | 30 / 10 dk |
 | Dosya görüntüleme/indirme | `file:actor:<userId \| accessTokenId>` | 120 / 10 dk |
 
-Limit aşımı: `429` + Türkçe genel mesaj. Değerler `src/config/constants.ts` içindedir.
+Limit aşımı: Türkçe genel mesaj (girişte "Çok fazla giriş denemesi…"). Sayaçlar atomik (`INSERT … ON CONFLICT DO UPDATE`), denemede artar → eşzamanlı denemelerle aşılamaz (testli). Limiter/veritabanı hatasında giriş reddedilir (fail-closed). Kalıcı hesap kilidi yok. Süresi dolan anahtarlar her denemede sınırlı (100) temizlenir. Değerler `src/config/constants.ts`.
 
 ## 7. Girdi Doğrulama ve Çıktı Kodlama
 
@@ -147,6 +152,9 @@ Limit aşımı: `429` + Türkçe genel mesaj. Değerler `src/config/constants.ts
 ## 8. Audit Log
 
 ### 8.1 Event listesi
+
+Genel Bakış (PHASE 04) okumaları audit'e yazılmaz. PHASE 03'te uygulanan: `USER_LOGIN`, `USER_LOGIN_FAILED` (`{ reason: INVALID_CREDENTIALS | RATE_LIMITED }`, aktör ANONYMOUS), `USER_LOGOUT`, `USER_CREATED` (SYSTEM, bootstrap), `USER_PASSWORD_SET` (SYSTEM), `USER_SESSIONS_REVOKED` (`{ count }`). `USER_UPDATED`, `USER_ROLE_CHANGED`, `USER_DEACTIVATED/REACTIVATED` OD-24 ile kullanılmaz.
+
 
 | Event | Aktör | Metadata (güvenli) |
 |---|---|---|
@@ -216,5 +224,11 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 | PB-07 | Tüm yetkilendirme negatif testleri ve güvenlik E2E senaryolarının geçmesi | TESTING_STRATEGY |
 | PB-08 | Yedek/geri yükleme yeteneğinin seçilen ücretsiz planda doğrulanması | DEPLOYMENT §7 |
 | PB-09 | Bağımlılık taraması temiz | |
-| PB-10 | Better Auth IP/UA saklamama ve kapalı uç noktaların testle doğrulanması | TD-03, TD-04 |
+| PB-10 | Better Auth IP/UA saklamama ve kapalı uç noktaların testle doğrulanması — **PHASE 03'te testle doğrulandı** (IP header güvenilirliği hosting'de, TD-04) | TD-04 |
 | PB-11 | Gerçek şirket iletişim bilgileri ve hizmet/evrak kataloğu | Pending input |
+
+## 12. PHASE 04 Güvenlik Notları
+- **Panel veri erişimi:** Genel Bakış yalnızca runtime rolüyle, salt okunur transaction'da, izinli kolonlarla okunur (telefon, e-posta, arama metni, token, iç not okunmaz — unit testle kolon listesi sabitlenmiş; integration ile DTO doğrulanmış). Silme talepli başvurular gösterilmez (BR-153). Hata mesajı Türkçe ve geneldir; log'da yalnızca hata türü/kodu.
+- **Kimliği doğrulanmış testler (D-067):** uygulamada bypass/test endpoint'i/özel header yok; testler kısa ömürlü gerçek oturum satırı üretir. Gerçek hesapların credential kayıtları ve mevcut oturumları test başı/sonu karşılaştırılır.
+- **CSP:** Radix kaydırma kilidinin `<style>` etiketi nonce'ludur (D-071); `'unsafe-inline'` yok. E2E'de panel sayfalarında konsol/CSP hatası yok.
+- **Açık:** hesap başına kilitleme DoS'u (D-068 kalan risk), IP bazlı limit (TD-04), HTTPS'te `Secure` cookie'nin tarayıcıda doğrulanması (P4-04), axe taraması (PHASE 12).

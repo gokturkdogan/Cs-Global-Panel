@@ -24,7 +24,7 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 | İletişim | Telefon, e-posta | Personel girer | İletişim (WhatsApp), kayıt |
 | Belge içerikleri | Pasaport, kimlik, banka dökümü, iş sözleşmesi, ikametgâh | Müşteri / personel yükler | Danışmanlık hizmeti |
 | İşlem güvenliği | Audit kayıtları (aktör ID, işlem, zaman) | Sistem | Hesap verebilirlik |
-| Personel verisi | Ad, kullanıcı adı, e-posta (TD-05), giriş kayıtları | ADMIN | Erişim yönetimi |
+| Personel verisi | İki hesap: kullanıcı adı, görünen ad; e-posta alanı kişisel veri değildir (`<id>@staff.invalid`); giriş audit kayıtları | Yerel CLI (işletmeci) | Erişim yönetimi |
 
 **Saklanmayanlar (OD-09):** IP adresi, hash'lenmiş/HMAC'lenmiş IP, user-agent, tarayıcı/cihaz/işletim sistemi bilgisi uygulama veritabanında tutulmaz. İstisna: rate limiting için HMAC'lenmiş, pencere süresiyle sınırlı, en fazla ~24 saat yaşayan **teknik anahtarlar** (DATABASE_SCHEMA §4.12) — audit veya izleme amacıyla kullanılmaz.
 **Hosting sağlayıcısının altyapı logları** (request path, IP vb.) bu politikanın dışındadır ve sağlayıcının kendi politikasına tabidir; uygulama bunları kontrol edemez. Bu loglar müşteri bağlantı token'larını içerebilir (SECURITY §4).
@@ -44,17 +44,17 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 ## 4. Saklama (OD-06)
 
 - MVP'de **otomatik saklama süresi yönetimi ve otomatik silme yoktur**: başvurular, müşteri bilgileri ve geçerli dosya versiyonları süreye bağlı olarak silinmez; panelde saklama ayarı yoktur.
-- Veriler yalnızca **ADMIN'in manuel silme işlemiyle** silinir (BR-150…BR-154).
+- Veriler yalnızca **personelin manuel silme işlemiyle** silinir (iki hesap eşit — OD-24) (BR-150…BR-154).
 - ⚠️ **Manuel silme tercihi, verilerin süresiz saklanması için hukuki dayanak oluşturmaz.** KVKK m.7 ve "Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik" kapsamındaki saklama ve periyodik imha yükümlülüklerini **şirket** takip etmeli; bir saklama ve imha politikası belirleyip ADMIN silme aracıyla uygulamalıdır. Bu, production öncesi açık hukuki gereksinimdir (PB-03).
 - Yalnızca **teknik** temizlik otomatiktir (müşteri verisi saklama politikası değildir): tamamlanmamış yüklemeler, reddedilen dosyaların blob'ları, sahipsiz storage nesneleri, süresi dolmuş personel oturumları, süresi dolmuş rate limit anahtarları, yarım kalan silme işlemlerinin tamamlanması.
 - Yedekler: seçilen DB planının geri yükleme penceresi süresince silinen veri yedekte kalabilir (Neon Free: 6 saat; ücretli planlarda daha uzun) — aydınlatma metninde belirtilmeli. Ek uzun süreli yedek alınmaz.
 
 ## 5. Silme
 
-- **Başvuru silme (ADMIN):** bağlantı iptali + müşteri oturumlarının anında geçersizliği + tüm dosya versiyonlarının storage'dan fiziksel silinmesi ve doğrulanması + tüm başvuru kayıtlarının (yorum, not, inceleme, geçmiş dahil) DB'den silinmesi. Yalnızca `deleted_at` güncellemek gerçek silme sayılmaz; böyle bir alan yoktur.
+- **Başvuru silme (personel):** bağlantı iptali + müşteri oturumlarının anında geçersizliği + tüm dosya versiyonlarının storage'dan fiziksel silinmesi ve doğrulanması + tüm başvuru kayıtlarının (yorum, not, inceleme, geçmiş dahil) DB'den silinmesi. Yalnızca `deleted_at` güncellemek gerçek silme sayılmaz; böyle bir alan yoktur.
 - **Kısmi hata:** başvuru erişilemez durumda kalır, silme idempotent olarak yeniden denenir; DB kaydı storage boşaltılmadan silinmez (sahipsiz kişisel veri kalmaz).
 - **Audit:** yalnızca `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETED` (başvuru ID'si, silen kullanıcı, dosya sayısı). Önceki audit kayıtları kişisel veri içermez ve korunur.
-- **İlgili kişi talebi (m.11):** kişinin tüm başvuruları ad/telefon/e-posta araması ile personel tarafından bulunur ve ADMIN tarafından silinir (müşteri eşleştirme olmadığından otomatik toplu silme yoktur). Yasal saklama yükümlülüğü olan veriler hukuki görüşe göre korunur.
+- **İlgili kişi talebi (m.11):** kişinin tüm başvuruları ad/telefon/e-posta araması ile personel tarafından bulunur ve personel tarafından silinir (müşteri eşleştirme olmadığından otomatik toplu silme yoktur). Yasal saklama yükümlülüğü olan veriler hukuki görüşe göre korunur.
 
 ## 6. Şifreleme
 
@@ -71,7 +71,7 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 - Belge görüntüleme/indirme audit'lenir (aktör, zaman, dosya ID). IP/cihaz bilgisi olmadığından, bağlantının kimin elinde olduğu tespit edilemeyebilir (THREAT_MODEL TM-25).
 - **Olay müdahale planı (özet, PHASE 13'te detaylandırılır):**
   1. Tespit (audit anomalisi, sağlayıcı bildirimi, müşteri şikâyeti).
-  2. Sınırlama: ilgili bağlantıları iptal et/yenile, personel hesaplarını pasifleştir, secret'ları döndür.
+  2. Sınırlama: ilgili bağlantıları iptal et/yenile, ilgili hesabın şifresini `pnpm auth:reset-password` ile sıfırla (oturumlarını sonlandırır), secret'ları döndür.
   3. Değerlendirme: etkilenen kişi/veri kapsamı (audit'ten).
   4. Bildirim: Kurul kararı gereği veri ihlallerinin **en kısa sürede ve en geç 72 saat içinde** Kurul'a ve makul sürede ilgili kişilere bildirilmesi — hukukçu ile teyit edilmelidir.
   5. Kök neden analizi; DECISION_LOG/CHANGELOG kaydı.
@@ -94,7 +94,7 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 8. **Bearer bağlantı + OTP yokluğu + süresiz geçerliliğin** m.12 "uygun güvenlik düzeyi" yükümlülüğü açısından değerlendirilmesi (THREAT_MODEL TM-13).
 9. Antivirüs taraması olmadan belge kabulünün m.12 açısından değerlendirilmesi.
 10. Kişiselleştirilmiş WhatsApp mesajının (ad, soyad, hizmet) Meta üzerinden iletilmesi.
-11. Personel cihaz ve erişim politikası (tüm çalışanların tüm başvurulara erişimi, belgelerin yerel kopyaları).
+11. Personel cihaz ve erişim politikası (iki şirket hesabının da tüm başvurulara ve silme dahil tüm işlemlere erişimi, belgelerin yerel kopyaları).
 
 ## 10. Ortam İzolasyonu
 

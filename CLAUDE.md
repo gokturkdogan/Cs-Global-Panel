@@ -4,7 +4,7 @@ Bu dosya tüm geliştirme fazlarında temel talimattır. Ayrıntılar `docs/` al
 
 ## Proje
 CS Global (vize danışmanlığı) için evrak toplama, inceleme ve süreç takibi platformu. Tek Next.js uygulaması, iki arayüz:
-- **Şirket paneli** (`/dashboard`) — ADMIN, EMPLOYEE; kullanıcı adı + şifre (şifreyi ADMIN belirler).
+- **Şirket paneli** (`/dashboard`) — **yalnızca iki sabit hesap** (bir ADMIN, bir EMPLOYEE), **birebir eşit yetki** (OD-24); kullanıcı adı + şifre; hesaplar ve şifre sıfırlama yalnızca yerel CLI.
 - **Müşteri paneli** (`/portal`, giriş `/b/<token>`) — hesapsız; **yalnızca bağlantı** ile doğrudan erişim (bearer, süresiz). **Mobile-first.**
 
 Ürün yaklaşımı: basit, düşük maliyetli (**aylık 0 hedefi**), harici servis yok, mevcut WhatsApp operasyonunu kolaylaştırır. Resmî vize sistemi değildir. → `docs/PROJECT_OVERVIEW.md`
@@ -28,8 +28,8 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - Modüler monolit; `src/features/*`, server-only altyapı `src/server/*`, saf yardımcılar `src/lib/*`, sabitler `src/config/*`.
 - RSC varsayılan; `"use client"` yalnızca etkileşim için; client'a yalnızca DTO.
 - Mutasyon = Server Action; binary / storage callback / auth / `/b/<token>` / cron = Route Handler.
-- Akış: **Zod → aktörü sunucuda çöz → RBAC → kaynak kontrolü → domain guard (kilit altında) → transaction → audit → DTO**.
-- Statü geçişleri yalnızca merkezi state machine ile (`docs/STATE_TRANSITIONS.md`); ADMIN de yalnızca matristeki geçişleri yapar.
+- Akış: **Zod → oturumu sunucuda çöz (`requireStaff()` / müşteri oturumu) → kaynak kontrolü → domain guard (kilit altında) → transaction → audit → DTO**.
+- Statü geçişleri yalnızca merkezi state machine ile (`docs/STATE_TRANSITIONS.md`); personel de yalnızca matristeki geçişleri yapar.
 - Transaction içinde ağ çağrısı yok; kilit sırası applications → requirements → files.
 - Veritabanı: uygulama yalnızca `getDb()` (`cs_app_runtime`, en az yetki) ile; şema değişikliği = `pnpm db:generate` + SQL incelemesi + yeni migration (uygulanmış migration değiştirilmez, `push` yok); yeni tablo GRANT'ı aynı migration'da; statü değerleri `src/config/statuses.ts`; ayrıntı `docs/DATABASE_SCHEMA.md` §9.
 - `cacheComponents` kapalı; hassas veride `use cache` / `force-static` / `revalidate` yasak; korumalı yanıtlar `no-store`.
@@ -37,14 +37,15 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - Gelecek ihtimaller için kod, tablo, endpoint, servis, konfigürasyon oluşturma.
 
 ## Güvenlik kuralları (`docs/SECURITY.md`, `docs/THREAT_MODEL.md`)
-- Her hassas okuma/yazma kendi giriş noktasında yeniden yetkilendirilir; `proxy.ts` güvenlik sınırı değildir.
+- Her hassas okuma/yazma kendi giriş noktasında yeniden yetkilendirilir; `proxy.ts` kimlik doğrulama sınırı değildir (yalnızca köken kontrolü → 403 ve CSP — D-069).
+- Personel erişimi: her korumalı sayfa/action/route kendi içinde `requireStaff()` çağırır; Better Auth yalnızca sunucu tarafı `auth.api` (HTTP route'u yok — D-060); hesaplar ve şifreler yalnızca `pnpm auth:bootstrap` / `pnpm auth:reset-password`.
 - Müşteri bağlantısı bir **bearer credential**'dır: token 256 bit CSPRNG; DB'de yalnızca HMAC hash + AES-256-GCM kopya; anahtarlar env'de. Token log, audit, hata mesajı, analytics'e asla yazılmaz. Bağlantı URL'si yalnızca `APP_URL`'den üretilir.
 - Müşteri kapsamı yalnızca portal oturumundan; istemciden gelen `applicationId` kabul edilmez; her istekte bağlantının iptal edilmediği kontrol edilir. Kapsam dışı → 404.
 - İç notlar müşteri yolunda hiçbir şekilde sorgulanmaz/serileştirilmez.
 - IP, hash'lenmiş IP, user-agent, cihaz bilgisi uygulama DB'sinde saklanmaz (yalnızca kısa ömürlü HMAC'li rate limit anahtarları).
 - Better Auth mekanizmalarını yeniden yazma; kapalı uç noktalar (`sign-up`, `change-password`, `update-user`, reset, `admin/*` HTTP) testle doğrulanır.
 - Dosyalar: private storage, yalnızca `/api/files/[id]`, yalnızca doğrulanmış (`ACTIVE` vb.) dosyalar. Yapısal doğrulama antivirüs değildir — "virüssüz/güvenli" etiketi kullanma.
-- Silme yalnızca ADMIN, iki aşamalı ve gerçek (storage + DB); soft delete'i gerçek silme sayma.
+- Silme personel tarafından (iki hesap eşit), onaylı, iki aşamalı ve gerçek (storage + DB); soft delete'i gerçek silme sayma.
 - `dangerouslySetInnerHTML`, ham SQL birleştirme, `.env*` commit yasak.
 
 ## Kodlama standartları
@@ -57,7 +58,8 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 
 ## Zorunlu testler (`docs/TESTING_STRATEGY.md`)
 - Domain kuralı → unit; yeni mutasyon → yetki matrisi testi; DB'ye dokunan servis → integration; kullanıcı akışı → E2E (müşteri paneli için mobil projeler).
-- Kalite kapıları: `pnpm lint`, `typecheck`, `format:check`, `test` (unit), (varsa) `test:integration`, `build`, `check:bundle`, `test:e2e`, `audit`. Kısayol: `pnpm check`.
+- Kalite kapıları: `pnpm lint`, `typecheck`, `format:check`, `test` (unit), `db:check`, `test:integration`, `build`, `check:bundle`, `test:e2e`, `audit`. Kısayol: `pnpm check`.
+- Testler gerçek şirket hesaplarını oluşturmaz, silmez, şifrelerini/credential kayıtlarını ve mevcut oturumlarını değiştirmez (D-065, D-067). Gerçek hesaplar varken kimliği doğrulanmış testler `tests/support/staff-session.ts` ile test başına kısa ömürlü oturum kullanır ve siler; geçici `test-` hesaplı yaşam döngüsü testleri yalnızca hesap yokken çalışır. Uygulamaya test bypass'ı, test endpoint'i veya özel header eklenmez; Playwright trace kapalı kalır.
 - Test edilmemiş işi tamamlanmış gibi raporlama.
 
 ## Dokümantasyon kuralları
@@ -66,7 +68,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - Her faz sonunda `docs/PROJECT_STATE.md` + `docs/CHANGELOG.md`.
 
 ## Yasaklanan yaklaşımlar
-Mikroservis/ayrı backend · Bellek içi rate limit veya yerel dosya sistemi (production) · Public storage / kalıcı public dosya URL'i · DB'de binary · Düz metin token · Başvuru numarasını erişim anahtarı yapmak · URL'de kişisel veri · Frontend'de statü belirleme · OTP, e-posta/SMS entegrasyonu · Müşteri profili/eşleştirme/birleştirme · Çalışan atama · Arşivleme · Ayarlar sayfası/tablosu · Otomatik veri saklama/silme veya bağlantı süre sonu · Dinamik dosya limitleri · Harici antivirüs · Self-servis şifre işlemleri · IP/UA saklama · Gerçek müşteri verisinin dev/test/preview/demo'da kullanılması · Müşteri panelinde üçüncü taraf script · Deprecated/deneysel paketler (TS 7, ESLint 9, Drizzle 1.0 RC, Next.js taint API) · `cacheComponents` / `'use cache'` (lint ile engelli) · Kullanıcı onayı olmadan commit/push, hesap açma, ücretli servis, deployment.
+Mikroservis/ayrı backend · Bellek içi rate limit veya yerel dosya sistemi (production) · Public storage / kalıcı public dosya URL'i · DB'de binary · Düz metin token · Başvuru numarasını erişim anahtarı yapmak · URL'de kişisel veri · Frontend'de statü belirleme · OTP, e-posta/SMS entegrasyonu · Müşteri profili/eşleştirme/birleştirme · Çalışan atama · Arşivleme · Ayarlar sayfası/tablosu · Otomatik veri saklama/silme veya bağlantı süre sonu · Dinamik dosya limitleri · Harici antivirüs · Self-servis şifre işlemleri · IP/UA saklama · Gerçek müşteri verisinin dev/test/preview/demo'da kullanılması · Müşteri panelinde üçüncü taraf script · Deprecated/deneysel paketler (TS 7, ESLint 9, Drizzle 1.0 RC, Next.js taint API) · `cacheComponents` / `'use cache'` (lint ile engelli) · RBAC / izin matrisi / rol bazlı menü / `requireAdmin` · Uygulama içi hesap yönetimi (oluşturma, silme, pasifleştirme, rol/şifre değiştirme) · Üçüncü şirket hesabı · Better Auth HTTP route'u (`/api/auth/*`) · Kullanıcı onayı olmadan commit/push, hesap açma, ücretli servis, deployment.
 
 ## Sonraki faza geçmeden önce
 1. Fazın Acceptance + DoD maddeleri tek tek doğrulandı.

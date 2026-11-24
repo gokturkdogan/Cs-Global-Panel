@@ -1,21 +1,10 @@
 import type { NextConfig } from "next";
 
 /**
- * Temel güvenlik header'ları (SECURITY §5).
- *
- * Bu CSP yalnızca script çalıştırmayı etkilemeyen direktifleri içerir; development
- * ve production'da güvenle çalışır. Nonce'lu `script-src`/`style-src` içeren tam CSP,
- * `src/proxy.ts` ile kimlik doğrulama, müşteri paneli ve storage fazlarında eklenir.
+ * Güvenlik header'ları (SECURITY §5). Content-Security-Policy istek başına nonce ile
+ * `src/proxy.ts` tarafından eklenir (D-064).
  */
-const baselineContentSecurityPolicy = [
-  "base-uri 'none'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  "form-action 'self'",
-].join("; ");
-
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: baselineContentSecurityPolicy },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

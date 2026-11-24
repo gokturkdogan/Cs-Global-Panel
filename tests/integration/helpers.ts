@@ -53,7 +53,9 @@ export async function cleanup(created: Created): Promise<void> {
       [created.services],
     );
     await owner.query("DELETE FROM services WHERE id = ANY($1::uuid[])", [created.services]);
-    await owner.query("DELETE FROM users WHERE id = ANY($1::text[])", [created.users]);
+    // Yalnızca bu testlerin oluşturduğu geçici hesaplar silinir; gerçek hesaplara dokunulmaz.
+    const testUsers = created.users.filter((id) => id.startsWith(TEST_ID_PREFIX));
+    await owner.query("DELETE FROM users WHERE id = ANY($1::text[])", [testUsers]);
     await owner.query("DELETE FROM application_number_counters WHERE year = ANY($1::smallint[])", [
       created.years,
     ]);
@@ -62,12 +64,22 @@ export async function cleanup(created: Created): Promise<void> {
   }
 }
 
+/** Geçici test hesaplarının kimlik öneki; gerçek hesaplar Better Auth kimliği kullanır (önek yok). */
+export const TEST_ID_PREFIX = "test-";
+export const testId = (): string => `${TEST_ID_PREFIX}${randomUUID()}`;
+
+/**
+ * Test satırları için FK hedefi olacak bir personel kimliği döndürür (OD-24: en fazla iki hesap).
+ * Hesap varsa (gerçek veya geçici) yalnızca okunur, DEĞİŞTİRİLMEZ. Hiç hesap yoksa geçici bir
+ * EMPLOYEE kaydı oluşturulur ve `cleanup` ile silinir.
+ */
 export async function createUser(client: pg.ClientBase, created: Created): Promise<string> {
-  const id = `test-${randomUUID()}`;
-  const username = `t_${shortId()}`;
+  const existing = await client.query<{ id: string }>("SELECT id FROM users ORDER BY role LIMIT 1");
+  if (existing.rows[0] !== undefined) return existing.rows[0].id;
+  const id = testId();
   await client.query(
-    "INSERT INTO users (id, name, email, username) VALUES ($1, 'Test Personel', $2, $3)",
-    [id, `${username}@example.invalid`, username],
+    "INSERT INTO users (id, name, email, username, role) VALUES ($1, 'Test Personel', $1 || '@staff.invalid', $2, 'employee')",
+    [id, `t_${shortId()}`],
   );
   created.users.push(id);
   return id;

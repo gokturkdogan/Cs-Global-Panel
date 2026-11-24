@@ -1,14 +1,16 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, pgTable, text } from "drizzle-orm/pg-core";
+import { boolean, check, index, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { STAFF_ROLES } from "../../../config/statuses";
 import { auditTimestamps, inList, timestamptz } from "./helpers";
 
 /*
- * Better Auth 1.7.27 tabloları (username + admin plugin) — DATABASE_SCHEMA §3.
+ * Better Auth 1.7.27 tabloları (username plugin; admin plugin kullanılmaz — OD-24, D-061).
  * TS alan adları Better Auth'un alan adlarıyla birebir aynıdır (Drizzle adapter
  * `schema[model][field]` ile arar); kolon adları snake_case'tir.
- * Kimlik doğrulama implementasyonu PHASE 03'tedir; bu fazda yalnızca şema vardır.
+ *
+ * Hesap modeli (OD-24): yalnızca iki şirket hesabı — bir `admin`, bir `employee`. Hesap türü
+ * başına tek kayıt veritabanında zorunludur; yetki farkı yoktur (hesap türü yalnızca tanımlama).
  */
 
 export const users = pgTable(
@@ -16,25 +18,24 @@ export const users = pgTable(
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
-    // Better Auth zorunlu kılar; sistem e-posta göndermez (OD-08). Değer politikası TD-05.
+    // Better Auth zorunlu kılar; sistem e-posta göndermez (OD-08). Kişisel veri değildir:
+    // değişmez iç kimlik `<id>@staff.invalid` (RFC 2606 `.invalid` — yönlendirilemez; D-061).
     email: text("email").notNull().unique("users_email_unique"),
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),
-    // Username plugin değeri küçük harfe normalize eder; benzersizlik bu değer üzerindedir.
-    username: text("username").unique("users_username_unique"),
+    // Tek giriş yolu. Username plugin değeri küçük harfe normalize eder; benzersizlik bu değer üzerindedir.
+    username: text("username").notNull().unique("users_username_unique"),
     displayUsername: text("display_username"),
-    role: text("role").notNull().default("employee"),
-    banned: boolean("banned").notNull().default(false),
-    banReason: text("ban_reason"),
-    banExpires: timestamptz("ban_expires"),
+    // Hesap türü; varsayılan yoktur (bootstrap açıkça belirtir).
+    role: text("role", { enum: STAFF_ROLES }).notNull(),
     ...auditTimestamps(),
   },
   (t) => [
     check("users_role_check", inList(t.role, STAFF_ROLES)),
-    check(
-      "users_username_format_check",
-      sql`${t.username} IS NULL OR ${t.username} ~ '^[a-z0-9_.]{3,30}$'`,
-    ),
+    // OD-24: hesap türü başına en fazla bir hesap → toplam en fazla iki şirket hesabı.
+    uniqueIndex("users_one_account_per_role").on(t.role),
+    check("users_email_internal_check", sql`${t.email} = ${t.id} || '@staff.invalid'`),
+    check("users_username_format_check", sql`${t.username} ~ '^[a-z0-9_.]{3,30}$'`),
     check("users_email_length_check", sql`char_length(${t.email}) BETWEEN 3 AND 254`),
   ],
 );
@@ -52,13 +53,10 @@ export const sessions = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    // Admin plugin alanı; kişiye bürünme (impersonation) kullanılmaz.
-    impersonatedBy: text("impersonated_by"),
     ...auditTimestamps(),
   },
   (t) => [
     check("sessions_no_ip_ua_check", sql`${t.ipAddress} IS NULL AND ${t.userAgent} IS NULL`),
-    check("sessions_no_impersonation_check", sql`${t.impersonatedBy} IS NULL`),
     index("sessions_user_id_idx").on(t.userId),
     index("sessions_expires_at_idx").on(t.expiresAt),
   ],

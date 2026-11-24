@@ -316,46 +316,8 @@ describe("inceleme ve yorum ilişkileri", () => {
   });
 });
 
-describe("personel kimliği (Better Auth tabloları)", () => {
-  it("INV-11: kullanıcı adı küçük harf, biçimli ve benzersizdir", async () => {
-    const insert = (id: string, username: string) =>
-      db.query("INSERT INTO users (id, name, email, username) VALUES ($1, 'T', $2, $3)", [
-        id,
-        `${id}@example.invalid`,
-        username,
-      ]);
-    const id = `test-${randomUUID()}`;
-    created.users.push(id);
-    await insert(id, `u_${id.slice(-8)}`);
-    await expectPgError(insert(`test-${randomUUID()}`, `u_${id.slice(-8)}`), "23505");
-    await expectPgError(insert(`test-${randomUUID()}`, "BuyukHarf"), "23514");
-    await expectPgError(insert(`test-${randomUUID()}`, "a"), "23514");
-  });
-
-  it("rol yalnızca admin veya employee olabilir", async () => {
-    await expectPgError(
-      db.query("UPDATE users SET role = 'superadmin' WHERE id = $1", [userId]),
-      "23514",
-    );
-  });
-
-  it("INV-12: oturumda IP veya user-agent saklanamaz; impersonation kaydedilemez", async () => {
-    const insert = (extra: string, value: string) =>
-      db.query(
-        `INSERT INTO sessions (id, expires_at, token, user_id, ${extra}) VALUES ($1, now() + interval '7 days', $2, $3, $4)`,
-        [`s-${randomUUID()}`, randomHex(16), userId, value],
-      );
-    await expectPgError(insert("ip_address", "192.0.2.1"), "23514");
-    await expectPgError(insert("user_agent", "Mozilla/5.0"), "23514");
-    await expectPgError(insert("impersonated_by", userId), "23514");
-    await expect(
-      db.query(
-        "INSERT INTO sessions (id, expires_at, token, user_id) VALUES ($1, now() + interval '7 days', $2, $3)",
-        [`s-${randomUUID()}`, randomHex(16), userId],
-      ),
-    ).resolves.toBeDefined();
-  });
-});
+// Personel hesabı kısıtları (INV-11, INV-12, OD-24) gerçek hesaplara dokunmamak için geçici hesaplarla
+// tests/integration/auth.test.ts içinde doğrulanır.
 
 describe("snapshot bağımsızlığı (INV-10)", () => {
   it("şablon değişikliği mevcut başvuru snapshot'ını değiştirmez; şablon silinirse snapshot kalır", async () => {

@@ -15,7 +15,7 @@
 | Public referans | `applications.application_number`. Personel URL'lerinde UUID; her istekte yetki kontrolü. |
 | Statü/enum | `text` + `CHECK (col IN (...))` (PostgreSQL enum değil: değer ekleme/çıkarma basit migration'dır). Değer listeleri ve TS union tipleri tek kaynak `src/config/statuses.ts`. |
 | Zaman | Tümü `timestamptz` UTC, `DEFAULT now()`; `updated_at` veritabanı trigger'ıyla güncellenir (D-058). Gösterim `Europe/Istanbul`. |
-| Silme davranışı | Kullanıcılar ve hizmetler silinmez → FK `ON DELETE RESTRICT`. Başvuruya ait tüm alt kayıtlar `ON DELETE CASCADE` — **yalnızca ADMIN manuel silme** tetikler (BR-150). |
+| Silme davranışı | Kullanıcılar ve hizmetler silinmez → FK `ON DELETE RESTRICT`. Başvuruya ait tüm alt kayıtlar `ON DELETE CASCADE` — **yalnızca personelin manuel silmesi** tetikler (BR-150; iki hesap eşit — OD-24). |
 | Soft delete | Yok. Arşiv yok (OD-23). `deletion_requested_at` yalnızca devam eden gerçek silme işleminin işaretidir (BR-153), soft delete değildir. |
 | Sabit limitler | Dosya tipi/boyutu/sayısı şemada **kolon değildir** (OD-16); `src/config/constants.ts` + DB kısıtları (tek aktif dosya). |
 | Kişisel teknik veri | IP, hash'lenmiş IP, user-agent, cihaz/tarayıcı bilgisi **saklanmaz** (OD-09). |
@@ -49,8 +49,7 @@ erDiagram
         text id PK
         text username UK
         text email UK
-        text role
-        boolean banned
+        text role UK
     }
     services {
         uuid id PK
@@ -122,28 +121,25 @@ erDiagram
 
 ## 3. Better Auth Tabloları (4)
 
-> Kesin kolon listesi PHASE 03'te `npx auth@latest generate` çıktısından alınır. Better Auth'un zorunlu tabloları kaldırılmaz. Çoğul tablo adı kullanımı adapter seçeneğiyle PHASE 03'te doğrulanır; mümkün değilse kütüphane varsayılanları korunur.
+> Better Auth 1.7.27 (yalnızca username plugin — D-060/D-061). Adapter `schema: { user: users, session: sessions, account: accounts, verification: verifications }` ile çoğul tablo adlarını kullanır (PHASE 03'te gerçek veritabanında doğrulandı). **İki hesap modeli (OD-24):** en fazla bir `admin` ve bir `employee`.
 
 ### 3.1 `users`
 | Kolon | Tip | Null | Default | Not |
 |---|---|---|---|---|
 | `id` | text | ✗ | Better Auth | PK |
 | `name` | text | ✗ | | Ad Soyad |
-| `email` | text | ✗ | | UNIQUE. Better Auth zorunlu kılar; sistem e-posta göndermez (OD-08). Değer politikası TD-05. |
+| `email` | text | ✗ | | UNIQUE. Better Auth zorunlu kılar; sistem e-posta göndermez (OD-08). CHECK `email = id || '@staff.invalid'` — kişisel veri değil, değişmez (D-061). |
 | `email_verified` | boolean | ✗ | false | Kullanılmaz |
 | `image` | text | ✓ | | Kullanılmaz |
-| `username` | text | ✗* | | UNIQUE, lowercase (username plugin). *Uygulama zorunlu kılar. |
+| `username` | text | ✗ | | UNIQUE, NOT NULL, CHECK `^[a-z0-9_.]{3,30}$` (küçük harfe normalize). Tek giriş yolu. |
 | `display_username` | text | ✓ | | Plugin alanı |
-| `role` | text | ✗ | `'employee'` | CHECK `IN ('admin','employee')` |
-| `banned` | boolean | ✗ | false | "Pasif" anlamında (D-021) |
-| `ban_reason` | text | ✓ | | Personel içi |
-| `ban_expires` | timestamptz | ✓ | | Kullanılmaz (süresiz pasif) |
+| `role` | text | ✗ | — | CHECK `IN ('admin','employee')` + **UNIQUE** (`users_one_account_per_role`) → en fazla iki hesap (OD-24). Yetki farkı yok; yalnızca hesap türü. |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
-`must_change_password` alanı **kaldırıldı** (OD-11: ilk girişte zorunlu değişim yok). Silme: yapılmaz.
+`must_change_password`, `banned`, `ban_reason`, `ban_expires` **kaldırıldı** (OD-11, OD-24 — pasifleştirme yok; migration 0003). Silme: yapılmaz (runtime rolünde `users` DELETE yetkisi yok).
 
 ### 3.2 `sessions`
-`id` PK, `token` UNIQUE, `user_id` FK CASCADE, `expires_at`, `ip_address` (✓), `user_agent` (✓), `impersonated_by` (✓, admin plugin — kullanılmaz), `created_at`, `updated_at`.
+`id` PK, `token` UNIQUE, `user_id` FK CASCADE, `expires_at`, `ip_address` (✓), `user_agent` (✓), `created_at`, `updated_at`. `impersonated_by` kaldırıldı (migration 0003).
 **OD-09 kısıtı:** `CHECK (ip_address IS NULL AND user_agent IS NULL)` — kütüphane bu alanlara değer yazmaya çalışırsa kayıt **başarısız olur** (sessiz veri toplama yerine görünür hata). Doldurulmaması için yapılandırma: SECURITY §2. Süresi dolan oturumlar günlük temizlik işiyle silinir.
 
 ### 3.3 `accounts`
@@ -363,7 +359,7 @@ IP / user-agent / `ip_hash` / `request_id` kolonları **yoktur** (OD-09). Index:
 - E-posta: lowercase + trim (BR-08).
 - Türkçe arama: `src/lib/search.ts` (yazma + sorgu tarafında aynı fonksiyon).
 - Liste: `applications JOIN services` gereksiz — `service_name_snapshot` kullanılır; tek tablo sorgusu + `LIMIT/OFFSET` (≤50) + `COUNT(*)`. Evrak özetleri tek aggregate alt sorgu. N+1 yok.
-- Tüm sorgular `deletion_requested_at IS NULL` filtresi içerir (silme sürecindeki başvurular için ADMIN'e özel ayrı sorgu hariç).
+- Tüm sorgular `deletion_requested_at IS NULL` filtresi içerir (silme sürecindeki başvuruları bulan ayrı personel sorgusu hariç).
 
 ## 6. Transaction Sınırları
 
@@ -418,8 +414,8 @@ Transaction içinde ağ çağrısı yok (Blob, doğrulama dışarıda); kilit s�
 | INV-08 | Versiyon evrak içinde benzersiz, ≥ 1; yalnızca doğrulanmış dosyada | Partial unique `(requirement_id, version_number)` + CHECK | constraints, concurrency |
 | INV-09 | İnceleme yalnızca aynı evrağın/başvurunun dosyasına | Bileşik FK `(file_id, requirement_id, application_id)` (D-052) | constraints |
 | INV-10 | Snapshot/yorum/not başka başvuruya bağlanamaz; şablon değişikliği snapshot'ı etkilemez | Bileşik FK'lar; şablona yalnızca `SET NULL` referans | constraints |
-| INV-11 | Personel kullanıcı adı benzersiz, küçük harf | UNIQUE + CHECK `^[a-z0-9_.]{3,30}$` | constraints |
-| INV-12 | IP/UA kalıcı tutulmaz | `sessions` CHECK `ip_address IS NULL AND user_agent IS NULL` (+ `impersonated_by IS NULL`) | constraints |
+| INV-11 | Personel kullanıcı adı benzersiz, küçük harf; en fazla iki hesap (OD-24) | UNIQUE + CHECK `^[a-z0-9_.]{3,30}$` + `users_one_account_per_role` | auth |
+| INV-12 | IP/UA kalıcı tutulmaz | `sessions` CHECK `ip_address IS NULL AND user_agent IS NULL` + Better Auth hook | auth |
 | INV-13 | Audit değiştirilemez | Runtime: yalnızca SELECT+INSERT; trigger UPDATE/DELETE/TRUNCATE'i herkes için reddeder; metadata anahtar beyaz listesi | privileges |
 | INV-14 | Geçersiz FK reddedilir | Tüm FK'lar | constraints |
 | INV-15 | Silme bütünlüğü | Başvuru → alt kayıtlar CASCADE; hizmet/kullanıcı RESTRICT; audit'te FK yok | transactions-and-deletion |
@@ -435,7 +431,7 @@ Transaction içinde ağ çağrısı yok (Blob, doğrulama dışarıda); kilit s�
 | SELECT, INSERT | `document_reviews`, `document_comments`, `application_internal_notes`, `application_status_history`, `audit_logs` |
 | Hiçbiri | TRUNCATE, REFERENCES, TRIGGER, DDL, `drizzle` şeması, `public`'te CREATE, TEMP |
 
-Bu yetkiler sunucu tarafı yetkilendirmenin yerine geçmez: örneğin runtime rolünün `audit_logs`'u okuyabilmesi, EMPLOYEE'nin audit ekranını görebileceği anlamına gelmez (AUTHORIZATION_MATRIX).
+Bu yetkiler sunucu tarafı yetkilendirmenin yerine geçmez: her erişim yine personel/müşteri oturumuyla uygulama katmanında denetlenir (AUTHORIZATION_MATRIX); müşteri yolu audit veya iç not okumaz.
 
 ### 9.3 Mutasyon desenleri (sonraki fazlar için)
 - **Optimistic lock:** `UPDATE … SET …, version = version + 1 WHERE id = $1 AND version = $expected RETURNING …` → 0 satır = `CONFLICT` (kullanıcıya "kayıt başka biri tarafından değiştirildi"). Eşzamanlı ikinci güncelleme ilk commit'i bekler ve 0 satır döner (integration testiyle doğrulandı).
@@ -449,5 +445,5 @@ Veritabanı CASCADE'i storage nesnelerini **silmez**. BR-153 sırası korunur: a
 ### 9.5 Türkçe arama
 Veritabanının `lower()`/`ILIKE` davranışı collation'a bağlıdır ve Türkçe `I/ı`, `İ/i` kurallarını uygulamaz (integration testi bunu gösterir). Bu nedenle arama **uygulamada** yapılan Türkçe katlama ile çalışır (BR-80): `search_text` yazılırken ve sorgu metni aynı fonksiyondan (`src/lib/search.ts`, PHASE 06) geçer; veritabanında `pg_trgm` GIN index'i bu katlanmış metin üzerindedir. Full-text search altyapısı kurulmaz. `services_name_lower_unique` ASCII dışı büyük/küçük harf eşleşmesini garanti etmez (Türkçe harfli hizmet adlarında aynı adın farklı yazımı ayrı kayıt sayılabilir — PHASE 05'te uygulama normalizasyonuyla ele alınır).
 
-### 9.6 Kimlik doğrulama tabloları (PHASE 03 notları)
-Better Auth 1.7.27 + username + admin alanları kütüphanenin `getAuthTables` çıktısıyla karşılaştırıldı (izole kurulum). PHASE 03'te doğrulanacaklar: Drizzle adapter yapılandırması (`schema: { user: users, session: sessions, account: accounts, verification: verifications }` veya `usePlural`), Better Auth'un oturum oluştururken IP/UA yazmaması (yazarsa CHECK kaydı reddeder — görünür hata), `role` varsayılanı `employee`, personel e-posta politikası (TD-05: `<username>@staff.invalid` önerisi; e-posta UNIQUE + NOT NULL; kullanıcı adı değişirse türetilmiş e-posta da güncellenmeli), kullanıcıların silinmemesi (runtime'da `users` DELETE yetkisi yok).
+### 9.6 Kimlik doğrulama tabloları (PHASE 03 — uygulandı)
+Migration `0003_fixed_two_account_model`: hesap türü başına tek hesap, `email` iç kimlik CHECK'i, `username` NOT NULL, admin plugin kolonlarının kaldırılması (D-061). Gerçek veritabanında doğrulananlar: Better Auth Drizzle adapter'ı bu tablolarla giriş/oturum/çıkış yapar; oturumlarda IP/UA NULL kalır; üçüncü hesap ve eşzamanlı bootstrap reddedilir; kullanıcı adı benzersizliği/biçimi ve rol CHECK'i çalışır (tests/integration/auth.test.ts).
