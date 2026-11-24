@@ -1,25 +1,25 @@
 # Veritabanı Şeması
 
-> PostgreSQL (Neon) + Drizzle ORM 0.45.x. Bu bir **tasarım dokümanıdır**; PHASE 00'da fiziksel DB, migration veya bağlantı oluşturulmamıştır.
-> İş kuralları: [BUSINESS_RULES.md](BUSINESS_RULES.md) · State machine: [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) · Saklama: [DATA_PRIVACY.md](DATA_PRIVACY.md)
+> PostgreSQL (Neon) + Drizzle ORM 0.45.x. Bu bir **tasarım dokümanıdır**; fiziksel DB, migration veya bağlantı oluşturulmamıştır.
+> İş kuralları: [BUSINESS_RULES.md](BUSINESS_RULES.md) · State machine: [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) · Silme: BR-150…BR-155
+> Revizyon (2026-11-24, OD-01…OD-23): 23 → **17 tablo**. Değişiklik özeti §8'de.
 
 ## 1. Genel Kurallar
 
 | Konu | Karar |
 |---|---|
-| İsimlendirme | Tablo/kolon `snake_case`, tablo adları çoğul. Drizzle TS tarafında `camelCase` (`casing: 'snake_case'`). |
-| Primary key (domain) | `uuid` + `DEFAULT gen_random_uuid()` (UUID v4) — D-007. UUID v7 (sıralı) PG18 `uuidv7()` ile ileride değerlendirilebilir; bu ölçekte v4'ün index parçalanma maliyeti önemsiz. |
-| Primary key (Better Auth) | Better Auth'un ürettiği `text` ID'ler (kütüphane varsayılanı korunur). Domain → `users` FK'ları `text`. |
-| Primary key (audit) | `bigint GENERATED ALWAYS AS IDENTITY` (ekleme sırası, append-only). |
-| Public referans | `applications.application_number` (`CS-YYYY-NNNNNN`). URL'lerde personel tarafında UUID kullanılır; yetki her istekte kontrol edildiği için UUID gizli değildir, ancak tahmin edilemez olması ek savunmadır. |
-| Statü/enum | `text` + `CHECK (col IN (...))`. PG enum yerine — değer ekleme/çıkarma migration'ı daha basit. TS tarafında union tipler domain modülünden türetilir. |
-| Zaman | Tümü `timestamptz`, UTC, `DEFAULT now()`. Gösterim `Europe/Istanbul`. |
-| `updated_at` | Değiştirilebilir tablolarda var; uygulama katmanı (Drizzle `$onUpdate`) günceller. Immutable tablolarda (`*_history`, `document_reviews`, `document_comments`, `application_internal_notes`, `audit_logs`) yok. |
-| Aktör izleme | `actor_type` (`USER` \| `CUSTOMER` \| `SYSTEM`) + `actor_user_id` (text FK, nullable) + `actor_access_token_id` (uuid, nullable). CHECK ile tutarlılık. |
-| Silme davranışı | Kullanıcılar ve hizmetler **silinmez** (pasifleştirilir) → FK `ON DELETE RESTRICT`. Başvuruya ait alt kayıtlar `ON DELETE CASCADE` (yalnızca saklama/silme işi tetikler). |
-| Soft delete | Genel soft-delete yok. Kavramsal alanlar: `archived_at` (başvuru), `is_active` (hizmet/şablon), `banned` (kullanıcı), `removed_at` (dosya), `revoked_at` (token/oturum), `anonymized_at` (müşteri). |
-| Optimistic locking | `applications.version`, `application_document_requirements.version` (BR-90). |
-| Metin uzunlukları | `text` + `CHECK (char_length(...) BETWEEN ...)` — Zod şemalarıyla aynı sınırlar. |
+| İsimlendirme | Tablo/kolon `snake_case`, çoğul. Drizzle TS tarafında `camelCase` (`casing: 'snake_case'`). |
+| PK (domain) | `uuid DEFAULT gen_random_uuid()` (D-007). |
+| PK (Better Auth) | Kütüphanenin ürettiği `text` ID'ler. Domain → `users` FK'ları `text`. |
+| PK (audit) | `bigint GENERATED ALWAYS AS IDENTITY`. |
+| Public referans | `applications.application_number`. Personel URL'lerinde UUID; her istekte yetki kontrolü. |
+| Statü/enum | `text` + `CHECK (col IN (...))`. TS union tipleri domain modülünden. |
+| Zaman | Tümü `timestamptz` UTC, `DEFAULT now()`. Gösterim `Europe/Istanbul`. |
+| Silme davranışı | Kullanıcılar ve hizmetler silinmez → FK `ON DELETE RESTRICT`. Başvuruya ait tüm alt kayıtlar `ON DELETE CASCADE` — **yalnızca ADMIN manuel silme** tetikler (BR-150). |
+| Soft delete | Yok. Arşiv yok (OD-23). `deletion_requested_at` yalnızca devam eden gerçek silme işleminin işaretidir (BR-153), soft delete değildir. |
+| Sabit limitler | Dosya tipi/boyutu/sayısı şemada **kolon değildir** (OD-16); `src/config/constants.ts` + DB kısıtları (tek aktif dosya). |
+| Kişisel teknik veri | IP, hash'lenmiş IP, user-agent, cihaz/tarayıcı bilgisi **saklanmaz** (OD-09). |
+| Optimistic locking | `applications.version`, `application_document_requirements.version`. |
 
 ## 2. ER Diyagramı
 
@@ -27,27 +27,23 @@
 erDiagram
     users ||--o{ sessions : has
     users ||--o{ accounts : has
-    users ||--o{ applications : "created_by / assigned_to"
+    users ||--o{ applications : "created_by"
     users ||--o{ document_reviews : reviews
     users ||--o{ document_comments : writes
     users ||--o{ application_internal_notes : writes
 
-    customers ||--o{ applications : has
     services ||--o{ service_document_requirements : defines
     services ||--o{ applications : "for"
 
-    applications ||--o{ application_document_requirements : "snapshot"
+    applications ||--|{ application_document_requirements : "snapshot"
     service_document_requirements |o--o{ application_document_requirements : "source (nullable)"
-    application_document_requirements ||--o{ application_document_files : versions
+    application_document_requirements ||--o{ application_document_files : "versions (max 1 ACTIVE)"
     application_document_requirements ||--o{ document_reviews : reviewed
-    document_reviews ||--|{ document_review_files : covers
-    application_document_files ||--o{ document_review_files : "reviewed in"
+    application_document_files ||--o{ document_reviews : "reviewed version"
     applications ||--o{ document_comments : has
     applications ||--o{ application_internal_notes : has
     applications ||--o{ application_status_history : has
-    applications ||--o{ application_access_tokens : has
-    application_access_tokens ||--o{ customer_otp_challenges : has
-    application_access_tokens ||--o{ customer_sessions : has
+    applications ||--o{ application_access_tokens : "max 1 active"
 
     users {
         text id PK
@@ -55,14 +51,6 @@ erDiagram
         text email UK
         text role
         boolean banned
-    }
-    customers {
-        uuid id PK
-        text first_name
-        text last_name
-        text email
-        text phone_e164
-        text search_text
     }
     services {
         uuid id PK
@@ -75,42 +63,44 @@ erDiagram
         uuid service_id FK
         text title
         boolean is_required
-        int max_file_size_bytes
-        smallint max_file_count
+        boolean is_active
     }
     applications {
         uuid id PK
         text application_number UK
-        uuid customer_id FK
+        text customer_first_name
+        text customer_last_name
+        text customer_phone_e164
+        text customer_email
         uuid service_id FK
+        text service_name_snapshot
         text status
-        text assigned_user_id FK
         int version
+        timestamptz deletion_requested_at
     }
     application_document_requirements {
         uuid id PK
         uuid application_id FK
         uuid source_requirement_id FK
+        text title
+        boolean is_required
         text status
         int version
     }
     application_document_files {
         uuid id PK
+        uuid application_id FK
         uuid requirement_id FK
+        text status
         int version_number
         text blob_pathname UK
-        text upload_status
-        text scan_status
     }
     document_reviews {
         uuid id PK
         uuid requirement_id FK
+        uuid file_id FK
         text decision
         text customer_message
-    }
-    document_review_files {
-        uuid review_id PK
-        uuid file_id PK
     }
     application_access_tokens {
         uuid id PK
@@ -118,11 +108,6 @@ erDiagram
         text token_hash UK
         text token_ciphertext
         timestamptz revoked_at
-    }
-    customer_sessions {
-        uuid id PK
-        uuid access_token_id FK
-        text session_token_hash UK
     }
     audit_logs {
         bigint id PK
@@ -133,364 +118,285 @@ erDiagram
     }
 ```
 
-`application_number_counters`, `rate_limit_buckets`, `system_settings`, Better Auth `verifications` ve `rate_limits` tabloları bağımsızdır (ilişkisiz) ve diyagramda gösterilmemiştir.
+İlişkisiz (diyagramda gösterilmeyen) tablolar: `verifications` (Better Auth), `application_number_counters`, `rate_limit_buckets`.
 
-## 3. Better Auth Tabloları
+## 3. Better Auth Tabloları (4)
 
-> Kesin kolon listesi PHASE 03'te `npx auth@latest generate` çıktısından alınır; buradaki liste dokümanlardan doğrulanan alanlar + eklentilerdir. Better Auth varsayılan tablo adları tekildir (`user`, `session`...); çoğul isim kullanımı adapter seçeneği ile PHASE 03'te doğrulanacak, mümkün değilse varsayılan adlar korunur.
+> Kesin kolon listesi PHASE 03'te `npx auth@latest generate` çıktısından alınır. Better Auth'un zorunlu tabloları kaldırılmaz. Çoğul tablo adı kullanımı adapter seçeneğiyle PHASE 03'te doğrulanır; mümkün değilse kütüphane varsayılanları korunur.
 
 ### 3.1 `users`
 | Kolon | Tip | Null | Default | Not |
 |---|---|---|---|---|
 | `id` | text | ✗ | Better Auth | PK |
 | `name` | text | ✗ | | Ad Soyad |
-| `email` | text | ✗ | | UNIQUE. Kurumsal e-posta (Better Auth zorunlu kılar). |
-| `email_verified` | boolean | ✗ | false | |
+| `email` | text | ✗ | | UNIQUE. Better Auth zorunlu kılar; sistem e-posta göndermez (OD-08). Değer politikası TD-05. |
+| `email_verified` | boolean | ✗ | false | Kullanılmaz |
 | `image` | text | ✓ | | Kullanılmaz |
 | `username` | text | ✗* | | UNIQUE, lowercase (username plugin). *Uygulama zorunlu kılar. |
 | `display_username` | text | ✓ | | Plugin alanı |
-| `role` | text | ✗ | `'employee'` | CHECK `IN ('admin','employee')` (admin plugin) |
-| `banned` | boolean | ✗ | false | "Pasif" anlamında kullanılır (BR-132) |
+| `role` | text | ✗ | `'employee'` | CHECK `IN ('admin','employee')` |
+| `banned` | boolean | ✗ | false | "Pasif" anlamında (D-021) |
 | `ban_reason` | text | ✓ | | Personel içi |
 | `ban_expires` | timestamptz | ✓ | | Kullanılmaz (süresiz pasif) |
-| `must_change_password` | boolean | ✗ | false | `additionalFields` — D-020 |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
-Silme: **yapılmaz** (audit ve FK bütünlüğü). Saklama: hesap pasifleştikten sonra iş ilişkisi süresince (OD-06).
+`must_change_password` alanı **kaldırıldı** (OD-11: ilk girişte zorunlu değişim yok). Silme: yapılmaz.
 
 ### 3.2 `sessions`
-`id` PK, `token` UNIQUE, `user_id` FK → users (CASCADE), `expires_at`, `ip_address` (✓), `user_agent` (✓), `impersonated_by` (✓, admin plugin — kullanılmayacak), `created_at`, `updated_at`. Index: `user_id`, `token`.
-Saklama: süresi dolan oturumlar cron ile silinir. IP/UA saklama süresi OD-09.
+`id` PK, `token` UNIQUE, `user_id` FK CASCADE, `expires_at`, `ip_address` (✓), `user_agent` (✓), `impersonated_by` (✓, admin plugin — kullanılmaz), `created_at`, `updated_at`.
+**OD-09 kısıtı:** `CHECK (ip_address IS NULL AND user_agent IS NULL)` — kütüphane bu alanlara değer yazmaya çalışırsa kayıt **başarısız olur** (sessiz veri toplama yerine görünür hata). Doldurulmaması için yapılandırma: SECURITY §2. Süresi dolan oturumlar günlük temizlik işiyle silinir.
 
 ### 3.3 `accounts`
 `id` PK, `account_id`, `provider_id` (`credential`), `user_id` FK CASCADE, `password` (scrypt hash), OAuth alanları (null), `created_at`, `updated_at`.
 
 ### 3.4 `verifications`
-`id`, `identifier`, `value`, `expires_at`, `created_at`, `updated_at`. Personel akışlarında minimal kullanım (ör. şifre sıfırlama ileride).
+`id`, `identifier`, `value`, `expires_at`, `created_at`, `updated_at`. Kütüphanenin çekirdek tablosu; e-posta akışı olmadığından fiilen boş kalması beklenir.
 
-### 3.5 `rate_limits` (Better Auth `rateLimit` modeli)
-`storage: "database"` seçildiği için. Alanlar PHASE 03'te üretilir (`key`, `count`, `last_request` bekleniyor).
+Better Auth `rateLimit` tablosu **oluşturulmaz**: `disableIpTracking` yerleşik HTTP rate limiter'ı kapattığı için giriş sınırlaması `rate_limit_buckets` ile yapılır (SECURITY §2).
 
-## 4. Domain Tabloları
+## 4. Domain Tabloları (13)
 
-### 4.1 `customers`
-| Kolon | Tip | Null | Default | Kısıt / Not |
-|---|---|---|---|---|
-| `id` | uuid | ✗ | gen_random_uuid() | PK |
-| `first_name` | text | ✗ | | 1–100 kr. |
-| `last_name` | text | ✗ | | 1–100 kr. |
-| `email` | text | ✗ | | Normalize (BR-08), ≤254 kr. **UNIQUE değil** (BR-04) |
-| `phone_e164` | text | ✗ | | CHECK `phone_e164 ~ '^\+[1-9][0-9]{7,14}$'`. **UNIQUE değil** |
-| `search_text` | text | ✗ | | BR-80 katlanmış arama metni (uygulama üretir) |
-| `anonymized_at` | timestamptz | ✓ | | KVKK silme/anonimleştirme sonrası |
-| `created_by_user_id` | text | ✗ | | FK users RESTRICT |
-| `updated_by_user_id` | text | ✓ | | FK users RESTRICT |
-| `created_at` / `updated_at` | timestamptz | ✗ | now() | |
-
-Index: `(phone_e164)`, `(email)` — mükerrer adayı arama; `GIN (search_text gin_trgm_ops)` — `pg_trgm` (Neon desteği PHASE 02'de doğrulanır; yoksa `ILIKE` + btree prefix yedek planı).
-Silme: Saklama süresi dolunca anonimleştirme/silme işi (DATA_PRIVACY §5). Başvurusu olan müşteri doğrudan silinmez (RESTRICT); önce başvuru verileri silinir.
-
-### 4.2 `services`
+### 4.1 `services`
 | Kolon | Tip | Null | Default | Kısıt |
 |---|---|---|---|---|
 | `id` | uuid | ✗ | gen | PK |
-| `name` | text | ✗ | | 2–150 kr.; UNIQUE INDEX `lower(name)` |
+| `name` | text | ✗ | | 2–150; UNIQUE INDEX `lower(name)` |
 | `description` | text | ✓ | | ≤2000 |
 | `is_active` | boolean | ✗ | true | |
 | `sort_order` | integer | ✗ | 0 | |
 | `created_by_user_id` / `updated_by_user_id` | text | ✗ / ✓ | | FK users RESTRICT |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
-Index: `(is_active, sort_order)`. Silme: yapılmaz (BR-22).
+Index `(is_active, sort_order)`. Silme yok (BR-22).
 
-### 4.3 `service_document_requirements` (şablon)
+### 4.2 `service_document_requirements` (şablon)
 | Kolon | Tip | Null | Default | Kısıt |
 |---|---|---|---|---|
 | `id` | uuid | ✗ | gen | PK |
 | `service_id` | uuid | ✗ | | FK services RESTRICT |
 | `title` | text | ✗ | | 2–150 |
 | `description` | text | ✓ | | ≤2000 |
-| `instructions` | text | ✓ | | ≤4000 (düz metin; HTML yok) |
+| `instructions` | text | ✓ | | ≤4000, düz metin |
 | `is_required` | boolean | ✗ | true | |
-| `allowed_mime_type` | text | ✗ | `'application/pdf'` | CHECK `= 'application/pdf'` (MVP) |
-| `max_file_size_bytes` | integer | ✗ | | CHECK `> 0 AND <= 104857600`; uygulama ayrıca sistem üst sınırını uygular (BR-24) |
-| `max_file_count` | smallint | ✗ | 1 | CHECK `BETWEEN 1 AND 10` |
 | `sort_order` | integer | ✗ | 0 | |
 | `is_active` | boolean | ✗ | true | |
 | `created_by_user_id` / `updated_by_user_id` | text | ✗ / ✓ | | FK users |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
-Index: `(service_id, is_active, sort_order)`.
+Index `(service_id, is_active, sort_order)`. **Kaldırılan alanlar:** `allowed_mime_type`, `max_file_size_bytes`, `max_file_count` (OD-16).
 
-### 4.4 `application_number_counters`
-| Kolon | Tip | Not |
-|---|---|---|
-| `year` | smallint PK | Europe/Istanbul yılı |
-| `last_value` | integer NOT NULL | |
-
-Kullanım (başvuru transaction'ı içinde, D-008):
+### 4.3 `application_number_counters`
+`year smallint PK`, `last_value integer NOT NULL`. Başvuru transaction'ında:
 ```sql
 INSERT INTO application_number_counters (year, last_value) VALUES ($1, 1)
 ON CONFLICT (year) DO UPDATE SET last_value = application_number_counters.last_value + 1
 RETURNING last_value;
 ```
-Satır kilidi eşzamanlı oluşturmaları sıraya koyar; transaction geri alınırsa sayaç da geri alınır (boşluk yok). Bu ölçekte darboğaz değildir. Alternatif (`SEQUENCE`) yıllık sıfırlama ve boşluksuzluk sağlamadığı için tercih edilmedi.
+Satır kilidi eşzamanlı oluşturmaları sıraya koyar; geri alınan transaction sayacı da geri alır (D-008).
 
-### 4.5 `applications`
+### 4.4 `applications` (müşteri bilgileri dahil — OD-10)
 | Kolon | Tip | Null | Default | Kısıt / Not |
 |---|---|---|---|---|
 | `id` | uuid | ✗ | gen | PK |
 | `application_number` | text | ✗ | | UNIQUE; CHECK `~ '^CS-[0-9]{4}-[0-9]{6,}$'` |
-| `customer_id` | uuid | ✗ | | FK customers RESTRICT |
+| `customer_first_name` | text | ✗ | | 1–100 |
+| `customer_last_name` | text | ✗ | | 1–100 |
+| `customer_phone_e164` | text | ✗ | | CHECK `~ '^\+[1-9][0-9]{7,14}$'`; **UNIQUE değil** |
+| `customer_email` | text | ✗ | | Normalize, ≤254; **UNIQUE değil** |
+| `search_text` | text | ✗ | | BR-80 (uygulama üretir) |
 | `service_id` | uuid | ✗ | | FK services RESTRICT |
-| `service_name_snapshot` | text | ✗ | | Oluşturma anındaki hizmet adı (hizmet sonradan yeniden adlandırılsa da başvuru değişmez) |
+| `service_name_snapshot` | text | ✗ | | Oluşturma anındaki hizmet adı |
 | `status` | text | ✗ | `'AWAITING_DOCUMENTS'` | CHECK 7 değer |
 | `status_changed_at` | timestamptz | ✗ | now() | |
 | `submitted_at` | timestamptz | ✓ | | Son gönderim |
-| `terminal_at` | timestamptz | ✓ | | COMPLETED/CANCELLED zamanı (saklama süreleri için) |
-| `assigned_user_id` | text | ✓ | | FK users RESTRICT (OD-03) |
 | `created_by_user_id` | text | ✗ | | FK users RESTRICT |
-| `archived_at` | timestamptz | ✓ | | BR-140; CHECK `archived_at IS NULL OR status IN ('COMPLETED','CANCELLED')` |
-| `archived_by_user_id` | text | ✓ | | FK users |
-| `idempotency_key` | uuid | ✓ | | UNIQUE (Architecture §12) |
+| `updated_by_user_id` | text | ✓ | | FK users RESTRICT |
+| `idempotency_key` | uuid | ✓ | | UNIQUE (form tekrar gönderimine karşı) |
 | `version` | integer | ✗ | 1 | Optimistic lock |
+| `deletion_requested_at` | timestamptz | ✓ | | BR-153 — dolu ise başvuru **tüm okumalarda erişilemez** |
+| `deletion_requested_by_user_id` | text | ✓ | | FK users RESTRICT |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
 Index:
-- `(status, created_at DESC) WHERE archived_at IS NULL` — liste + statü filtresi
-- `(created_at DESC) WHERE archived_at IS NULL` — varsayılan liste
+- `(created_at DESC)` — varsayılan liste
+- `(status, created_at DESC)` — statü filtresi + dashboard sayaçları
 - `(service_id, created_at DESC)` — hizmet filtresi
-- `(customer_id)` — müşterinin başvuruları
-- `(assigned_user_id) WHERE assigned_user_id IS NOT NULL` — ASSIGNED_ONLY kapsamı
-- `(created_by_user_id)`
+- `(customer_phone_e164)`, `(customer_email)` — arama
+- `GIN (search_text gin_trgm_ops)` — `pg_trgm` (Neon desteği PHASE 02'de doğrulanır; yoksa btree + `ILIKE 'prefix%'` yedek)
+- `(deletion_requested_at) WHERE deletion_requested_at IS NOT NULL` — yarım kalan silmeleri bulmak
 
-### 4.6 `application_document_requirements` (snapshot + statü)
+**Kaldırılan alanlar:** `customer_id`, `assigned_user_id`, `archived_at`, `archived_by_user_id`, `terminal_at`.
+
+### 4.5 `application_document_requirements` (snapshot + statü)
 | Kolon | Tip | Null | Default | Kısıt / Not |
 |---|---|---|---|---|
 | `id` | uuid | ✗ | gen | PK |
 | `application_id` | uuid | ✗ | | FK applications CASCADE |
 | `source_requirement_id` | uuid | ✓ | | FK service_document_requirements SET NULL |
-| `title`, `description`, `instructions`, `is_required`, `allowed_mime_type`, `max_file_size_bytes`, `max_file_count`, `sort_order` | | | | **Snapshot** — §4.3 ile aynı kısıtlar |
-| `added_after_creation` | boolean | ✗ | false | BR-33 (gelecek özellik) |
+| `title`, `description`, `instructions`, `is_required`, `sort_order` | | | | **Snapshot** — §4.2 kısıtları |
 | `status` | text | ✗ | `'NOT_UPLOADED'` | CHECK 5 değer |
 | `status_changed_at` | timestamptz | ✗ | now() | |
-| `version` | integer | ✗ | 1 | Optimistic lock |
+| `version` | integer | ✗ | 1 | Optimistic lock; her dosya aktivasyonunda ve kararda artar |
 | `created_at` / `updated_at` | timestamptz | ✗ | now() | |
 
-Index: `(application_id, sort_order)`.
+Index `(application_id, sort_order)`. **Kaldırılan alanlar:** `allowed_mime_type`, `max_file_size_bytes`, `max_file_count`, `added_after_creation`.
 
-### 4.7 `application_document_files`
+### 4.6 `application_document_files` (versiyonlar)
 | Kolon | Tip | Null | Default | Kısıt / Not |
 |---|---|---|---|---|
 | `id` | uuid | ✗ | gen | PK |
 | `application_id` | uuid | ✗ | | FK applications CASCADE (yetki sorgusu için denormalize) |
 | `requirement_id` | uuid | ✗ | | FK application_document_requirements CASCADE |
-| `version_number` | integer | ✗ | | UNIQUE `(requirement_id, version_number)` |
-| `blob_pathname` | text | ✗ | | UNIQUE. Biçim: `applications/{applicationId}/{requirementId}/{fileId}.pdf` — **kişisel veri yok** |
-| `original_filename` | text | ✗ | | Sanitize edilmiş, ≤200 kr. (FILE_STORAGE §4) |
-| `declared_size_bytes` | integer | ✗ | | İstemcinin bildirdiği (token öncesi kontrol) |
-| `size_bytes` | integer | ✓ | | Blob'dan doğrulanan gerçek boyut |
-| `mime_type` | text | ✗ | `'application/pdf'` | |
-| `sha256` | text | ✓ | | Tarama sırasında hesaplanır (hex, 64 kr.) |
-| `upload_status` | text | ✗ | `'PENDING'` | CHECK `IN ('PENDING','UPLOADED','EXPIRED')` |
-| `upload_expires_at` | timestamptz | ✗ | | Token süresi (+ tolerans) |
-| `uploaded_at` | timestamptz | ✓ | | |
-| `scan_status` | text | ✗ | `'PENDING'` | CHECK `IN ('PENDING','CLEAN','REJECTED','ERROR')` |
-| `scan_reason_code` | text | ✓ | | `NOT_PDF`, `ACTIVE_CONTENT`, `ENCRYPTED`, `MALFORMED`, `MALWARE`, `SIZE_MISMATCH` — personel içi |
-| `scan_attempts` | smallint | ✗ | 0 | |
-| `scanned_at` | timestamptz | ✓ | | |
+| `status` | text | ✗ | `'UPLOAD_PENDING'` | CHECK `IN ('UPLOAD_PENDING','VALIDATING','ACTIVE','SUPERSEDED','REMOVED','REJECTED','EXPIRED')` |
+| `version_number` | integer | ✓ | | Aktif olunca atanır (BR-71) |
+| `blob_pathname` | text | ✗ | | UNIQUE. `applications/{applicationId}/{requirementId}/{fileId}.pdf` — kişisel veri yok |
+| `original_filename` | text | ✗ | | Sanitize, ≤200 |
+| `size_bytes` | integer | ✓ | | Blob'dan doğrulanan gerçek boyut; CHECK `size_bytes <= 10485760` |
+| `sha256` | text | ✓ | | Doğrulamada hesaplanır |
+| `rejection_reason` | text | ✓ | | `NOT_PDF`, `ACTIVE_CONTENT`, `EMBEDDED_FILE`, `ENCRYPTED`, `MALFORMED`, `TOO_LARGE`, `RESOURCE_LIMIT`, `STATE_CHANGED`, `VALIDATION_ERROR` — personel içi |
 | `uploaded_by_actor_type` | text | ✗ | | CHECK `IN ('USER','CUSTOMER')` |
-| `uploaded_by_user_id` | text | ✓ | | FK users |
+| `uploaded_by_user_id` | text | ✓ | | FK users RESTRICT |
 | `uploaded_by_access_token_id` | uuid | ✓ | | FK application_access_tokens SET NULL |
-| `removed_at` | timestamptz | ✓ | | Güncel setten çıkarıldı |
-| `removed_by_actor_type` / `removed_by_user_id` | text | ✓ | | |
-| `blob_deleted_at` | timestamptz | ✓ | | Blob fiziksel olarak silindi (metadata kalabilir) |
+| `upload_expires_at` | timestamptz | ✗ | | Token süresi (+tolerans) |
+| `uploaded_at` | timestamptz | ✓ | | Blob alındı |
+| `activated_at` | timestamptz | ✓ | | ACTIVE oldu |
+| `ended_at` | timestamptz | ✓ | | SUPERSEDED / REMOVED oldu |
+| `ended_by_actor_type` / `ended_by_user_id` | text | ✓ | | Kaldıran/değiştiren |
+| `blob_deleted_at` | timestamptz | ✓ | | Blob fiziksel olarak silindi (REJECTED/EXPIRED) |
 | `created_at` | timestamptz | ✗ | now() | |
 
-CHECK: `(uploaded_by_actor_type = 'USER') = (uploaded_by_user_id IS NOT NULL)`.
-Index:
-- `(requirement_id) WHERE upload_status = 'UPLOADED' AND removed_at IS NULL` — güncel set
-- `(upload_status, upload_expires_at) WHERE upload_status = 'PENDING'` — orphan temizliği
-- `(scan_status) WHERE scan_status IN ('PENDING','ERROR')` — tarama kuyruğu
-- `(application_id)`
+Kısıtlar ve index'ler:
+- **Tek aktif PDF:** `UNIQUE (requirement_id) WHERE status = 'ACTIVE'` (OD-16)
+- **Tek devam eden yükleme:** `UNIQUE (requirement_id) WHERE status IN ('UPLOAD_PENDING','VALIDATING')`
+- `UNIQUE (requirement_id, version_number) WHERE version_number IS NOT NULL`
+- CHECK `(uploaded_by_actor_type = 'USER') = (uploaded_by_user_id IS NOT NULL)`
+- CHECK `(status IN ('ACTIVE','SUPERSEDED','REMOVED')) = (version_number IS NOT NULL)`
+- `(status, upload_expires_at) WHERE status = 'UPLOAD_PENDING'` — teknik temizlik
+- `(application_id)` — silme ve yetki
 
-`version_number` ataması: requirement satırı `FOR UPDATE` kilitlenip `max(version_number)+1` alınır (aynı transaction).
+`mime_type` kolonu yoktur: kabul edilen tek tip `application/pdf`'tir ve doğrulama ile garanti edilir.
 
-### 4.8 `document_reviews`
+### 4.7 `document_reviews`
 | Kolon | Tip | Null | Kısıt |
 |---|---|---|---|
 | `id` | uuid | ✗ | PK |
 | `application_id` | uuid | ✗ | FK CASCADE |
 | `requirement_id` | uuid | ✗ | FK CASCADE |
+| `file_id` | uuid | ✗ | FK application_document_files CASCADE — **incelenen versiyon** (BR-57) |
 | `decision` | text | ✗ | CHECK `IN ('APPROVED','REVISION_REQUIRED')` |
 | `customer_message` | text | ✓ | CHECK `decision <> 'REVISION_REQUIRED' OR char_length(customer_message) BETWEEN 10 AND 1000` |
 | `reviewed_by_user_id` | text | ✗ | FK users RESTRICT |
 | `created_at` | timestamptz | ✗ | now() |
 
-Index: `(requirement_id, created_at DESC)`. Immutable.
+Index `(requirement_id, created_at DESC)`. Immutable. Tek aktif dosya kuralıyla `document_review_files` bağlantı tablosu gereksizleşti (D-034).
 
-### 4.9 `document_review_files`
-`review_id` uuid FK CASCADE, `file_id` uuid FK CASCADE, PK `(review_id, file_id)`. İncelenen dosya setinin anlık görüntüsü (BR-57).
+### 4.8 `document_comments` (müşteriye görünür)
+`id` uuid PK · `application_id` FK CASCADE · `requirement_id` FK CASCADE ✓ (null = başvuru geneli) · `body` text 1–2000 · `author_user_id` FK RESTRICT · `created_at`. Index `(application_id, created_at)`. Immutable.
 
-### 4.10 `document_comments` (müşteriye görünür)
-| Kolon | Tip | Null | Kısıt |
-|---|---|---|---|
-| `id` | uuid | ✗ | PK |
-| `application_id` | uuid | ✗ | FK CASCADE |
-| `requirement_id` | uuid | ✓ | FK CASCADE (null = başvuru geneli mesaj) |
-| `body` | text | ✗ | 1–2000 |
-| `author_user_id` | text | ✗ | FK users RESTRICT |
-| `created_at` | timestamptz | ✗ | now() |
+### 4.9 `application_internal_notes` (yalnızca personel)
+`id` uuid PK · `application_id` FK CASCADE · `requirement_id` FK CASCADE ✓ · `body` text 1–5000 · `author_user_id` FK RESTRICT · `created_at`. Index `(application_id, created_at)`. Immutable. Müşteri yolu kodundan erişilmez (BR-121). Başvuru oluşturma formundaki "şirket içi not" bu tabloya yazılır.
 
-Index: `(application_id, created_at)`. Immutable.
-
-### 4.11 `application_internal_notes` (yalnızca personel)
-`id` uuid PK · `application_id` FK CASCADE · `requirement_id` FK CASCADE ✓ · `body` text 1–5000 · `author_user_id` FK RESTRICT · `created_at`. Index `(application_id, created_at)`. Immutable. **Müşteri yolu kodundan erişilmez** (BR-121).
-
-### 4.12 `application_status_history`
+### 4.10 `application_status_history`
 | Kolon | Tip | Null | Kısıt |
 |---|---|---|---|
 | `id` | uuid | ✗ | PK |
 | `application_id` | uuid | ✗ | FK CASCADE |
 | `from_status` | text | ✓ | NULL = oluşturma |
 | `to_status` | text | ✗ | CHECK 7 değer |
-| `actor_type` | text | ✗ | CHECK `IN ('USER','CUSTOMER','SYSTEM')` |
-| `actor_user_id` | text | ✓ | FK users |
+| `transition_code` | text | ✗ | `CREATE`, `SUBMIT`, …, `REVERT_FOR_REVISION` (T-kodları) |
+| `actor_type` | text | ✗ | CHECK `IN ('USER','CUSTOMER')` |
+| `actor_user_id` | text | ✓ | FK users RESTRICT |
 | `actor_access_token_id` | uuid | ✓ | FK application_access_tokens SET NULL |
 | `on_behalf_of_customer` | boolean | ✗ | false |
-| `reason` | text | ✓ | ≤1000; personel içi |
+| `reason` | text | ✓ | ≤1000; personel içi; T7–T12'de zorunlu (CHECK `transition_code NOT IN (...) OR reason IS NOT NULL`) |
 | `created_at` | timestamptz | ✗ | now() |
 
-CHECK: `(actor_type = 'USER') = (actor_user_id IS NOT NULL)`; `on_behalf_of_customer` → `actor_type = 'USER'`. Index `(application_id, created_at)`.
+CHECK `(actor_type = 'USER') = (actor_user_id IS NOT NULL)`; `on_behalf_of_customer → actor_type = 'USER'`. Index `(application_id, created_at)`.
+T8 hedefi: `SELECT from_status FROM application_status_history WHERE application_id = $1 AND to_status = 'CANCELLED' ORDER BY created_at DESC LIMIT 1`.
 
-### 4.13 `application_access_tokens`
-| Kolon | Tip | Null | Kısıt / Not |
+### 4.11 `application_access_tokens`
+| Kolon | Tip | Null | Not |
 |---|---|---|---|
 | `id` | uuid | ✗ | PK |
 | `application_id` | uuid | ✗ | FK CASCADE |
-| `token_hash` | text | ✗ | UNIQUE. `HMAC-SHA256(ACCESS_TOKEN_HMAC_KEY, token)` hex |
-| `token_ciphertext` | text | ✗ | AES-256-GCM (`v1:<iv>:<ciphertext>:<tag>` base64url) — personelin bağlantıyı tekrar görebilmesi için (D-011) |
-| `encryption_key_id` | text | ✗ | Anahtar rotasyonu için (ör. `k1`) |
-| `expires_at` | timestamptz | ✗ | BR-102 |
+| `token_hash` | text | ✗ | UNIQUE. `HMAC-SHA256(ACCESS_TOKEN_HMAC_KEY, token)` hex — doğrulama |
+| `token_ciphertext` | text | ✗ | AES-256-GCM (`v1:<keyId>:<iv>:<ct>:<tag>`, AAD = `application_id`) — tekrar görüntüleme (OD-19) |
+| `encryption_key_id` | text | ✗ | Anahtar rotasyonu |
 | `revoked_at` | timestamptz | ✓ | |
-| `revoked_by_user_id` | text | ✓ | FK users |
-| `revoke_reason` | text | ✓ | CHECK `IN ('ROTATED','REVOKED','APPLICATION_TERMINAL','EXPIRED_CLEANUP')` |
-| `last_used_at` | timestamptz | ✓ | Son başarılı doğrulama |
-| `created_by_user_id` | text | ✗ | FK users |
+| `revoked_by_user_id` | text | ✓ | FK users RESTRICT |
+| `revoke_reason` | text | ✓ | CHECK `IN ('ROTATED','REVOKED','APPLICATION_DELETION')` |
+| `created_by_user_id` | text | ✗ | FK users RESTRICT |
 | `created_at` | timestamptz | ✗ | now() |
 
-Index: UNIQUE `(application_id) WHERE revoked_at IS NULL` — tek aktif bağlantı (BR-100).
-Token düz metni **hiçbir kolonda** saklanmaz; ciphertext yalnızca ADMIN/EMPLOYEE "bağlantıyı göster" işleminde çözülür ve audit'lenir.
+**Tek aktif bağlantı (OD-18):** `UNIQUE (application_id) WHERE revoked_at IS NULL` + yenileme transaction'ında `applications FOR UPDATE` kilidi. Eşzamanlı iki yenileme isteğinden ikincisi kilidi bekler, ardından `expectedVersion`/güncel token kontrolünde ya kendi yenilemesini sırayla yapar ya da reddedilir; her durumda **en fazla bir** aktif satır kalır (constraint son savunma).
+**Kaldırılan alanlar:** `expires_at` (OD-04), `last_used_at` (GET isteği veri değiştirmesin — BR-105). Düz token hiçbir kolonda yoktur.
 
-### 4.14 `customer_otp_challenges`
-| Kolon | Tip | Null | Not |
-|---|---|---|---|
-| `id` | uuid | ✗ | PK |
-| `access_token_id` | uuid | ✗ | FK CASCADE |
-| `code_hash` | text | ✗ | `HMAC-SHA256(OTP_HMAC_KEY, challengeId + code)` |
-| `expires_at` | timestamptz | ✗ | +10 dk (ayar) |
-| `attempts` | smallint | ✗ | 0 |
-| `consumed_at` | timestamptz | ✓ | Tek kullanımlık |
-| `created_at` | timestamptz | ✗ | now() |
-
-Index `(access_token_id, created_at DESC)`. Saklama: 24 saat sonra cron ile silinir.
-
-### 4.15 `customer_sessions`
-| Kolon | Tip | Null | Not |
-|---|---|---|---|
-| `id` | uuid | ✗ | PK |
-| `access_token_id` | uuid | ✗ | FK CASCADE |
-| `application_id` | uuid | ✗ | FK CASCADE (denormalize — tüm müşteri sorgularının kapsamı) |
-| `session_token_hash` | text | ✗ | UNIQUE. SHA-256(cookie değeri) |
-| `expires_at` | timestamptz | ✗ | Mutlak süre (ayar, Proposed 12 saat) |
-| `last_seen_at` | timestamptz | ✗ | Boşta kalma süresi (Proposed 60 dk) — yazma sıklığı ≥5 dk aralıkla sınırlanır |
-| `revoked_at` | timestamptz | ✓ | |
-| `created_at` | timestamptz | ✗ | now() |
-
-Geçerlilik: `revoked_at IS NULL AND expires_at > now() AND last_seen_at > now() - idle` **ve** bağlı token iptal edilmemiş/süresi dolmamış (her istekte join ile — BR-101). Saklama: süresi dolanlar 7 gün sonra silinir.
-
-### 4.16 `rate_limit_buckets` (uygulama seviyesi)
+### 4.12 `rate_limit_buckets` (kısa ömürlü teknik anahtarlar)
 | Kolon | Tip | Not |
 |---|---|---|
-| `key` | text PK | Ör. `link:ip:<hmac(ip)>`, `otp_send:token:<id>`, `otp_verify:token:<id>`, `upload:actor:<id>` — IP ham saklanmaz |
+| `key` | text PK | Ör. `login:ip:<hmac>`, `login:user:<hmac(username)>`, `link:ip:<hmac>`, `upload:actor:<id>`, `file:actor:<id>` |
 | `window_started_at` | timestamptz | |
 | `count` | integer | |
-| `expires_at` | timestamptz | Index — cron temizliği |
+| `expires_at` | timestamptz | Pencere sonu. Index; süresi dolan satırlar aynı anahtarın sonraki isteğinde üzerine yazılır ve günlük temizlikte silinir |
 
-Atomik `INSERT ... ON CONFLICT (key) DO UPDATE ... RETURNING count` (sabit pencere). Better Auth'un `rate_limits` tablosundan ayrıdır (D-019).
+OD-09 istisnası: IP'den türetilen anahtarlar yalnızca HMAC'lenmiş, pencere süresiyle sınırlı **teknik** verilerdir; audit veya kullanıcı izleme için kullanılmaz, başka tabloya kopyalanmaz. Ömür: pencere süresi + en fazla ~24 saat (günlük temizlik).
 
-### 4.17 `audit_logs`
+### 4.13 `audit_logs`
 | Kolon | Tip | Null | Not |
 |---|---|---|---|
 | `id` | bigint identity | ✗ | PK |
 | `occurred_at` | timestamptz | ✗ | now() |
-| `action` | text | ✗ | Event kodu ([SECURITY.md](SECURITY.md) §8) |
+| `action` | text | ✗ | [SECURITY.md](SECURITY.md) §8 |
 | `actor_type` | text | ✗ | `USER` / `CUSTOMER` / `SYSTEM` / `ANONYMOUS` |
-| `actor_user_id` | text | ✓ | **FK yok** (log bağımsız yaşar) |
+| `actor_user_id` | text | ✓ | FK yok |
 | `actor_access_token_id` | uuid | ✓ | FK yok |
-| `resource_type` | text | ✗ | `application`, `document`, `file`, `user`, `service`, `settings`, `access_link`, `session` |
+| `resource_type` | text | ✗ | `application`, `document`, `file`, `user`, `service`, `document_template`, `access_link`, `session` |
 | `resource_id` | text | ✓ | |
-| `application_id` | uuid | ✓ | FK yok — filtre için |
-| `metadata` | jsonb | ✗ | `'{}'` — whitelist anahtarlar; token/şifre/OTP/PII yok |
-| `ip_hash` | text | ✓ | OD-09: varsayılan HMAC'lenmiş IP (ham IP yok) |
-| `request_id` | text | ✓ | Korelasyon |
+| `application_id` | uuid | ✓ | FK yok — başvuru silinse de minimum kayıt kalır |
+| `metadata` | jsonb | ✗ | `'{}'`; whitelist anahtarlar; PII/token/şifre yok |
 
-Index: `(occurred_at DESC)`, `(action, occurred_at DESC)`, `(actor_user_id, occurred_at DESC)`, `(resource_type, resource_id)`, `(application_id, occurred_at DESC)`.
-
-**Değiştirilemezlik (D-025):**
-1. Uygulama runtime rolü (`cs_app`) yalnızca `INSERT, SELECT` yetkisine sahiptir: `REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM cs_app`.
-2. `BEFORE UPDATE OR DELETE` trigger'ı, saklama rolü (`cs_maintenance`) dışında hata fırlatır.
-3. Saklama süresi dolan kayıtlar yalnızca `cs_maintenance` ile çalışan bakım işiyle silinir.
-Neon'da özel rol oluşturma ve yetki ayrımı PHASE 02'de doğrulanacak; mümkün değilse trigger + uygulama seviyesinde yalnızca insert API'si yedek plandır.
-
-### 4.18 `system_settings` (tek satır)
-| Kolon | Tip | Default | Not |
-|---|---|---|---|
-| `id` | smallint PK | 1 | CHECK `id = 1` |
-| `company_name` | text | `'CS Global'` | |
-| `contact_email`, `contact_phone`, `contact_address`, `contact_whatsapp` | text ✓ | | Müşteri paneli iletişim alanı |
-| `portal_contact_message` | text ✓ | | Düz metin |
-| `max_upload_size_bytes` | integer | 10485760 | Sistem üst sınırı (10 MB) |
-| `default_max_file_count` | smallint | 1 | |
-| `access_link_ttl_days` | integer | 180 | OD-04 |
-| `access_link_post_terminal_days` | integer | 30 | OD-04 |
-| `customer_session_absolute_hours` | integer | 12 | |
-| `customer_session_idle_minutes` | integer | 60 | |
-| `otp_ttl_minutes` | smallint | 10 | |
-| `otp_max_attempts` | smallint | 5 | |
-| `employee_application_scope` | text | `'ALL'` | CHECK `IN ('ALL','ASSIGNED_ONLY')` |
-| `superseded_file_retention_days` | integer ✓ | NULL | OD-06 — karar verilene kadar silme işi çalışmaz |
-| `terminal_application_retention_days` | integer ✓ | NULL | OD-06 |
-| `updated_by_user_id` | text ✓ | | |
-| `updated_at` | timestamptz | now() | |
-
-Tipli tek satır tercih edildi (D-026): key-value tablosuna göre tip güvenliği ve CHECK kısıtları sağlar; ayar ekleme bir migration gerektirir (nadir).
+IP / user-agent / `ip_hash` / `request_id` kolonları **yoktur** (OD-09). Index: `(occurred_at DESC)`, `(action, occurred_at DESC)`, `(actor_user_id, occurred_at DESC)`, `(application_id, occurred_at DESC)`.
+**Değiştirilemezlik (D-039):** uygulama runtime rolü yalnızca `INSERT, SELECT` (`REVOKE UPDATE, DELETE, TRUNCATE`) + `BEFORE UPDATE OR DELETE` trigger'ı hata fırlatır. Otomatik saklama/silme işi **yoktur** (OD-06). Neon'da ayrı rol oluşturma PHASE 02'de doğrulanır; mümkün değilse trigger tek başına uygulanır.
 
 ## 5. Normalizasyon ve Arama
-
-- Telefon: `libphonenumber-js` → E.164 (BR-07). Aramada kullanıcının girdiği numara da aynı fonksiyondan geçirilir; `05321234567`, `532 123 45 67`, `+90 532...` aynı sonuca normalize olur.
+- Telefon: E.164 (BR-07); arama girdisi de normalize edilir.
 - E-posta: lowercase + trim (BR-08).
-- Türkçe arama: BR-80 katlaması uygulama katmanında (`src/lib/search.ts`) — hem yazma hem sorgu tarafında aynı fonksiyon. DB collation'a bağımlı değildir (Neon'da ICU `tr-TR` collation desteği doğrulanmadı; gerek de kalmaz).
-- Liste sorgusu: `applications JOIN customers JOIN services` tek sorgu, `LIMIT/OFFSET` (sayfa ≤ 50) + ayrı `COUNT(*)`; ilişkili sayımlar (ör. evrak durumları) için alt sorgu/aggregate — N+1 yok.
+- Türkçe arama: `src/lib/search.ts` (yazma + sorgu tarafında aynı fonksiyon).
+- Liste: `applications JOIN services` gereksiz — `service_name_snapshot` kullanılır; tek tablo sorgusu + `LIMIT/OFFSET` (≤50) + `COUNT(*)`. Evrak özetleri tek aggregate alt sorgu. N+1 yok.
+- Tüm sorgular `deletion_requested_at IS NULL` filtresi içerir (silme sürecindeki başvurular için ADMIN'e özel ayrı sorgu hariç).
 
 ## 6. Transaction Sınırları
 
-| İşlem | Transaction içeriği | Kilit |
+| İşlem | İçerik | Kilit |
 |---|---|---|
-| Başvuru oluştur | müşteri, sayaç, başvuru, snapshot, token, statü geçmişi, not, audit | sayaç satırı; idempotency unique |
-| Gönder (T1/T4) | başvuru statüsü, evrak statüleri, statü geçmişi, audit | `applications FOR UPDATE` + version |
-| Evrak kararı (D4–D6) | review, review_files, evrak statüsü, audit | `applications FOR SHARE` + requirement `FOR UPDATE` + version |
-| Statü geçişi (T2/T3/T5–T7) | başvuru, geçmiş, (T7'de token iptal), audit | `applications FOR UPDATE` + version |
-| Upload token üret | `PENDING` dosya kaydı + version_number | requirement `FOR UPDATE` |
-| Upload tamamla | dosya `UPLOADED`, evrak statüsü (D1/D7), tek dosyalıda eski dosyayı `removed_at`, audit | `applications FOR SHARE`, requirement `FOR UPDATE` |
-| Tarama sonucu | dosya scan_status, (REJECTED'da `removed_at` + D2) | requirement `FOR UPDATE` |
-| Bağlantı yenile | eski token revoke + yeni token + oturumları revoke + audit | `applications FOR UPDATE` |
+| Başvuru oluştur | sayaç, başvuru (müşteri bilgileri dahil), snapshot, token, statü geçmişi, iç not, audit | sayaç satırı; `idempotency_key` |
+| Gönder (T1/T4) | başvuru, evrak statüleri, geçmiş, audit | `applications FOR UPDATE` + version |
+| Evrak kararı (D4–D6) | review (`file_id`), evrak statüsü, audit | `applications FOR SHARE` + requirement `FOR UPDATE` + aktif dosya eşleşmesi + version |
+| Statü geçişi (T2–T12) | başvuru, geçmiş, (T12: seçilen evraklar + review), (T7: devam eden yüklemeler `EXPIRED`), audit | `applications FOR UPDATE` + version |
+| Upload token | önceki pending'i `EXPIRED`, yeni `UPLOAD_PENDING` | requirement `FOR UPDATE` |
+| Upload claim | `UPLOAD_PENDING → VALIDATING` | file `FOR UPDATE` |
+| Aktivasyon | BR-45 kontrolü, eski ACTIVE → SUPERSEDED, yeni → ACTIVE + version_number, evrak statüsü (D1/D7/D9), audit | `applications FOR SHARE` → requirement `FOR UPDATE` → files |
+| Bağlantı yenile/iptal | eski token revoke (+ yeni token), audit | `applications FOR UPDATE` |
+| Silme aşama 1 | `deletion_requested_at`, aktif token revoke, devam eden yüklemeler `EXPIRED`, audit | `applications FOR UPDATE` |
+| Silme aşama 2 | başvuru satırını sil (CASCADE), audit | `applications FOR UPDATE` |
 
-Kurallar: transaction içinde ağ çağrısı yok; kilit sırası her zaman **applications → requirements → files** (deadlock önleme).
+Transaction içinde ağ çağrısı yok (Blob, doğrulama dışarıda); kilit sırası **applications → requirements → files**.
 
 ## 7. Migration Stratejisi (PHASE 02)
+- `drizzle-kit generate` → SQL migration'lar repoya; production'da `push` yok.
+- Migration'lar direct (pooler olmayan) URL ile.
+- CHECK, partial unique index, trigger, GRANT/REVOKE özel SQL migration'larıyla.
+- Expand → migrate → contract.
 
-- `drizzle-kit generate` ile SQL migration dosyaları üretilir ve **repoya commit edilir**; `drizzle-kit push` production'da **kullanılmaz**.
-- Migration'lar direct (pooler olmayan) URL ile çalışır.
-- CHECK, partial index, trigger, GRANT/REVOKE gibi Drizzle'ın ifade edemediği yapılar özel SQL migration'larıyla eklenir.
-- Her migration ileri-uyumlu yazılır (expand → migrate → contract) — preview ve production aynı şemayı paylaşmaz ama sıralı uygulanır.
+## 8. Önceki ve Yeni Model Farkı
+
+| | Önceki (ilk PHASE 00) | Yeni |
+|---|---|---|
+| Tablo sayısı | **23** (Better Auth 5 + domain 18) | **17** (Better Auth 4 + domain 13) |
+| Kaldırılan tablolar | — | `customers`, `customer_otp_challenges`, `customer_sessions`, `document_review_files`, `system_settings`, Better Auth `rate_limits` |
+| Müşteri bilgisi | `customers` tablosu, `applications.customer_id` | `applications.customer_*` kolonları |
+| Müşteri oturumu | `customer_sessions` tablosu | İmzalı cookie + her istekte token durumu kontrolü (D-032) |
+| Dosya modeli | çoklu dosya, `upload_status` + `scan_status` iki eksen | tek aktif dosya, tek `status` ekseni, partial unique index'ler |
+| İnceleme → dosya | `document_review_files` (N:N) | `document_reviews.file_id` (N:1) |
+| Kaldırılan alanlar | — | `assigned_user_id`, `archived_*`, `terminal_at`, `must_change_password`, `expires_at`/`last_used_at` (token), `max_file_*`/`allowed_mime_type`, `added_after_creation`, `ip_hash`/`request_id` (audit), tüm ayar kolonları |
+| Eklenen alanlar | — | `applications.customer_*`, `search_text` (taşındı), `deletion_requested_*`, `application_status_history.transition_code`, `document_reviews.file_id`, `sessions` CHECK (IP/UA null) |

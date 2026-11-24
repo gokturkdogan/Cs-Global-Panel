@@ -43,8 +43,8 @@ Rozet: açık zemin + koyu metin + ikon (renk tek başına anlam taşımaz — W
 | Süreç Tamamlandı | `#F0FDF4` | `#15803D` | 4.79 | `BadgeCheck` |
 | İptal Edildi | `#FEF2F2` | `#B91C1C` | 5.91 | `XCircle` |
 | Yüklendi | `#F0FDF4` | `#15803D` | 4.79 | `FileCheck2` |
-| Kontrol ediliyor (scan PENDING) | `#F1F5F9` | `#475569` | 6.92 | `ShieldEllipsis` |
-| Reddedildi (scan REJECTED) | `#FEF2F2` | `#B91C1C` | 5.91 | `ShieldX` |
+| Kontrol ediliyor (dosya `UPLOAD_PENDING`/`VALIDATING`) | `#F1F5F9` | `#475569` | 6.92 | `Loader` (animasyonsuz) |
+| Dosya reddedildi (dosya `REJECTED`) | `#FEF2F2` | `#B91C1C` | 5.91 | `FileX2` |
 
 Statü → etiket/renk/ikon eşlemesi tek kaynaktan (`src/features/*/domain/*-labels.ts`) gelir; UI'da hardcoded değildir.
 
@@ -100,24 +100,31 @@ shadcn/ui'dan yalnızca ihtiyaç duyulanlar eklenir (Button, Input, Label, Texta
 | Success | Toast (kısa) + kalıcı durum değişimi (rozet) |
 | Empty | İkon + açıklayıcı başlık + (varsa) birincil aksiyon |
 | Skeleton | Liste/kart iskeletleri (`loading.tsx`) |
-| Confirmation | Geri alınamaz / önemli işlemler `AlertDialog` (iptal, pasifleştirme, bağlantı yenileme/iptal, evrak düzeltme isteği, gönderim) |
+| Confirmation | Önemli / geri alınamaz işlemler `AlertDialog`: başvuru iptali (gerekçe), ADMIN yeniden açma/geri alma (gerekçe), **başvuru silme** (başvuru numarasını yazarak onay + "Bu işlem geri alınamaz" uyarısı), çalışan pasifleştirme, yeni şifre atama, bağlantı yenileme/iptal, evrak düzeltme isteği, gönderim, **WhatsApp ile paylaş** (hedef müşteri adı-soyadı ve telefon numarası büyük puntoyla gösterilir — BR-162) |
 
 Dokunma hedefi: müşteri panelinde tüm etkileşimli öğeler **≥ 44×44 px** (WCAG 2.2 2.5.8 minimumu 24×24; hedef 44).
 
+### 5.1 Logo (OD-15)
+Tek paylaşılan bileşen `src/components/shared/logo.tsx`: "CS Global" metin logosu (Primary Dark, 600). Gerçek logo geldiğinde yalnızca bu bileşen değişir. Logo yükleme/yönetim yok; geçici logo gerçek kurumsal logo olarak sunulmaz.
+
 ## 6. Şirket Paneli Düzeni
 
-- `lg+`: sol sabit sidebar (240px), üst header (kullanıcı menüsü, çıkış), içerik alanında breadcrumb + sayfa başlığı + aksiyonlar.
+- `lg+`: sol sabit sidebar (240px), üst header (kullanıcı adı + "Çıkış"), içerik alanında breadcrumb + sayfa başlığı + aksiyonlar.
 - `<lg`: header'da menü butonu → `Sheet` drawer.
-- Sidebar: Dashboard, Başvurular, Hizmetler*, Çalışanlar*, İşlem Geçmişi*, Ayarlar* (*yalnızca ADMIN — gizleme UX içindir, güvenlik sunucuda).
-- Tablolar: sticky header, satır hover, `md` altında kart listesine dönüşüm veya yatay scroll (tablo içinde, sayfada değil).
-- Filtre çubuğu: arama input'u + hizmet select + statü select + tarih aralığı + "Temizle".
+- Sidebar: Dashboard, Başvurular, Hizmetler*, Çalışanlar*, İşlem Geçmişi* (*yalnızca ADMIN — gizleme UX içindir, güvenlik sunucuda). Ayarlar ve hesap sayfası **yok**.
+- Giriş ekranı: logo + kullanıcı adı + şifre + "Giriş yap". "Şifremi unuttum" / "Kayıt ol" **yok** (OD-11).
+- Başvuru listesi: tek liste; üstte statü sekmeleri/filtreleri: Tüm Başvurular · Evrak Bekleniyor · İncelemede · Düzeltme Bekleniyor · Evraklar Onaylandı · Başvuru İşlemde · Tamamlandı · İptal Edildi (OD-23).
+- Tablolar: sticky header, satır hover, `md` altında kart listesine dönüşüm veya tablo içinde yatay scroll.
+- Filtre çubuğu: arama + hizmet + statü + tarih aralığı + "Temizle".
 - Sayfalama: önceki/sonraki + sayfa numarası + toplam kayıt.
+- Başvuru detayı — bağlantı kartı: bağlantı (kısmen gizli gösterim + "Göster"), "Kopyala", "WhatsApp ile Paylaş", "Yenile", "İptal et"; iptal edilmişse "Yeni bağlantı oluştur".
+- Evrak kartı (personel): aktif dosya + versiyon geçmişi (açılır), inceleme geçmişi, Onayla / Düzeltme iste, (izinliyse) "Müşteri adına yükle/değiştir".
 
 ## 7. Müşteri Paneli Düzeni (mobile-first)
 
 Tek sütun, maks genişlik `max-w-2xl`, sidebar/tablo/grafik **yok**.
 
-1. Header: "CS Global" metin logo + (sağda) "Çıkış".
+1. Header: "CS Global" metin logo (giriş/çıkış öğesi yok — erişim yalnızca bağlantı ile).
 2. Hoş geldiniz kartı: "Merhaba {Ad}," + başvuru no + hizmet + oluşturma tarihi + statü rozeti.
 3. **Süreç göstergesi:** 5 adım. `<sm`: dikey stepper (taşma yok); `sm+`: yatay. Aktif adım `aria-current="step"`. Düzeltme durumunda adım 2'de uyarı rozeti (BR §11.1).
 4. **Evrak tamamlanma:** "3 / 5 zorunlu evrak yüklendi · %60" + `Progress` (`aria-valuenow`). Altında küçük metin "2 / 5 onaylandı" (varsa).
@@ -126,13 +133,14 @@ Tek sütun, maks genişlik `max-w-2xl`, sidebar/tablo/grafik **yok**.
    - Başlık + "Zorunlu"/"İsteğe bağlı" etiketi + durum rozeti.
    - Açıklama, talimat (açılır-kapanır "Nasıl yüklemeliyim?").
    - Düzeltme gerekçesi (varsa) — uyarı kutusu, kartın üstünde, `role="status"`.
-   - Dosya listesi: ad (`truncate` + tam ad `title`), boyut ("2,4 MB"), tarih ("24.11.2026 14:05"), "Görüntüle", (izinliyse) "Kaldır".
-   - Yükleme alanı: tam genişlik büyük buton "PDF Yükle" (native `<input type="file" accept="application/pdf,.pdf">` — mobilde dosya/iCloud/Drive seçici açılır), sürükle-bırak yalnızca desktop'ta ek olarak.
-   - Yükleme sırasında: gerçek % ilerleme çubuğu + "Yükleniyor… %45" + iptal; sonrasında "Kontrol ediliyor…" → "Yüklendi".
-   - Hatalar (Türkçe): "Yalnızca PDF dosyası yükleyebilirsiniz.", "Dosya boyutu en fazla 10 MB olabilir.", "Bu evrak için en fazla 3 dosya yükleyebilirsiniz.", "Şifre korumalı PDF yüklenemez.", "Dosyanız güvenlik kontrolünden geçemedi. Lütfen farklı bir dosya yükleyin.", "Bağlantı sorunu nedeniyle yükleme tamamlanamadı. Lütfen tekrar deneyin."
+   - Aktif dosya (en fazla bir): ad (`truncate` + tam ad `title`), boyut ("2,4 MB"), tarih ("24.11.2026 14:05"), "Görüntüle", (izinliyse) "Değiştir" ve "Kaldır".
+   - Yükleme alanı (aktif dosya yoksa): tam genişlik büyük buton "PDF Yükle" (native `<input type="file" accept="application/pdf,.pdf">` — mobilde dosya/iCloud/Drive seçici), sürükle-bırak yalnızca desktop'ta ek olarak. Yardım metni: "Yalnızca PDF · en fazla 10 MB".
+   - Yükleme sırasında: gerçek % ilerleme + "Yükleniyor… %45"; sonrasında "Kontrol ediliyor…" → "Yüklendi". Değiştirme sırasında mevcut dosya, yenisi kabul edilene kadar görünür kalır.
+   - Hatalar (Türkçe): "Yalnızca PDF dosyası yükleyebilirsiniz.", "Dosya boyutu en fazla 10 MB olabilir.", "Şifre korumalı PDF yüklenemez.", "Dosyanız doğrulanamadı. Lütfen farklı bir PDF yükleyin.", "Bu evrak için devam eden bir yükleme var.", "Başvurunuzun durumu bu sırada değiştiği için dosya kaydedilemedi.", "Bağlantı sorunu nedeniyle yükleme tamamlanamadı. Lütfen tekrar deneyin." Dosyalar için "virüssüz/güvenli" ifadesi **kullanılmaz** (OD-07).
 7. **"İncelemeye Gönder"** butonu: mobilde ekran altına sabit (safe-area inset'li) birincil buton; koşullar sağlanmadıysa disabled + nedenler listesi ("Pasaport evrakı henüz yüklenmedi"). Onay dialog'u.
-8. İletişim kartı: şirket telefonu (`tel:`), e-posta (`mailto:`), WhatsApp (`https://wa.me/...`), mesaj.
-9. Footer: aydınlatma metni linki (hukuki metin sağlandığında), "Bu bağlantı size özeldir, başkalarıyla paylaşmayın."
+8. İletişim kartı (OD-14): şirket telefonu (`tel:`) ve WhatsApp iletişim bağlantısı (`https://wa.me/...`) — `src/config/company.ts`'ten. Değer yoksa buton disabled + "İletişim bilgisi yakında eklenecek".
+9. Footer: aydınlatma metni linki (hukuki metin sağlandığında), "Bu bağlantı size özeldir, başkalarıyla paylaşmayınız."
+10. Salt okunur statülerde (`UNDER_REVIEW`, `DOCUMENTS_APPROVED`, `IN_PROCESS`, `COMPLETED`, `CANCELLED`) yükleme/değiştirme/kaldırma/gönderim öğeleri gösterilmez; statüye uygun bilgi kutusu gösterilir.
 
 Uzun içerik kuralları: `min-w-0`, `break-words`, `overflow-wrap:anywhere` dosya adlarında; sayfada **yatay overflow yok** (E2E'de `document.scrollingElement.scrollWidth <= innerWidth` kontrolü).
 
@@ -149,7 +157,7 @@ Uzun içerik kuralları: `min-w-0`, `break-words`, `overflow-wrap:anywhere` dosy
 - Klavye: tüm işlemler klavyeyle; dialog'larda focus trap + ESC + odak iadesi; "İçeriğe atla" linki.
 - 2.4.11 Focus Not Obscured: sabit alt buton odaklanan öğeyi örtmemeli (`scroll-padding-bottom`).
 - 2.5.7 Dragging: sürükle-bırak'ın buton alternatifi var.
-- 3.3.7 Redundant Entry / 3.3.8 Accessible Authentication: OTP alanı yapıştırmaya izin verir, `autocomplete="one-time-code"`, `inputmode="numeric"`; şifre alanlarında yapıştırma engellenmez.
+- 3.3.8 Accessible Authentication: personel giriş formunda şifre yöneticisi ve yapıştırma engellenmez (`autocomplete="username"` / `"current-password"`). Müşteri tarafında kimlik doğrulama adımı yoktur.
 - Canlı bölgeler: yükleme ilerlemesi ve sonuçları `aria-live="polite"`.
 - Renk tek başına anlam taşımaz (ikon + metin).
 - Otomatik test: axe (Playwright `@axe-core/playwright` — bağımlılık PHASE 11'de değerlendirilir) + manuel VoiceOver (iOS) / TalkBack (Android) kontrolü.

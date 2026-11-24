@@ -28,7 +28,7 @@
 
 Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x** (vercel.com/docs/functions/runtimes/node-js/node-js-versions).
 
-**Öneri (D-003, Proposed):** Node.js **24.x LTS**. Yerel ortamda kurulu, Vercel'de destekleniyor, tüm bağımlılıkların `engines` aralığına uyuyor. `package.json` → `"engines": { "node": "24.x" }` ile Vercel sürümü sabitlenir (Vercel varsayılanı 26 olduğundan sabitleme zorunludur). Node 26'ya geçiş ileride tek satırlık değişikliktir.
+**Karar (D-003, Accepted — OD-13):** Node.js **24.x LTS**; Node 26 kullanılmaz; güncel güvenlik yaması tercih edilir (yerelde 24.22.1 → 24.22.3 güncellemesi önerilir, bu fazda yapılmaz). Yerel ortamda kurulu, Vercel'de destekleniyor, tüm bağımlılıkların `engines` aralığına uyuyor. `package.json` → `"engines": { "node": "24.x" }` ile Vercel sürümü sabitlenir (Vercel varsayılanı 26 olduğundan sabitleme zorunludur). 
 
 ---
 
@@ -114,7 +114,7 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 - npm `typescript@latest` = **7.0.2** (yeni native derleyici).
 - `typescript-eslint@8.74.0` peer aralığı: `typescript >=4.8.4 <6.1.0`.
 - `eslint-config-next@16.4.6` `typescript-eslint ^8.56.0`'a bağımlı.
-- **Sonuç:** TS 7 ile `eslint-config-next` peer uyarısı/hatası verir. **TypeScript 6.0.3** (2026-04-16, Next 16 minimum TS 5.1 ✅) sabitlenecek (D-002).
+- **Sonuç:** TS 7 ile `eslint-config-next` peer uyarısı/hatası verir. **TypeScript 6.0.3** (2026-04-16, Next 16 minimum TS 5.1 ✅) **önerilir** (D-002 — kullanıcı onayı bekliyor).
 - TS 7'ye geçiş, typescript-eslint desteği resmî olarak geldiğinde yeniden değerlendirilecek.
 
 ### 3.2 Drizzle 1.0 henüz stable değil
@@ -135,17 +135,20 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 - **Öneri (D-006):** `drizzle-orm/node-postgres` + `pg.Pool` + pooled URL (runtime), direct URL (migration). Başvuru oluşturma gibi işlemler interactive transaction gerektirdiği için HTTP sürücüsü tek başına yeterli değildir.
 
 ### 3.5 Better Auth — doğrulanan özellikler
-- **Username plugin:** `POST /sign-in/username`; e-posta olmadan girişe izin verir. Varsayılan uzunluk 3–30, alfanümerik + `_` + `.`; varsayılan normalizasyon lowercase. `disabledPaths: ["/is-username-available"]` ile enumeration engellenebilir.
-- **Admin plugin:** `createUser`, `setRole`, `banUser` (girişleri engeller **ve tüm oturumları iptal eder**), `revokeUserSessions`, `setUserPassword`, `listUsers`; `createAccessControl` ile özel roller.
-- **Kullanıcı tablosu e-posta gerektirir** (sign-up örneklerinde `email` zorunlu). Çalışanlar için kurumsal e-posta alanı tutulacak.
-- **Şifre hash:** varsayılan **scrypt**; varsayılan uzunluk 8–128.
-- **Session:** `expiresIn` 7 gün, `updateAge` 1 gün varsayılan; `freshAge` 1 gün. Cookie cache açıkken iptal edilen oturum cache süresi boyunca geçerli kalabilir → **cookie cache kapalı tutulacak**.
-- **Cookie:** production'da `httpOnly` + `secure`, `SameSite=Lax`. CSRF için origin kontrolü + `trustedOrigins`.
-- **Rate limit:** production'da varsayılan açık (10 sn / 100 istek); depolama varsayılanı **bellek** → serverless'ta güvenilir değil; **`storage: "database"`** kullanılacak. IP varsayılan olarak `X-Forwarded-For`'dan okunur → Vercel'e uygun header PHASE 03'te doğrulanıp `advanced.ipAddress.ipAddressHeaders` ile ayarlanacak.
-- **Email OTP plugin** kullanıcı hesabına bağlıdır (bilinmeyen e-postada kullanıcı oluşturur) → **müşteri OTP'si için uygun değildir**; müşteri doğrulaması uygulama içinde yazılacak (bkz. [SECURITY.md](SECURITY.md) §4).
-- **Database hooks** (`user`/`session`/`account` before/after) mevcut; başarısız giriş olayları DB hook'larıyla yakalanmaz → endpoint hook'ları PHASE 03'te incelenecek.
-- **Doğrulanamayanlar:** core tabloların tam kolon listesi (doküman tablosu render edilmedi), admin plugin'in session alanı adı (`impersonatedBy` olduğu tahmin ediliyor), `emailAndPassword.disableSignUp` seçeneğinin adı, impersonation'ı tamamen kapatma seçeneği. → PHASE 03'te `npx auth@latest generate` çıktısı ve kaynak kod üzerinden doğrulanacak.
-- Drizzle adapter import yolu dokümanlar arasında farklı (`better-auth/adapters/drizzle` vs `@better-auth/drizzle-adapter`) → PHASE 03'te kurulu sürümle doğrulanacak.
+> İlk doğrulama 2026-11-24 (username, admin, rate-limit, session, cookies, security sayfaları); ek doğrulama aynı gün (options reference, database hooks, hooks, rate-limit, session-management sayfaları).
+- **Username plugin:** `POST /sign-in/username`; e-posta olmadan giriş. Varsayılan uzunluk 3–30, alfanümerik + `_` + `.`; lowercase normalizasyon. `is-username-available` devre dışı bırakılabilir.
+- **Admin plugin:** `createUser`, `setRole`, `banUser` (girişi engeller **ve tüm oturumları iptal eder**), `revokeUserSessions`, `setUserPassword`, `listUsers`; `createAccessControl` ile roller.
+- **Kullanıcı tablosu e-posta gerektirir.** E-posta entegrasyonu olmadığından (OD-08) personel e-posta politikası TD-05.
+- **Şifre:** varsayılan hash **scrypt**; `emailAndPassword.minPasswordLength` (varsayılan **8**), `maxPasswordLength` (varsayılan **128**) — OD-22 ile uyumlu; `emailAndPassword.disableSignUp` (varsayılan `false`) mevcut. ✅
+- **`disabledPaths`** üst seviye seçenek olarak mevcut ("Disable specific auth paths"). ✅ `/change-password`, `/request-password-reset`, `/reset-password`, `/update-user` için örnek yok ve **`auth.api` sunucu çağrılarını da engelleyip engellemediği dokümante değil** → TD-03.
+- **`hooks.before`** (`createAuthMiddleware`) ile path bazlı istek reddi (`APIError`) mümkün. ✅ Hook'ların `auth.api` çağrılarında da çalışıp çalışmadığı doğrulanmadı → TD-03.
+- **Session:** `expiresIn` varsayılan 7 gün, `updateAge` 1 gün; `session.disableSessionRefresh` "session is not updated regardless of the updateAge option" ✅ — süre sonunun uzamadığı etkisi çıkarımdır, PHASE 03'te testle kanıtlanır (OD-22). Cookie cache açıkken iptal edilen oturum cache süresince geçerli kalabilir → **cookie cache kapalı**.
+- **Cookie:** production'da `httpOnly` + `secure`, `SameSite=Lax`. CSRF: origin kontrolü + `trustedOrigins`.
+- **IP tracking:** `advanced.ipAddress.disableIpTracking: true` → yeni oturumlarda istemci adresi kaydedilmez **ve yerleşik HTTP rate limiter kapanır** ✅. Bu nedenle giriş sınırlaması uygulama limitleyicisiyle yapılır (SECURITY §2). User-agent'ı kapatan ayrı bir seçenek bulunamadı → `databaseHooks.session.create.before` ile `{ data }` değiştirme (genel mekanizma ✅, session özelinde doğrulanmadı) + DB CHECK → TD-04.
+- **Rate limit custom storage:** yalnızca `customStorage.consume(key, rule)` (atomik kontrol+artırma) ✅ — `disableIpTracking` ile HTTP limiter kapandığından kullanılmayacak.
+- **Database hooks:** `user`/`session`/`account` before/after; before hook `{ data }` döndürürse payload değişir ✅.
+- **Email OTP plugin:** kullanıcı hesabına bağlı — müşteri OTP'si kapsam dışı olduğundan (OD-01) kullanılmaz.
+- **Doğrulanamayanlar:** core tabloların tam kolon listesi; admin plugin session alanı adı; impersonation'ı tamamen kapatma seçeneği; admin plugin ile kullanıcı adı güncelleme yöntemi; Drizzle adapter import yolu (`better-auth/adapters/drizzle` vs `@better-auth/drizzle-adapter`). → PHASE 03.
 
 ### 3.6 Vercel Blob — doğrulanan özellikler
 - **Private storage mevcut** (`access: 'private'`, `@vercel/blob >= 2.3`). Private blob'ların public URL'si yoktur; okuma kimlik doğrulama gerektirir.
@@ -156,7 +159,7 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 - `handleUpload` `BLOB_READ_WRITE_TOKEN` gerektirir (OIDC kabul etmez).
 - Store bölgesi oluşturmada seçilir, **sonradan değiştirilemez**; `fra1` (Frankfurt) mevcut.
 - Aynı pathname'e yazma varsayılan olarak reddedilir (`allowOverwrite` kapalı).
-- Upload progress callback (`onUploadProgress`) PHASE 08'de doğrulanacak.
+- Upload progress callback API'si PHASE 08'de doğrulanacak (TD-11).
 
 ### 3.7 Vercel Functions limitleri
 - Request body: **4.5 MB** (20 MiB public beta, Pro + özel ayar gerekli) → **PDF'ler function üzerinden geçirilmeyecek**, doğrudan Blob'a client upload yapılacak.
@@ -170,32 +173,46 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 
 ## 4. Planlar ve Ticari Kullanım (özet — ayrıntı [DEPLOYMENT.md](DEPLOYMENT.md) §6)
 
-- **Vercel Hobby ticari kullanıma izin vermez:** Terms §4: *"You shall only use the Services under a Hobby plan for your personal or non-commercial use."* → Production için **Vercel Pro** gerekir (D-024).
-- **Neon Free:** "Prototypes, side projects" olarak konumlanmış, SLA yok, ticari kullanım hakkında açık ifade bulunamadı → production için **Launch veya Scale** önerilir.
+- **Hedef aylık maliyet 0** (OD-12). Ücretli plan kullanıcı onayı olmadan kullanılmaz.
+- **Vercel Hobby ticari kullanıma izin vermez:** Terms §4: *"You shall only use the Services under a Hobby plan for your personal or non-commercial use."* → Geliştirme/demo için kullanılır; production hosting kararı açıktır (PB-01).
+- **Vercel Hobby cron:** en sık günde bir, ±59 dk hassasiyet (vercel.com/docs/cron-jobs/usage-and-pricing, 2026-11-24) — günlük teknik temizlik için yeterli. Sayfa, Cron Jobs'un ileride "Schedules"a taşınacağını belirtiyor.
+- **Vercel Blob Hobby:** 1 GB — gerçek kullanım için kapasite yetersiz olabilir (PB-02).
+- **Neon Free:** "Prototypes, side projects, and small teams"; SLA yok; ticari kullanım hakkında açık ifade bulunamadı; geri yükleme penceresi 6 saat.
 
 ---
 
-## 5. Kullanılmayacak / Ertelenen Teknolojiler
+## 5. Kullanılmayacak Teknolojiler
 
 | Teknoloji | Neden |
 |---|---|
-| Redis / Upstash | Rate limit ve oturumlar Postgres ile karşılanabiliyor (D-019). Gerçek ihtiyaç ölçülürse yeniden değerlendirilir. |
-| Queue sistemleri | İlk sürümde gerekmiyor; dosya taraması senkron veya Vercel `waitUntil` ile yapılır (PHASE 08'de karar). |
-| Express / NestJS | Modüler monolit — Next.js tek uygulama (D-001). |
-| Prisma | Stack'te Drizzle seçili. |
-| TypeScript 7 | ESLint ekosistemi uyumsuz (§3.1). |
-| Drizzle 1.0 RC | Stable değil. |
-| Next.js Taint API | Experimental. |
-| `@t3-oss/env-nextjs` | Gereksiz bağımlılık. |
-| VirusTotal vb. paylaşımlı tarama servisleri | Yüklenen dosyaları topluluğa açabilir — KVKK riski (bkz. [FILE_STORAGE.md](FILE_STORAGE.md) §6). |
+| E-posta sağlayıcıları (Resend, SendGrid, SMTP) | OD-08 — e-posta entegrasyonu yok |
+| SMS sağlayıcıları | OD-01 — OTP yok |
+| Antivirüs (ClamAV, ticari tarama API'leri, VirusTotal) | OD-07 — harici AV yok; VirusTotal ayrıca dosyaları paylaşabildiği için KVKK açısından kabul edilemez |
+| Redis / Upstash | Rate limit Postgres'te (D-019); maliyet hedefi |
+| Queue sistemleri | PDF doğrulama senkron; ihtiyaç yok |
+| Express / NestJS | Modüler monolit (D-001) |
+| Prisma | Stack'te Drizzle |
+| TypeScript 7 | typescript-eslint uyumsuz (§3.1) |
+| Drizzle 1.0 RC | Stable değil |
+| Next.js Taint API | Experimental |
+| `@t3-oss/env-nextjs` | Gereksiz bağımlılık |
+| Analytics / APM / hata izleme SaaS | Müşteri tarafında üçüncü taraf yasak; maliyet hedefi |
 
-## 6. Doğrulanamayan veya PHASE 01+ İçin Bekleyen Konular
+## 6. Doğrulanamayan veya Sonraki Fazlarda Doğrulanacak Konular
 
-1. pnpm 12'nin Vercel'de desteklenip desteklenmediği (D-004).
-2. Better Auth core tablo kolonları ve plugin alan adları (PHASE 03).
-3. `handleUpload` `maximumSizeInBytes` / `validUntil` / `onUploadProgress` kesin API'si (PHASE 08).
-4. Neon PgBouncer transaction mode kısıtlarının tam listesi (PHASE 02).
-5. Neon'da `pg_trgm` uzantısı desteği (PHASE 02).
-6. Vercel'de güvenilir istemci IP header'ı (PHASE 03).
-7. Vercel Cron'un Hobby/Pro sıklık limitleri (PHASE 08/13).
-8. Bölgesel (fra1) Blob fiyatları (PHASE 13).
+1. pnpm 12'nin Vercel'de desteklenip desteklenmediği (TD-02 / D-004).
+2. Better Auth: `disabledPaths`/`hooks.before` ile `auth.api` etkileşimi (TD-03); user-agent'ın yazılmaması (TD-04); core tablo kolonları (PHASE 03).
+3. `handleUpload` `maximumSizeInBytes` / `validUntil` / ilerleme callback'i kesin API'si (TD-11, PHASE 08).
+4. Neon PgBouncer transaction mode kısıtları (PHASE 02).
+5. Neon'da `pg_trgm` desteği (PHASE 02).
+6. Hosting sağlayıcısında güvenilir istemci IP header'ı (TD-04, PHASE 03).
+7. Vercel Blob at-rest şifreleme ve sürüm/yedek özelliği (PHASE 08).
+8. Ticari kullanıma uygun ücretsiz production altyapısı (TD-07, PHASE 13).
+9. PDF parser kütüphanesi (TD-06, PHASE 08).
+
+## 7. Yeniden Doğrulama Kaydı
+
+| Tarih | Kapsam | Sonuç |
+|---|---|---|
+| 2026-11-24 (ilk) | npm registry, nodejs.org, Vercel/Neon/Better Auth/Next.js dokümanları | §2–§4 |
+| 2026-11-24 (revizyon) | npm `latest`: next, react, typescript, typescript-eslint (peer `<6.1.0`), eslint, eslint-config-next (`typescript-eslint ^8.56.0`), drizzle-orm, drizzle-kit, pg, better-auth, @vercel/blob, vitest, @playwright/test, tailwindcss, zod, pnpm; Node 24 son yama; Better Auth options/hooks/rate-limit/session; Vercel cron limitleri | Sürümler değişmemiş; Node 24 son yaması **24.22.3**; TS 7 uyumsuzluğu sürüyor; Better Auth bulguları §3.5'e işlendi. Diğer paketler (lucide-react, geist, react-hook-form, @hookform/resolvers, libphonenumber-js, @types/*, shadcn CLI) revizyonda **yeniden sorgulanmadı** — ilk doğrulama değerleri geçerli kabul edilmiştir. |

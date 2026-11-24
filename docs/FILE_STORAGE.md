@@ -1,20 +1,21 @@
 # PDF Depolama ve Dosya Güvenliği
 
 > Doğrulama kaynakları: vercel.com/docs/vercel-blob (private-storage, client-upload, using-blob-sdk, usage-and-pricing), vercel.com/docs/functions/limitations — 2026-11-24.
-> İlgili kurallar: BR-40…BR-47, BR-70…BR-73 ([BUSINESS_RULES.md](BUSINESS_RULES.md)); dosya state'leri [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) §3; şema [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) §4.7.
+> Kurallar: BR-40…BR-48, BR-70…BR-73, BR-150…BR-153 · Dosya state'leri: [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) §3 · Şema: [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) §4.6
 
 ## 1. Temel Kararlar
 
 | Konu | Karar |
 |---|---|
-| Depolama | **Vercel Blob, private store** (`access: 'private'`, `@vercel/blob >= 2.3`). Public store **kullanılmaz**. |
-| Bölge | `fra1` (Frankfurt) — store oluştururken seçilir, **sonradan değiştirilemez**. |
-| Store ayrımı | Ortam başına ayrı store: `cs-global-blob-dev`, `cs-global-blob-preview`, `cs-global-blob-prod` (D-022). |
-| DB'de binary | **Yok.** Yalnızca metadata. |
-| Yükleme yolu | **Client upload** (tarayıcı → Blob doğrudan). Function body limiti 4.5 MB olduğu için sunucu üzerinden yükleme yapılmaz (D-017). |
-| Okuma yolu | Yalnızca `GET /api/files/[fileId]` Route Handler: yetki → `get(pathname, { access: 'private' })` → stream. Kalıcı/public URL **verilmez**; signed URL **kullanılmaz** (MVP). |
-| Pathname | `applications/{applicationId}/{requirementId}/{fileId}.pdf` — yalnızca UUID; ad, e-posta, orijinal dosya adı **yok**. `addRandomSuffix: false` (fileId zaten rastgele), `allowOverwrite: false`. |
-| Varsayılan limit | 10 MB/dosya (sistem ayarı `max_upload_size_bytes`), şablon başına maks dosya sayısı (varsayılan 1, en çok 10). |
+| Depolama | Private object storage — geliştirme/demo için **Vercel Blob private store** (`access: 'private'`, `@vercel/blob >= 2.3`). Public store/bucket **yok**. Production sağlayıcısı açık (PB-01). |
+| Storage sınırı | Tüm storage erişimi tek modülden: `src/server/storage/storage.ts` (`createUploadToken`, `handleUploadCallback`, `head`, `getStream`, `deleteObjects`, `listByPrefix`) + client tarafında tek `uploadPdf()` yardımcısı. Sağlayıcı değişirse yalnızca bu iki dosya değişir. Çoklu sağlayıcı soyutlaması **yapılmaz** (D-040, OD-12). |
+| Bölge | `fra1` (store oluşturulurken seçilir, sonradan değiştirilemez). |
+| DB'de binary | Yok. Yalnızca metadata. |
+| Yükleme yolu | **Client upload** (tarayıcı → storage doğrudan). Function body limiti 4.5 MB, Server Action limiti 1 MB olduğu için sunucu üzerinden geçirilmez (D-017). |
+| Okuma yolu | Yalnızca `GET /api/files/[fileId]`: yetki → `get(pathname, { access: 'private' })` → stream. Kalıcı/public URL yok; signed URL kullanılmaz. |
+| Pathname | `applications/{applicationId}/{requirementId}/{fileId}.pdf` — yalnızca UUID; kişisel veri ve orijinal ad yok. Pathname'i **sunucu** belirler. `addRandomSuffix: false`, `allowOverwrite: false`. |
+| Sabit limitler (OD-16) | Yalnızca PDF · dosya başına `MAX_PDF_SIZE_BYTES = 10 485 760` (10 MB) · evrak başına **1 aktif PDF** · panelden değiştirilemez. Sabit: `src/config/constants.ts`; client ön kontrolü, upload token, sunucu doğrulaması, DB CHECK ve testler aynı değeri kullanır. |
+| Versiyonlama | Her yükleme yeni dosya kaydı; yalnızca yeni versiyon `ACTIVE`, öncekiler `SUPERSEDED`. "Tek aktif PDF" ≠ "tek dosya geçmişi". |
 
 ## 2. Yükleme Akışı
 
@@ -22,134 +23,142 @@
 sequenceDiagram
     autonumber
     actor U as Müşteri / Personel
-    participant UI as Client (upload bileşeni)
-    participant T as POST /api/uploads (handleUpload)
+    participant UI as Client (uploadPdf)
+    participant API as POST /api/uploads
     participant DB as Postgres
-    participant BL as Vercel Blob (private)
-    participant SC as Tarama (Server)
+    participant ST as Private storage
+    participant V as PDF doğrulama (server)
 
     U->>UI: PDF seç
-    UI->>UI: Ön kontrol: uzantı .pdf, boyut ≤ limit, ilk 5 bayt %PDF- (UX — güvenlik değil)
-    UI->>T: token isteği {requirementId, fileName, size}
-    T->>T: aktör çöz (staff session / customer session), upload rate limit
-    T->>DB: TX: başvuru+evrak kilitle, BR-44 kontrol, set sayısı < max, PENDING dosya kaydı + version_number
-    T-->>UI: client token (pathname sabit, allowedContentTypes=[application/pdf], max size, validUntil kısa)
-    UI->>BL: upload(pathname, file, {access:'private'}) + ilerleme
-    BL-->>UI: blob
-    par Callback (production)
-        BL->>T: onUploadCompleted({blob, tokenPayload})
+    UI->>UI: Ön kontrol: .pdf, ≤ 10 MB, ilk baytlar %PDF- (UX — güvenlik değil)
+    UI->>API: token isteği {requirementId, fileName, size}
+    API->>API: aktör çöz, rate limit, Origin = APP_URL
+    API->>DB: TX: başvuru+evrak kilitle, BR-44, önceki UPLOAD_PENDING → EXPIRED, yeni UPLOAD_PENDING
+    API-->>UI: client token (sabit pathname, application/pdf, max 10 MB, kısa süre)
+    UI->>ST: upload(pathname, file, {access:'private'}) + gerçek ilerleme
+    ST-->>UI: tamam
+    par Callback (deploy ortamı)
+        ST->>API: onUploadCompleted
     and Client confirm (her ortam)
-        UI->>T: confirmUpload(fileId) Server Action
+        UI->>API: confirmUploadAction(fileId)
     end
-    T->>BL: head/get → gerçek boyut, content-type
-    T->>DB: TX (idempotent): PENDING→UPLOADED, BR-45 yeniden kontrol, evrak D1/D7, audit
-    T->>SC: tarama başlat (transaction dışı)
-    SC->>BL: get() stream → doğrulama + AV
-    SC->>DB: scan_status = CLEAN | REJECTED | ERROR
-    UI->>UI: Durum: "Kontrol ediliyor…" → "Yüklendi" / hata
+    API->>DB: TX: UPLOAD_PENDING → VALIDATING (ilk gelen kazanır)
+    API->>ST: head + get stream
+    API->>V: doğrula (transaction dışı, zaman/bellek sınırlı)
+    alt geçti
+        API->>DB: TX: BR-45 kontrol, eski ACTIVE → SUPERSEDED, yeni → ACTIVE (v+1), evrak statüsü, audit
+    else başarısız
+        API->>DB: REJECTED(reason), audit
+        API->>ST: blob sil
+    end
+    UI->>UI: "Kontrol ediliyor…" → "Yüklendi" / Türkçe hata
 ```
 
 ### 2.1 Kurallar
-1. **Token üretimi** (`onBeforeGenerateToken`): aktör doğrulanır; istemcinin gönderdiği `pathname` **kullanılmaz** — sunucu `fileId` üretip pathname'i kendisi belirler ve `tokenPayload` içine `{ fileId }` koyar. `allowedContentTypes: ['application/pdf']`, `maximumSizeInBytes: requirement.max_file_size_bytes`, kısa `validUntil` (Proposed 15 dk). (`maximumSizeInBytes` / `validUntil` adları PHASE 08'de SDK referansından doğrulanacak.)
-2. **Callback doğrulaması:** `handleUpload` callback isteğini SDK doğrular; ek olarak `tokenPayload.fileId` DB'deki `PENDING` kayıtla ve `blob.pathname` ile eşleşmelidir. Eşleşmezse 400 (Blob 400'de yeniden denemez).
-3. **Idempotency:** tamamlama işlemi `fileId` + `blob_pathname` üzerinden; zaten `UPLOADED` ise aynı sonucu döndürür. Callback 5xx'te en fazla 5 kez yeniden denenir — her deneme güvenli.
-4. **Localhost:** `onUploadCompleted` yerelde çalışmaz → client confirm aynı idempotent fonksiyonu çağırır; production'da ikisi de çalışır, ilk gelen kazanır.
-5. **Yarış (BR-45):** tamamlama transaction'ında başvuru/evrak statüsü değiştiyse (ör. personel gönderdi) dosya `EXPIRED` yapılır ve blob silinir; kullanıcıya "Başvurunuz bu sırada incelemeye gönderildiği için dosya kaydedilemedi." mesajı.
-6. **Boyut gerçeklik kontrolü:** Blob'dan okunan gerçek boyut limiti aşarsa veya `declared_size_bytes` ile çelişirse `REJECTED (SIZE_MISMATCH)`.
-7. **Eşzamanlı yüklemeler:** aynı evrağa paralel yüklemelerde `max_file_count` token üretiminde (kilit altında, `PENDING + UPLOADED` toplamı) uygulanır.
-8. **Upload rate limit** (Proposed): aktör başına 10 dk'da 30 token; başvuru başına günde 200.
-9. **İlerleme:** `@vercel/blob/client` `upload()` ilerleme callback'i (adı PHASE 08'de doğrulanacak) ile gerçek yüzde; başarısızlıkta "Tekrar dene".
+1. **Token üretimi:** istemcinin pathname'i kullanılmaz; sunucu `fileId` üretir, pathname'i belirler, `tokenPayload = { fileId }`. `allowedContentTypes: ['application/pdf']`, maksimum boyut `MAX_PDF_SIZE_BYTES`, kısa geçerlilik (15 dk). SDK parametre adları PHASE 08'de doğrulanır (TD-11).
+2. **Callback doğrulaması:** SDK doğrulaması + `tokenPayload.fileId` ile DB'deki kayıt ve `blob.pathname` eşleşmeli; değilse 400 (Blob 400'de yeniden denemez).
+3. **Idempotency:** `UPLOAD_PENDING → VALIDATING` geçişi satır kilidiyle yapılır; ikinci çağrı mevcut durumu döndürür. Callback 5xx'te en fazla 5 kez yeniden denenir — güvenli.
+4. **Localhost:** callback yerelde çalışmaz → client confirm aynı fonksiyonu çağırır. Kullanıcı confirm'den önce sayfayı kapatırsa (ve callback yoksa) kayıt `UPLOAD_PENDING` kalır → teknik temizlikte `EXPIRED` + blob silinir.
+5. **Doğrulama senkron** yapılır (10 MB sınırı Function süre/bellek limitleri içinde); kuyruk/arka plan servisi yok. Doğrulama 10 dakikadan uzun `VALIDATING`'de kalırsa bir sonraki token isteğinde veya temizlikte `REJECTED (VALIDATION_ERROR)`.
+6. **Yarış (BR-45):** aktivasyon transaction'ında başvuru/evrak durumu yüklemeye izin vermiyorsa `REJECTED (STATE_CHANGED)` + blob silinir. Mesaj: "Başvurunuzun durumu bu sırada değiştiği için dosya kaydedilemedi."
+7. **Gerçek boyut:** storage'dan okunan boyut > `MAX_PDF_SIZE_BYTES` → `REJECTED (TOO_LARGE)`.
+8. **Eşzamanlılık:** evrak başına tek aktif + tek devam eden yükleme DB kısıtlarıyla garanti; inceleme kararı BR-57 ile aktif `fileId`'ye bağlı.
+9. **Personel `UNDER_REVIEW` yüklemesi (OD-17):** aynı akış; aktivasyonda evrak `PENDING_REVIEW` olur, önceki onay aktarılmaz.
+10. **İlerleme:** client upload ilerleme callback'i ile gerçek yüzde (API adı TD-11); hata durumunda "Tekrar dene"; buton yükleme sırasında devre dışı (çift gönderim engeli).
 
 ## 3. Görüntüleme / İndirme
 
 `GET /api/files/[fileId]?disposition=inline|attachment`
-1. Aktör çöz (staff veya customer session). Yoksa 401.
-2. Dosya + başvuru + evrak getir; **müşteri** için `file.application_id = session.application_id` değilse **404**; personel için kapsam (404).
-3. `scan_status = 'CLEAN'` ve `upload_status = 'UPLOADED'` ve `blob_deleted_at IS NULL` değilse **404** (tarama bekleyen dosya görünmez).
-4. Müşteri yalnızca **güncel set** (`removed_at IS NULL`) dosyalarını görebilir; eski versiyonlar yalnızca personel.
-5. `get(pathname, { access: 'private', useCache: false })` → `new Response(result.stream, headers)`.
-6. Header'lar: `Content-Type: application/pdf`, `Content-Disposition: inline|attachment; filename*=UTF-8''<encoded>`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox; frame-ancestors 'self'`, `Referrer-Policy: no-referrer`.
-7. Audit: `DOCUMENT_VIEWED` / `DOCUMENT_DOWNLOADED`.
-8. Rate limit: aktör başına dakikada 60.
+1. Aktör çöz (personel veya müşteri). Yoksa 401.
+2. Dosya + başvuru getir; başvuru `deletion_requested_at` doluysa 404.
+3. **Müşteri:** `file.application_id = oturum.applicationId` ve `status = 'ACTIVE'` değilse **404**. **Personel:** `status ∈ {ACTIVE, SUPERSEDED, REMOVED}` değilse 404.
+4. `get(pathname, { access: 'private', useCache: false })` → stream yanıt.
+5. Header'lar: `Content-Type: application/pdf`, `Content-Disposition: inline|attachment; filename*=UTF-8''<encoded>`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox; frame-ancestors 'self'`, `Referrer-Policy: no-referrer`.
+6. Audit `DOCUMENT_VIEWED` / `DOCUMENT_DOWNLOADED`; rate limit.
 
-Görüntüleme yöntemi: yeni sekmede tarayıcının yerleşik PDF görüntüleyicisi (`inline`). iOS Safari ve WhatsApp in-app tarayıcı davranışı PHASE 08'de test edilir; sorun olursa `attachment` + açıklayıcı metin. Ek PDF render kütüphanesi (pdf.js) yalnızca test sonuçları gerektirirse eklenir.
+**Görüntüleme yaklaşımı:** varsayılan olarak tarayıcının yerleşik (sandbox'lı) PDF görüntüleyicisinde `inline` açma. PHASE 08 testlerinde bir tarayıcıda (iOS Safari, WhatsApp in-app, Android Chrome) güvenli inline görüntüleme sağlanamazsa o ortamda `attachment` (indirme) kullanılır ve kullanıcıya açıklama gösterilir (TD-12). Personel için öneri: dosyaları masaüstü PDF okuyucu yerine tarayıcıda açmak (tarayıcı PDF motorları sandbox içinde çalışır).
 
 ## 4. Dosya Adı Sanitizasyonu
 
-- Unicode NFC normalize; kontrol karakterleri, `/ \ : * ? " < > |`, baştaki noktalar kaldırılır; çoklu boşluk teke; ≤200 karakter (uzantı korunarak kırpılır); boşsa `belge.pdf`.
-- Uzantı `.pdf` değilse (case-insensitive) reddedilir.
-- Görüntülemede: UI'da CSS `truncate` + `title` ile tam ad; `break-all` ile taşma engellenir.
-- Orijinal ad yalnızca metadata; pathname'de kullanılmaz.
+Unicode NFC; kontrol karakterleri ve `/ \ : * ? " < > |` kaldırılır; baştaki noktalar kaldırılır; çoklu boşluk teke; ≤200 karakter (uzantı korunarak); boşsa `belge.pdf`; uzantı `.pdf` değilse red. UI'da `truncate` + `title` + `overflow-wrap:anywhere`. Orijinal ad yalnızca metadata.
 
-## 5. Versiyonlama ve Saklama
+## 5. Versiyonlar, Teknik Temizlik ve Silme
 
-- Her yükleme yeni `application_document_files` satırı, `version_number` artar (BR-71).
-- Değiştir (tek dosyalı) = yeni dosya + eskinin `removed_at` (aynı TX).
-- İncelenmiş (review_files'ta geçen) dosyalar silinmez, geçmiş versiyon olur; incelenmemiş ve kaldırılan dosyaların blob'u hemen silinir (BR-47).
-- Saklama (Proposed, **hukuki onay bekler — OD-06**):
+| Veri | Davranış |
+|---|---|
+| `ACTIVE`, `SUPERSEDED`, `REMOVED` dosyalar | **Otomatik silinmez** (OD-06). Yalnızca ADMIN başvuru silme işlemiyle. |
+| `REJECTED` dosyalar | Blob hemen silinir; metadata kalır (teknik — saklama politikası değildir). |
+| `UPLOAD_PENDING` > 1 saat | Teknik temizlik: blob varsa silinir, `EXPIRED`. |
+| Orphan blob'lar | Teknik temizlik: `listByPrefix('applications/')` ↔ DB mutabakatı; DB'de karşılığı olmayan ve 24 saatten eski blob'lar silinir. |
+| Yarım kalan başvuru silmeleri | Teknik temizlik: `deletion_requested_at` dolu başvurular için silme aşama 2 yeniden denenir. |
 
-| Veri | Süre | İşlem |
-|---|---|---|
-| `PENDING` (tamamlanmamış) upload | 24 saat | Blob (varsa) sil, `EXPIRED` |
-| `REJECTED` dosya | 7 gün (personel inceleyebilsin) | Blob sil, metadata kalır |
-| Geçmiş (superseded) versiyonlar | Başvuru terminal olduktan sonra X gün (öneri 90) | Blob sil, `blob_deleted_at` |
-| Güncel dosyalar | Başvuru terminal olduktan sonra Y gün (öneri: sözleşme/yasal yükümlülüğe göre) | Blob sil; başvuru anonimleştirme süreci (DATA_PRIVACY §5) |
+Teknik temizlik: günlük zamanlanmış iş (`GET /api/cron/cleanup`; Vercel Hobby'de cron en sık **günde bir**, ±59 dk hassasiyetle — doğrulandı). Bu mekanizma müşteri verisi saklama süresi politikası **değildir**.
 
-- Silme işi: Vercel Cron → `GET /api/cron/cleanup` (günlük). Blob silme başarısızsa yeniden denenir; `blob_deleted_at` yalnızca başarıdan sonra set edilir.
-- **Orphan temizliği:** (a) `PENDING` + `upload_expires_at < now()` kayıtlar; (b) haftalık mutabakat: Blob `list()` ile `applications/` önekindeki pathname'ler DB ile karşılaştırılır, DB'de karşılığı olmayan ve 24 saatten eski blob'lar silinir.
+### 5.1 Başvuru silme (BR-150…BR-154)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as ADMIN
+    participant S as deleteApplicationAction
+    participant DB as Postgres
+    participant ST as Private storage
+    A->>S: Onay (başvuru numarasını yaz)
+    S->>DB: TX1: deletion_requested_at, token revoke, pending upload EXPIRED, audit DELETION_REQUESTED
+    Note over DB: Başvuru artık tüm okumalarda erişilemez, müşteri oturumları anında geçersiz
+    S->>DB: Tüm dosya pathname'leri (tüm versiyonlar)
+    S->>ST: listByPrefix(applications/{id}/) ∪ DB listesi → deleteObjects (batch)
+    S->>ST: listByPrefix ile boş olduğunu doğrula
+    alt tümü silindi
+        S->>DB: TX2: DELETE applications (CASCADE) + audit APPLICATION_DELETED
+    else kısmi hata
+        S-->>A: "Silme tamamlanamadı, tekrar deneyin" (başvuru erişilemez kalır)
+        Note over S: ADMIN "Silmeyi tamamla" veya günlük temizlik yeniden dener (idempotent)
+    end
+```
+DB kayıtları, storage nesneleri silindiği doğrulanmadan silinmez — böylece storage'da sahipsiz kişisel veri kalmaz.
 
-## 6. Dosya Güvenliği ve Zararlı Yazılım Taraması
+## 6. PDF Doğrulama (OD-07)
 
 ### 6.1 Riskler
-- Uzantı ve MIME **istemci kontrollüdür** — güvenilmez.
-- PDF aktif içerik taşıyabilir: JavaScript (`/JavaScript`, `/JS`), otomatik aksiyonlar (`/OpenAction`, `/AA`), dış program çalıştırma (`/Launch`), gömülü dosyalar (`/EmbeddedFile`, `/EmbeddedFiles`), formlar/veri gönderimi (`/SubmitForm`, `/ImportData`, `/XFA`), `/RichMedia`, `/GoToR`/`/URI` (dış bağlantı).
-- Polyglot dosyalar (hem PDF hem HTML/ZIP), şifreli PDF'ler (içeriği incelenemez), bozuk yapı ile parser istismarı, dekompresyon bombaları.
-- Dosyayı açan **personel cihazı** ana hedeftir (müşteri → personel saldırı yolu).
+- Uzantı ve MIME istemci kontrollüdür — güvenilmez.
+- PDF aktif içerik taşıyabilir: JavaScript (`/JavaScript`, `/JS`), otomatik aksiyonlar (`/OpenAction`, `/AA`), dış program (`/Launch`), gömülü dosyalar (`/EmbeddedFile`, `/EmbeddedFiles`, `/FileAttachment`), form/veri gönderimi (`/SubmitForm`, `/ImportData`, `/XFA`), `/RichMedia`, `/GoToR`, `/GoToE`.
+- Polyglot dosyalar, şifreli PDF'ler, bozuk yapı ile parser istismarı, dekompresyon bombaları ve derin iç içe yapılar (kaynak tüketimi).
+- Hedef: dosyayı açan **personel cihazı**.
 
-### 6.2 Katmanlı çözüm (D-018, Proposed)
+### 6.2 Uygulanacak kontroller (zorunlu, uygulama içi, harici servis yok)
+1. Uzantı `.pdf` (case-insensitive) ve beyan edilen MIME `application/pdf`.
+2. Gerçek boyut ≤ `MAX_PDF_SIZE_BYTES`.
+3. İlk 1024 bayt içinde `%PDF-1.x` / `%PDF-2.0`; dosya sonunda `%%EOF`.
+4. Bakımı süren bir PDF parser ile **tam ayrıştırma** (sıkıştırılmış object stream'ler dahil); ayrıştırılamazsa `MALFORMED`. Kütüphane PHASE 08'de lisans, bakım, güvenlik geçmişi ve kaynak sınırlama yetenekleri doğrulanarak seçilir (TD-06). Yeni bağımlılık gerekçeli eklenir.
+5. Aktif içerik anahtarları (6.1; hex-escape'li isimler `#4A` normalize edilerek) → `ACTIVE_CONTENT`; gömülü dosya → `EMBEDDED_FILE`. `/URI` bağlantıları red sebebi değildir.
+6. `/Encrypt` → `ENCRYPTED` ("Şifre korumalı PDF yüklenemez").
+7. Kaynak sınırları: toplam açılan stream boyutu, nesne sayısı, iç içe derinlik ve süre sınırı; aşılırsa `RESOURCE_LIMIT`.
+8. SHA-256 hesaplanır.
+9. Storage nesne anahtarı DB kaydıyla ve başvuru/evrak ilişkisiyle eşleşir.
 
-**Katman 1 — Yapısal doğrulama (uygulama içi, zorunlu, MVP'de):** Node.js Function içinde (10 MB'lık dosya için süre/bellek limitleri içinde):
-1. Gerçek boyut ≤ limit.
-2. İlk 1024 bayt içinde `%PDF-1.x` / `%PDF-2.0` imzası; sonda `%%EOF`.
-3. Bakımı süren bir PDF ayrıştırıcı ile tam ayrıştırma (sıkıştırılmış object stream'ler dahil); ayrıştırılamayan dosya → `REJECTED (MALFORMED)`. Kütüphane seçimi PHASE 08'de (lisans, bakım, güvenlik geçmişi doğrulanarak).
-4. Aktif içerik anahtarları (6.1 listesi; hex-escape'li isimler `#4A` normalize edilerek) bulunursa → `REJECTED (ACTIVE_CONTENT)`. (Proposed: `/URI` link'leri reddetme sebebi değil, yalnızca işaretlenir.)
-5. `/Encrypt` varsa → `REJECTED (ENCRYPTED)` — müşteriye "Şifre korumalı PDF yüklenemez" mesajı.
-6. Açılan stream boyutu sınırı (dekompresyon bombası koruması).
-7. SHA-256 hesaplanır.
-
-**Katman 2 — Zararlı yazılım taraması (AV) — production blocker (OD-07):**
-
-| Seçenek | Artı | Eksi | KVKK |
-|---|---|---|---|
-| a. **Kendi kontrolümüzde ClamAV** (AB'de küçük VM/konteyner, HTTPS + kimlik doğrulamalı iç API, dosya diskte tutulmaz) | Belge üçüncü bir SaaS'a gitmez; düşük sabit maliyet | Sunucu bakımı, imza güncellemeleri, izleme — operasyonel yük; ClamAV'nin hedefli PDF exploit tespiti sınırlı | Hosting sağlayıcı ek veri işleyen olur (DPA) |
-| b. **Ticari tarama API'si** (AB bölgesi + DPA + dosya saklamama taahhüdü olan) | Operasyon yükü yok, çoklu motor | Hassas belge üçüncü tarafa gider; dosya/tarama başı maliyet | Ek veri işleyen + muhtemel yurt dışı aktarım; sözleşme incelemesi şart |
-| c. **AV yok — yalnızca Katman 1 + 3** | Basit, ek maliyet yok | Bilinen zararlı yazılım imzaları kontrol edilmez | — |
-| ✗ VirusTotal vb. topluluk servisleri | — | Yüklenen dosyalar diğer kullanıcılarla paylaşılabilir | **Kabul edilemez** |
-
-**Öneri:** Katman 1 her durumda + (a) veya (b) — seçim maliyet/KVKK değerlendirmesiyle kullanıcı kararı. (c) yalnızca hukuki ve güvenlik risk kabulü yazılı olarak verilirse.
-
-**Katman 3 — Güvenli sunum (zorunlu):** yalnızca `CLEAN` dosyalar; `Content-Disposition`, `nosniff`, `CSP sandbox`, `no-store`; personel cihazlarında güncel tarayıcı ve PDF okuyucu kullanımı (operasyonel politika — PROJECT_STATE'te açık konu).
-
-### 6.3 Çalışma modeli
-- Tarama, tamamlama sonrası **transaction dışında**, aynı istekte `waitUntil` (Vercel `@vercel/functions`) ile veya cron yedeğiyle tetiklenir. Kalıcı kuyruk servisi eklenmez (KISS); `scan_status = PENDING/ERROR` + `scan_attempts` alanları + cron (her 5–15 dk, plan limiti doğrulanacak) yeniden deneme kuyruğu işlevi görür.
-- 3 başarısız denemeden sonra `ERROR` kalır, personele uyarı, müşteriye "Dosyanız kontrol edilemedi, lütfen tekrar yükleyin".
-- Karantina: Blob'da ayrı "karantina" klasörü/taşıma yok; dosya `CLEAN` olana kadar **uygulama seviyesinde erişilemez** (store zaten private). Bu, "dosya güvenlik kontrolü tamamlanmadan görüntülenemez" gereksinimini karşılar.
+### 6.3 Sınırlar ve dürüst beyan
+- Bu kontroller **yapısal doğrulamadır; antivirüs / malware taraması değildir**. Bilinen zararlı yazılım imzaları, parser'ın göremediği exploit teknikleri ve PDF görüntüleyici zafiyetleri tespit edilemez.
+- Dosyalar "virüssüz", "malware-free", "güvenli" olarak **etiketlenmez**. Arayüz etiketleri: müşteriye "Yüklendi"; personele "Yapısal kontrol tamamlandı".
+- Harici AV (ClamAV, ticari API) MVP kapsamı dışıdır; ücretli servis eklenmez. Gerçek müşteri verisiyle production kullanımında kalan risk değerlendirmesi **zorunlu güvenlik gereksinimi** olarak kalır (PB-05).
+- Azaltıcı önlemler: private storage, yalnızca yetkili sunum, sandbox'lı yanıt header'ları, tarayıcıda görüntüleme önerisi, personel cihazlarında güncel işletim sistemi/tarayıcı ve işletim sisteminin yerleşik antivirüsü (ör. Windows Defender — ek maliyet yok; operasyonel öneri).
 
 ### 6.4 Kabul kriterleri (PHASE 08 + PHASE 12)
 1. Uzantısı `.pdf` olan PNG/EXE/HTML → `REJECTED (NOT_PDF)`.
-2. MIME `application/pdf` olarak sahte gönderilen PDF olmayan dosya → reddedilir.
-3. `/JavaScript` veya `/OpenAction` içeren PDF (düz ve sıkıştırılmış object stream içinde, hex-escape'li isimle) → `REJECTED (ACTIVE_CONTENT)`.
-4. Gömülü dosya içeren PDF → `REJECTED`.
-5. Şifreli PDF → `REJECTED (ENCRYPTED)`.
-6. EICAR test imzası içeren dosya (AV seçeneği a/b) → `REJECTED (MALWARE)`.
-7. Limit + 1 bayt → token reddi veya `SIZE_MISMATCH`.
-8. `PENDING`/`REJECTED`/`ERROR` dosyaya `/api/files` isteği → 404 (personel ve müşteri).
-9. Başka başvurunun `fileId`'si ile istek → 404.
-10. Callback'in iki kez çağrılması → tek kayıt, tek audit.
-11. Token üretimi sonrası başvuru `UNDER_REVIEW` olduysa tamamlama → reddedilir ve blob silinir.
-12. 24 saatten eski `PENDING` kayıt ve orphan blob temizlik işiyle silinir.
-13. Temiz, normal PDF'ler (tarayıcıdan "PDF olarak kaydet", tarayıcı uygulaması çıktıları, e-Devlet belgesi benzeri sahte örnekler) **kabul edilir** — yanlış pozitif oranı kabul edilebilir düzeyde (test seti ile ölçülür).
+2. Sahte `application/pdf` MIME ile PDF olmayan dosya → reddedilir.
+3. `/JavaScript` veya `/OpenAction` içeren PDF (düz, object stream içinde, hex-escape'li) → `ACTIVE_CONTENT`.
+4. Gömülü dosya içeren PDF → `EMBEDDED_FILE`.
+5. `/Launch` içeren PDF → `ACTIVE_CONTENT`.
+6. Şifreli PDF → `ENCRYPTED`.
+7. Dekompresyon bombası / aşırı nesne sayısı → `RESOURCE_LIMIT`, süre sınırı içinde.
+8. `10 485 761` bayt → token reddi veya `TOO_LARGE`; `10 485 760` bayt → kabul.
+9. `UPLOAD_PENDING` / `VALIDATING` / `REJECTED` / `EXPIRED` dosyaya `/api/files` → 404.
+10. Başka başvurunun `fileId`'si → 404; müşteri için `SUPERSEDED` dosya → 404.
+11. Callback iki kez → tek aktivasyon, tek audit.
+12. Token sonrası başvuru `UNDER_REVIEW` oldu → müşteri yüklemesi `STATE_CHANGED`, blob silinir; personel yüklemesi kabul edilir (OD-17).
+13. Aynı evrağa iki paralel yükleme → yalnızca biri devam eder; asla iki `ACTIVE` olmaz.
+14. Normal PDF'ler (tarayıcı "PDF olarak kaydet", tarama uygulaması çıktıları, ofis programı dışa aktarımları) kabul edilir; yanlış pozitif oranı test setiyle ölçülür.
+15. Başvuru silme sonrası storage'da `applications/{id}/` öneki boş.
 
-## 7. Maliyet Notları
+## 7. Kapasite ve Maliyet Notları
 
-Vercel Blob (Pro, "starting at"): depolama $0.023/GB-ay, basit işlem $0.35/1M, gelişmiş işlem $4.50/1M; veri transferi Pro'da "Flat Rate CDN" kapsamında. Hobby: 1 GB, 10K basit / 2K gelişmiş işlem, 10 GB transfer (aşımda erişim 30 gün bloklanır). fra1 bölgesel fiyatları doğrulanmadı. Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md) §6.
+Vercel Blob Hobby: 1 GB depolama, 10K basit / 2K gelişmiş işlem, 10 GB transfer/ay; aşımda erişim 30 gün bloklanır, ücret çıkmaz. 1 GB ≈ ortalama 2 MB'lık ~500 PDF; başvuru başına versiyonlarla ~20 MB varsayımıyla **≈ 50 başvuru**. Otomatik silme olmadığından kapasite birikimlidir (PB-02). Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md) §6.

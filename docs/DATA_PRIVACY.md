@@ -1,112 +1,107 @@
 # Veri Gizliliği ve KVKK
 
-> ⚠️ **Bu doküman hukuki görüş değildir.** Teknik tasarımın KVKK (6698 sayılı Kanun) ve ilgili ikincil mevzuat açısından değerlendirilmesi gereken noktalarını listeler. Nihai kararlar için şirketin **KVKK konusunda uzman bir hukukçudan** görüş alması gerekir. Neon ve Vercel kullanımı tek başına KVKK uyumu sağlamaz.
+> ⚠️ **Bu doküman hukuki görüş değildir.** Teknik tasarımın KVKK (6698 sayılı Kanun) ve ikincil mevzuat açısından değerlendirilmesi gereken noktalarını listeler. Nihai kararlar için şirketin **KVKK konusunda uzman bir hukukçudan** görüş alması gerekir. Kullanılan sağlayıcılar (Vercel, Neon vb.) tek başına KVKK uyumu sağlamaz. Product Owner'ın OD-01…OD-23 kararlarını kabul etmesi, bu kararların hukuki uygunluğunun doğrulandığı anlamına gelmez.
 
 ## 1. Roller
 
 | Taraf | Rol (değerlendirme önerisi) |
 |---|---|
 | CS Global | **Veri sorumlusu** |
-| Vercel Inc. (hosting, Functions, Blob, loglar) | Veri işleyen |
-| Neon / Databricks (veritabanı) | Veri işleyen |
-| E-posta sağlayıcı (OTP — OD-08) | Veri işleyen |
-| Tarama servisi / VM sağlayıcısı (OD-07) | Veri işleyen |
-| GitHub (yalnızca kod; gerçek veri yok) | — (kişisel veri işlenmemeli) |
+| Hosting sağlayıcısı (geliştirme/demo: Vercel; production: açık — PB-01) | Veri işleyen |
+| Veritabanı sağlayıcısı (Neon / production'da açık) | Veri işleyen |
+| Object storage sağlayıcısı (Vercel Blob / production'da açık) | Veri işleyen |
+| WhatsApp / Meta | Bağlantı ve kişiselleştirilmiş mesaj (ad, soyad, hizmet adı) bu kanaldan **personel tarafından manuel** gönderilir; şirketin mevcut WhatsApp kullanımı kapsamında değerlendirilmelidir |
+| GitHub | Yalnızca kod; kişisel veri işlenmez |
 
-Her veri işleyen ile **veri işleme sözleşmesi (DPA)** ve KVKK m.12 kapsamında teknik/idari tedbir taahhütleri değerlendirilmeli. Neon dokümanlarında DPA'ya ilişkin bilgi **bulunamadı** (2026-11-24) — sağlayıcıdan doğrudan teyit gerekir.
+E-posta sağlayıcısı ve antivirüs servisi **yoktur** (OD-07, OD-08) — bu kanallardan veri aktarımı olmaz.
+Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri değerlendirilmeli; ücretsiz planlarda DPA ve sözleşme koşullarının sunulup sunulmadığı **doğrulanmalıdır** (Neon dokümanlarında DPA bilgisi bulunamadı — 2026-11-24).
 
 ## 2. İşlenen Veriler
 
 | Kategori | Örnek | Kaynak | Amaç |
 |---|---|---|---|
-| Kimlik | Ad, soyad | Personel girer | Hizmet sunumu |
-| İletişim | Telefon, e-posta | Personel girer | İletişim, OTP |
+| Kimlik | Ad, soyad | Personel girer (her başvuruda yeniden — OD-10) | Hizmet sunumu |
+| İletişim | Telefon, e-posta | Personel girer | İletişim (WhatsApp), kayıt |
 | Belge içerikleri | Pasaport, kimlik, banka dökümü, iş sözleşmesi, ikametgâh | Müşteri / personel yükler | Danışmanlık hizmeti |
-| İşlem güvenliği | Oturum kayıtları, audit, (hash'lenmiş) IP | Sistem | Güvenlik, hesap verebilirlik |
-| Personel verisi | Ad, kullanıcı adı, e-posta, giriş kayıtları | ADMIN | Erişim yönetimi |
+| İşlem güvenliği | Audit kayıtları (aktör ID, işlem, zaman) | Sistem | Hesap verebilirlik |
+| Personel verisi | Ad, kullanıcı adı, e-posta (TD-05), giriş kayıtları | ADMIN | Erişim yönetimi |
 
-**Özel nitelikli veri riski:** Kimlik belgeleri din hanesi (eski kimlikler), sağlık raporu, biyometrik fotoğraf vb. içerebilir. Belge türlerine göre özel nitelikli veri işlenip işlenmediği hukuki olarak değerlendirilmeli; işleniyorsa KVKK m.6 ve Kurul'un özel nitelikli veriler için öngördüğü ek tedbirler uygulanmalıdır.
+**Saklanmayanlar (OD-09):** IP adresi, hash'lenmiş/HMAC'lenmiş IP, user-agent, tarayıcı/cihaz/işletim sistemi bilgisi uygulama veritabanında tutulmaz. İstisna: rate limiting için HMAC'lenmiş, pencere süresiyle sınırlı, en fazla ~24 saat yaşayan **teknik anahtarlar** (DATABASE_SCHEMA §4.12) — audit veya izleme amacıyla kullanılmaz.
+**Hosting sağlayıcısının altyapı logları** (request path, IP vb.) bu politikanın dışındadır ve sağlayıcının kendi politikasına tabidir; uygulama bunları kontrol edemez. Bu loglar müşteri bağlantı token'larını içerebilir (SECURITY §4).
+
+**Özel nitelikli veri riski:** kimlik belgeleri din hanesi (eski kimlikler), sağlık raporları, biyometrik fotoğraf içerebilir; KVKK m.6 kapsamı ve ek tedbirler hukuki olarak değerlendirilmelidir.
 
 ## 3. Veri Minimizasyonu
 
-- Müşteriden yalnızca hizmet için gereken alanlar alınır (ad, soyad, telefon, e-posta). TC kimlik no, doğum tarihi vb. **form alanı olarak alınmaz**.
-- Doğrulama için ek kişisel veri toplanmaz (C2 modeli reddedilme sebebi).
-- Ham IP ve user-agent saklanmaz (Proposed, OD-09); güvenlik için HMAC'lenmiş IP yeterli.
-- Audit metadata'sında kişisel veri değerleri yok; yalnızca ID ve değişen alan adları.
+- Müşteriden yalnızca ad, soyad, telefon, e-posta ve hizmet alınır; TC kimlik no, doğum tarihi vb. form alanı yoktur.
+- Her başvuru bağımsızdır (OD-10): veri başvurular arasında birleştirilmez, profil oluşturulmaz. Sonuç: aynı kişinin verisi birden çok başvuruda **kopyalanmış** olarak bulunabilir; silme talebinde ilgili tüm başvuruların personel tarafından aranıp silinmesi gerekir (§5).
+- Audit metadata'sında kişisel veri değeri yok; yalnızca ID ve değişen alan adları.
 - Storage pathname'lerinde kişisel veri yok.
 - Analytics / tracking yok.
-- Dev/preview ortamlarında **yalnızca sahte veri** (seed). Gerçek müşteri verisi production dışına kopyalanmaz; Neon production branch'inden preview branch'i **oluşturulmaz**.
+- Dev/preview/demo ortamlarında **yalnızca sahte veri**.
+- WhatsApp mesajı ad, soyad ve hizmet adını içerir (OD-21) — bu, mesajın Meta altyapısından geçtiği anlamına gelir; aydınlatma metninde değerlendirilmelidir.
 
-## 4. Saklama Süreleri (Proposed — hukuki onay gerekli, OD-06)
+## 4. Saklama (OD-06)
 
-| Veri | Önerilen süre | Gerekçe / not |
-|---|---|---|
-| Tamamlanmamış upload | 24 saat | Teknik |
-| Reddedilen dosyalar | 7 gün | İnceleme |
-| Geçmiş dosya versiyonları | Başvuru terminal + 90 gün | Uyuşmazlık / itiraz süresi — hukukçu belirlemeli |
-| Güncel belgeler | Başvuru terminal + **X** | Sözleşme, vergi/ticari defter yükümlülükleri, olası itiraz süreleri — **hukukçu belirlemeli** |
-| Müşteri iletişim bilgileri | Son başvuru terminal + **X** | Aynı |
-| OTP challenge | 24 saat | Teknik |
-| Müşteri oturumları | Süre sonu + 7 gün | Teknik |
-| Personel oturumları | Süre sonu + 30 gün | Güvenlik incelemesi |
-| Audit log | 2 yıl | Hesap verebilirlik — hukukçu teyidi |
-| Rate limit kayıtları | Pencere sonu | Teknik |
-| DB yedekleri (Neon PITR) | Plan bazlı: Launch ≤7 gün, Scale ≤30 gün | Yedekten silme: silinen veri yedek penceresi dolana kadar yedekte kalır → aydınlatma metninde belirtilmeli |
+- MVP'de **otomatik saklama süresi yönetimi ve otomatik silme yoktur**: başvurular, müşteri bilgileri ve geçerli dosya versiyonları süreye bağlı olarak silinmez; panelde saklama ayarı yoktur.
+- Veriler yalnızca **ADMIN'in manuel silme işlemiyle** silinir (BR-150…BR-154).
+- ⚠️ **Manuel silme tercihi, verilerin süresiz saklanması için hukuki dayanak oluşturmaz.** KVKK m.7 ve "Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik" kapsamındaki saklama ve periyodik imha yükümlülüklerini **şirket** takip etmeli; bir saklama ve imha politikası belirleyip ADMIN silme aracıyla uygulamalıdır. Bu, production öncesi açık hukuki gereksinimdir (PB-03).
+- Yalnızca **teknik** temizlik otomatiktir (müşteri verisi saklama politikası değildir): tamamlanmamış yüklemeler, reddedilen dosyaların blob'ları, sahipsiz storage nesneleri, süresi dolmuş personel oturumları, süresi dolmuş rate limit anahtarları, yarım kalan silme işlemlerinin tamamlanması.
+- Yedekler: seçilen DB planının geri yükleme penceresi süresince silinen veri yedekte kalabilir (Neon Free: 6 saat; ücretli planlarda daha uzun) — aydınlatma metninde belirtilmeli. Ek uzun süreli yedek alınmaz.
 
-Süreler `system_settings` alanlarında tutulur; **değer NULL iken otomatik silme işi çalışmaz** (yanlışlıkla veri silinmesini önlemek için güvenli varsayılan).
+## 5. Silme
 
-## 5. Silme ve Anonimleştirme
-
-- **Müşteri talebiyle silme (KVKK m.11, m.7):** ADMIN aracı (PHASE 10, Proposed): başvuru(lar)ın blob'ları silinir → `application_document_files.blob_deleted_at`; müşteri alanları anonimleştirilir (`first_name='Silindi'`, `email`/`phone` → rastgele yer tutucu, `search_text` temizlenir, `anonymized_at`); serbest metin alanları (yorum, not, gerekçe) temizlenir; audit'e `CUSTOMER_ANONYMIZED` (PII'siz). Yasal saklama yükümlülüğü olan veriler hukuki görüşe göre korunur.
-- **Fiziksel silme vs anonimleştirme:** İlişkisel bütünlük ve audit için satırlar anonimleştirilir; belgeler (en hassas veri) **fiziksel olarak** silinir.
-- **Yedekler:** Neon PITR penceresi dolunca silinen veriler yedekten de çıkar; ek, uzun süreli yedek **alınmaz** (Proposed) — alınırsa şifreli, erişim kısıtlı ve aynı saklama politikasına tabi olmalı.
-- **Blob silme doğrulaması:** silme işlemi sonrası `head()` ile var olmadığı doğrulanır.
+- **Başvuru silme (ADMIN):** bağlantı iptali + müşteri oturumlarının anında geçersizliği + tüm dosya versiyonlarının storage'dan fiziksel silinmesi ve doğrulanması + tüm başvuru kayıtlarının (yorum, not, inceleme, geçmiş dahil) DB'den silinmesi. Yalnızca `deleted_at` güncellemek gerçek silme sayılmaz; böyle bir alan yoktur.
+- **Kısmi hata:** başvuru erişilemez durumda kalır, silme idempotent olarak yeniden denenir; DB kaydı storage boşaltılmadan silinmez (sahipsiz kişisel veri kalmaz).
+- **Audit:** yalnızca `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETED` (başvuru ID'si, silen kullanıcı, dosya sayısı). Önceki audit kayıtları kişisel veri içermez ve korunur.
+- **İlgili kişi talebi (m.11):** kişinin tüm başvuruları ad/telefon/e-posta araması ile personel tarafından bulunur ve ADMIN tarafından silinir (müşteri eşleştirme olmadığından otomatik toplu silme yoktur). Yasal saklama yükümlülüğü olan veriler hukuki görüşe göre korunur.
 
 ## 6. Şifreleme
 
 | Katman | Durum |
 |---|---|
-| Aktarım | TLS: tarayıcı ↔ Vercel (HSTS), uygulama ↔ Neon (`sslmode=verify-full` — PHASE 02'de doğrulanır), uygulama ↔ Blob (HTTPS) |
+| Aktarım | TLS: tarayıcı ↔ hosting (HSTS), uygulama ↔ DB (`sslmode=verify-full` — PHASE 02'de doğrulanır), uygulama ↔ storage (HTTPS) |
 | Neon at-rest | AES-256 (Neon güvenlik dokümanı) |
-| Vercel Blob at-rest | **Doğrulanmadı** — PHASE 08'de Vercel güvenlik/uyumluluk dokümanlarından teyit edilecek |
-| Uygulama seviyesi | Erişim token'larının kopyası AES-256-GCM; OTP/oturum token'ları hash; şifreler scrypt |
-| Belge uygulama seviyesi şifreleme | MVP'de **yok** (Proposed). Değerlendirme: Blob'a yüklemeden önce istemci tarafında şifreleme, tarama ve görüntülemeyi zorlaştırır; sunucu tarafı yeniden şifreleme client upload'ı engeller. Risk, private store + erişim kontrolü + sağlayıcı at-rest şifrelemesiyle yönetilir. |
+| Vercel Blob at-rest | **Doğrulanmadı** — PHASE 08'de |
+| Uygulama seviyesi | Bağlantı token'ı: HMAC hash + AES-256-GCM kopya; personel şifreleri scrypt |
+| Belge uygulama seviyesi şifreleme | MVP'de yok (client upload ve doğrulama ile çelişir); private storage + erişim kontrolü + sağlayıcı at-rest şifrelemesi |
 
 ## 7. Erişim Kayıtları ve Olay Müdahalesi
 
-- Belge görüntüleme/indirme audit'lenir (KVKK m.12 erişim kayıtları beklentisi).
+- Belge görüntüleme/indirme audit'lenir (aktör, zaman, dosya ID). IP/cihaz bilgisi olmadığından, bağlantının kimin elinde olduğu tespit edilemeyebilir (THREAT_MODEL TM-25).
 - **Olay müdahale planı (özet, PHASE 13'te detaylandırılır):**
-  1. Tespit (audit anomalisi, sağlayıcı bildirimi, kullanıcı şikâyeti).
-  2. Sınırlama: ilgili token'ları iptal et, oturumları sonlandır, şüpheli personel hesabını pasifleştir, secret'ları döndür.
+  1. Tespit (audit anomalisi, sağlayıcı bildirimi, müşteri şikâyeti).
+  2. Sınırlama: ilgili bağlantıları iptal et/yenile, personel hesaplarını pasifleştir, secret'ları döndür.
   3. Değerlendirme: etkilenen kişi/veri kapsamı (audit'ten).
-  4. Bildirim: KVKK Kurul kararı gereği veri ihlallerinin **en kısa sürede ve en geç 72 saat içinde** Kurul'a, etkilenen kişilere ise makul sürede bildirilmesi — hukukçu ile teyit edilmelidir.
-  5. Kök neden analizi ve DECISION_LOG/CHANGELOG kaydı.
+  4. Bildirim: Kurul kararı gereği veri ihlallerinin **en kısa sürede ve en geç 72 saat içinde** Kurul'a ve makul sürede ilgili kişilere bildirilmesi — hukukçu ile teyit edilmelidir.
+  5. Kök neden analizi; DECISION_LOG/CHANGELOG kaydı.
 
 ## 8. Yurt Dışına Veri Aktarımı
 
-- Vercel ve Neon sunucuları **Türkiye dışında** (önerilen: Frankfurt — `fra1`, `aws-eu-central-1`). Neon'da Türkiye bölgesi yok (2026-11-24). Sağlayıcılar ABD merkezli şirketlerdir; destek/operasyon erişimi farklı ülkelerden olabilir.
-- 2024 değişikliğiyle KVKK m.9 yurt dışı aktarımı; yeterlilik kararı, uygun güvenceler (ör. Kurul'un yayımladığı **standart sözleşmeler** — imzalandıktan sonra belirli süre içinde Kurul'a bildirim yükümlülüğü dahil) veya arızi istisnalar gibi dayanaklara bağlamıştır. **Hangi dayanağın kullanılacağı ve sağlayıcıların standart sözleşmeyi imzalayıp imzalamayacağı hukukçu tarafından değerlendirilmelidir.**
-- Alternatif (değerlendirme amaçlı): Türkiye'de barındırma (yerli bulut/VPS + self-hosted Postgres + S3 uyumlu storage) yurt dışı aktarım sorununu azaltır ancak **stack değişikliği** gerektirir ve operasyon yükünü artırır. Kullanıcı onayı olmadan stack değiştirilmez; hukuki değerlendirme sonucu gerektirirse karar olarak sunulur.
+- Geliştirme/demo altyapısı (Vercel `fra1`, Neon `aws-eu-central-1`) **Türkiye dışındadır**; sağlayıcılar ABD merkezlidir. Production sağlayıcısı henüz seçilmedi (PB-01) — seçimde veri konumu bir kriterdir.
+- KVKK m.9 (2024 değişikliği): yeterlilik kararı, uygun güvenceler (ör. Kurul'un **standart sözleşmeleri** ve bildirim yükümlülüğü) veya arızi istisnalar. **Hangi dayanağın kullanılacağı ve ücretsiz plan sağlayıcılarının gerekli sözleşmeleri sağlayıp sağlamadığı hukukçu tarafından değerlendirilmelidir.**
+- Türkiye'de barındırma alternatifi stack değişikliği gerektirebilir; kullanıcı onayı olmadan stack değiştirilmez.
 
-## 9. Hukuki Değerlendirme Gerektiren Konular (Production Blocker)
+## 9. Hukuki Değerlendirme Gerektiren Konular (PB-03)
 
-1. Aydınlatma metni (KVKK m.10) — müşteri panelinde ilk girişte gösterim yeri ve metni; çalışanlar için ayrı metin.
-2. İşleme hukuki sebepleri (m.5/m.6) — açık rıza gerekip gerekmediği; özel nitelikli veri durumu.
-3. Yurt dışı aktarım dayanağı (m.9) ve sağlayıcı sözleşmeleri (DPA, standart sözleşme).
-4. VERBİS kayıt yükümlülüğü değerlendirmesi.
-5. Saklama ve imha politikası + periyodik imha süreleri (Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik).
+1. Aydınlatma metni (m.10) — müşteri paneli ve WhatsApp mesajı bağlamında; personel için ayrı metin.
+2. İşleme hukuki sebepleri (m.5/m.6); özel nitelikli veri durumu.
+3. Yurt dışı aktarım dayanağı (m.9) ve sağlayıcı sözleşmeleri (ücretsiz planlar dahil).
+4. VERBİS kayıt yükümlülüğü.
+5. **Saklama ve imha politikası** — otomatik silme olmadığından şirketin manuel süreci (OD-06).
 6. Veri ihlali bildirim prosedürü.
-7. İlgili kişi başvuru süreci (m.11, m.13) — başvuru kanalı ve yanıt süresi.
-8. E-posta ile OTP gönderiminin ticari elektronik ileti mevzuatı (İYS) kapsamında olmadığının teyidi (işlemsel ileti).
-9. Personel cihaz ve erişim politikası (belgelerin indirilmesi, yerel kopyalar).
-10. WhatsApp üzerinden bağlantı paylaşımının (Meta) değerlendirilmesi — bağlantı kişisel veri içermez; ancak mesaj metni müşteri adını içeriyorsa minimizasyon (Proposed: hazır mesajda ad **kullanılmaz** veya yalnızca ad).
+7. İlgili kişi başvuru süreci (m.11, m.13).
+8. **Bearer bağlantı + OTP yokluğu + süresiz geçerliliğin** m.12 "uygun güvenlik düzeyi" yükümlülüğü açısından değerlendirilmesi (THREAT_MODEL TM-13).
+9. Antivirüs taraması olmadan belge kabulünün m.12 açısından değerlendirilmesi.
+10. Kişiselleştirilmiş WhatsApp mesajının (ad, soyad, hizmet) Meta üzerinden iletilmesi.
+11. Personel cihaz ve erişim politikası (tüm çalışanların tüm başvurulara erişimi, belgelerin yerel kopyaları).
 
 ## 10. Ortam İzolasyonu
 
-| Ortam | DB | Blob | Secret | Veri |
+| Ortam | DB | Storage | Secret | Veri |
 |---|---|---|---|---|
-| Development | Neon non-prod projesi, `dev` branch | `blob-dev` store | Geliştirici `.env.local` | Sahte seed |
-| Preview | Neon non-prod projesi, preview branch'leri (non-prod `main`'den) | `blob-preview` store | Vercel Preview scope | Sahte seed |
-| Production | **Ayrı** Neon production projesi | `blob-prod` store | Vercel Production scope (yalnızca yetkili) | Gerçek |
+| Development | Neon Free non-prod projesi, `dev` branch | Ayrı Blob store (dev) | `.env.local` | Sahte |
+| Preview / Demo | Neon Free non-prod projesi, preview branch'leri | Ayrı Blob store (demo) | Sağlayıcı Preview scope | Sahte |
+| Production | **Ayrı proje/hesap** — sağlayıcı açık (PB-01) | **Ayrı store** | Production scope | Gerçek |
 
 Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md).

@@ -1,146 +1,130 @@
 # Geliştirme Roadmap'i
 
-> Her faz sonunda: PROJECT_STATE, CHANGELOG, (gerekirse) DECISION_LOG güncellenir; faz raporu sunulur; **kullanıcı onayı olmadan sonraki faza geçilmez**.
-> Ortak Definition of Done (tüm fazlar): `typecheck` + `lint` + `format:check` + ilgili testler yeşil · `pnpm audit` yüksek/kritik yok · dokümanlar güncel · yeni secret yok · gerçek veri yok · test edilmeyen iş "tamamlandı" raporlanmaz.
+> Her faz sonunda PROJECT_STATE, CHANGELOG, (gerekirse) DECISION_LOG güncellenir; faz raporu sunulur; **kullanıcı açıkça onaylamadan sonraki faza geçilmez**.
+> **Ortak Definition of Done (tüm fazlar):** `typecheck` + `lint` + `format:check` + ilgili testler yeşil · `pnpm audit` yüksek/kritik yok · dokümanlar güncel · yeni secret yok · gerçek veri yok · ücretli servis yok · test edilmeyen iş "tamamlandı" raporlanmaz.
+> Revizyon 2026-11-24: OTP, e-posta, müşteri eşleştirme, çalışan atama, arşiv, ayarlar, otomatik saklama/süre sonu, harici AV, dinamik limitler kaldırıldı; ADMIN yeniden açma/geri alma, manuel silme, tek aktif PDF, sabit yapılandırma eklendi.
 
 ---
 
-## PHASE 00 — Project Foundation & Architecture ✅ (onay bekliyor)
-- **Objective:** Gereksinim, mimari, veri modeli, güvenlik, tasarım ve test stratejisinin dokümantasyonu.
-- **Scope:** Yalnızca doküman. Kod/kurulum/hesap yok.
+## PHASE 00 — Project Foundation & Architecture (revizyon tamamlandı, onay bekliyor)
+- **Scope:** Yalnızca doküman.
+- **Deliverables:** `CLAUDE.md`, `README.md`, `docs/*` (20 doküman), 23 ürün kararının işlenmesi.
 - **Dependencies:** —
-- **Deliverables:** `CLAUDE.md`, `README.md`, `docs/*` (20 doküman).
-- **Security:** Threat model, güvenlik mimarisi, KVKK değerlendirme listesi.
-- **Tests:** Test stratejisi ve kabul kriterleri.
-- **Acceptance:** Dokümanlar tutarlı; açık kararlar listelenmiş; sürümler doğrulanmış.
-- **DoD:** Kullanıcı dokümanları inceleyip açık kararları yanıtlar.
+- **Security checks:** Threat model, birleşik risk analizi, production blocker listesi.
+- **Test requirements:** Test stratejisi ve kabul kriterleri.
+- **Acceptance:** Dokümanlar kararlarla uyumlu, çelişkisiz, referanslar geçerli.
+- **DoD:** Kullanıcı revizyonu onaylar; D-002 ve D-004 kararlarını verir.
 
 ## PHASE 01 — Project Initialization
-- **Objective:** Çalışan, boş ama standartlara uygun Next.js iskeleti.
-- **Scope:** `.gitignore` değişimi (D-031), Next.js 16 + TS 6 strict + Tailwind 4 + shadcn/ui init, ESLint (flat config, `eslint-config-next`, `no-restricted-imports`, `dangerouslySetInnerHTML` yasağı) + Prettier, klasör yapısı, `server-only`, `env.ts` (Zod), `.env.example`, design token'ları (`globals.css`), temel bileşenler (Button, Input, Card, Badge, metin logo), Vitest + Playwright kurulumu (örnek test), güvenlik header'ları iskeleti (`next.config.ts`), `robots.ts`, CI (GitHub Actions) taslağı, `engines`/`packageManager` sabitleme.
-- **Dependencies:** PHASE 00 onayı; D-002, D-003, D-004 kararları.
-- **Deliverables:** Repo iskeleti, lockfile, CI workflow, `pnpm` script'leri (`dev`, `build`, `typecheck`, `lint`, `format`, `test:unit`, `test:e2e`).
-- **Security:** Secret'lar repoda değil; bundle'da secret kontrol script'i; exact sürümler; pnpm kurulum script kısıtları.
-- **Tests:** Örnek unit test; Playwright smoke (ana sayfa yanıt + header'lar); 320px'te yatay taşma yok.
-- **Acceptance:** `pnpm build` başarılı; tüm kalite kapıları yeşil; header'lar mevcut.
-- **DoD:** Ortak DoD + TECH_STACK'te kurulu sürümler güncellendi.
+- **Scope:** `.gitignore` değişimi (D-031, ilk adım), Next.js 16 + TypeScript (D-002) strict + Tailwind 4 + shadcn/ui, ESLint (flat config, `eslint-config-next`, `no-restricted-imports` sınırları, `dangerouslySetInnerHTML` yasağı, cache API yasağı) + Prettier, klasör yapısı, `server-only`, `src/server/env.ts`, `.env.example`, `src/config/constants.ts` ve `src/config/company.ts` iskeleti, design token'ları, temel bileşenler (Button, Input, Card, Badge, `Logo`), Vitest + Playwright kurulumu, güvenlik header iskeleti, `robots.ts`, CI taslağı, `engines.node = 24.x` + `packageManager` sabitleme.
+- **Deliverables:** Repo iskeleti, lockfile, CI workflow, `pnpm` script'leri.
+- **Dependencies:** PHASE 00 onayı; D-002, D-004.
+- **Security checks:** `.gitignore` kapsamı (env, build, test çıktıları); bundle secret kontrol script'i; exact sürümler; pnpm kurulum script kısıtları.
+- **Test requirements:** Örnek unit; Playwright smoke (header'lar); 320 px'te yatay taşma yok; `MAX_PDF_SIZE_BYTES` sabit testi.
+- **Acceptance:** `pnpm build` başarılı; kalite kapıları yeşil; header'lar mevcut; `.env.local` git tarafından ignore ediliyor (test).
+- **DoD:** Ortak DoD + TECH_STACK kurulu sürümlerle güncel.
 
 ## PHASE 02 — Database Foundation
-- **Objective:** Şemanın Drizzle ile tanımlanması ve migration'lar.
-- **Scope:** Neon **non-prod** projesi (kullanıcı hesabıyla, onaylı), Drizzle config, `pg` pool client, tüm domain tabloları + CHECK/partial index/trigger/GRANT migration'ları, DB rolleri (`cs_app`, `cs_maintenance`), `pg_trgm`, sahte seed (hizmetler, şablonlar, sahte müşteriler), normalizasyon yardımcıları.
-- **Dependencies:** PHASE 01; D-005, D-006, D-007, D-008, D-025, D-026.
-- **Deliverables:** `src/server/db/schema/*`, migration SQL'leri, `db:generate`, `db:migrate`, `db:seed` script'leri, integration test altyapısı.
-- **Security:** TLS bağlantı (`verify-full` doğrulaması), uygulama rolünün en az yetkisi, audit tablosunun değiştirilemezliği, seed'de gerçek veri yok.
-- **Tests:** Integration: kısıtlar (CHECK, unique, FK), sayaç eşzamanlılığı, audit UPDATE/DELETE reddi, Türkçe arama katlaması, telefon/e-posta normalizasyonu (unit).
-- **Acceptance:** Boş DB'ye migration'lar baştan sona uygulanır; seed çalışır; integration testleri yeşil.
+- **Scope:** Neon Free non-prod projesi (kullanıcı onayıyla, ücretsiz), Drizzle + `pg` pool, 13 domain tablosu + CHECK/partial unique index/trigger/GRANT migration'ları, `pg_trgm`, sahte seed (demo hizmetler, şablonlar, sahte başvurular), normalizasyon yardımcıları (telefon, e-posta, arama).
+- **Deliverables:** `src/server/db/schema/*`, migration SQL'leri, `db:generate`, `db:migrate`, `db:seed`, integration test altyapısı.
+- **Dependencies:** PHASE 01; D-005, D-006, D-007, D-008, D-039.
+- **Security checks:** TLS (`verify-full`), uygulama rolü en az yetki, audit değiştirilemezliği, seed'de gerçek veri yok, IP/UA kolonu olmadığının doğrulanması.
+- **Test requirements:** Kısıtlar (tek aktif dosya, tek devam eden yükleme, tek aktif token, CHECK'ler), sayaç eşzamanlılığı, audit UPDATE/DELETE reddi, CASCADE silme davranışı, normalizasyon unit testleri.
+- **Acceptance:** Boş DB'ye migration'lar baştan uygulanır; seed çalışır; integration yeşil.
 - **DoD:** Ortak DoD + DATABASE_SCHEMA gerçek şemayla senkron.
 
 ## PHASE 03 — Authentication & Authorization
-- **Objective:** Personel girişi, oturum ve RBAC.
-- **Scope:** Better Auth (username + admin plugin, `nextCookies`), Drizzle adapter, `/api/auth/[...all]`, kapalı uç noktalar (sign-up, e-posta girişi, username availability, impersonation), DB rate limit, hesap bazlı başarısız giriş sınırlaması, `requireStaff`, `permissions.ts`, `/login` sayfası, zorunlu şifre değişimi, bootstrap admin script'i, oturum iptali, `proxy.ts` iyimser yönlendirme, auth audit event'leri.
-- **Dependencies:** PHASE 02; D-020, D-021.
-- **Deliverables:** Çalışan login/logout, admin bootstrap, izin altyapısı.
-- **Security:** Cookie flag'leri, trusted origins, enumeration testleri, rate limit, cookie cache kapalı, pasif kullanıcı kontrolü.
-- **Tests:** Unit: izin matrisi. Integration: login, pasif kullanıcı, kapalı uç noktalar, rate limit. E2E: login/logout, zorunlu şifre değişimi, EMPLOYEE'nin admin route'u.
-- **Acceptance:** Public kayıt mümkün değil; bootstrap ikinci kez çalışmaz; pasifleştirme anında etkili.
-- **DoD:** Ortak DoD + TECH_STACK §3.5 "doğrulanamayanlar" kapatıldı.
+- **Scope:** Better Auth (username + admin plugin, `nextCookies`), Drizzle adapter, `/api/auth/[...all]`, `disableSignUp`, `disabledPaths` + `hooks.before` ile kapalı uç noktalar, `disableIpTracking` + session hook (UA null) + DB CHECK, uygulama limitleyicisiyle giriş sınırlaması, 7 gün sabit oturum (`disableSessionRefresh`), cookie cache kapalı, `requireStaff`, `permissions.ts`, `/login` (yalnızca kullanıcı adı + şifre), `proxy.ts` iyimser yönlendirme, `admin:bootstrap` ve `admin:recover` script'leri, auth audit event'leri.
+- **Deliverables:** Çalışan giriş/çıkış, bootstrap/recover, izin altyapısı.
+- **Dependencies:** PHASE 02; TD-03, TD-04, TD-05.
+- **Security checks:** Kapalı uç noktalara doğrudan istek; IP/UA'nın yazılmadığı; oturumun uzamadığı; enumeration; cookie flag'leri; trusted origins.
+- **Test requirements:** Unit: izin matrisi. Integration: §3 "Personel auth", "Oturum parametreleri", "IP/UA saklamama", "Giriş sınırlaması". E2E: login/logout, S05, S18, S24.
+- **Acceptance:** Public kayıt/self-servis şifre işlemi mümkün değil; bootstrap ikinci kez çalışmaz; `sessions` satırlarında IP/UA NULL.
+- **DoD:** Ortak DoD + TECH_STACK §3.5 doğrulanamayanları kapatıldı.
 
 ## PHASE 04 — Dashboard Foundation
-- **Objective:** Şirket paneli iskeleti.
-- **Scope:** Dashboard layout (sidebar, header, breadcrumb, mobil drawer), rol bazlı navigasyon, boş sayfa şablonları, ortak bileşenler (DataTable, Pagination, EmptyState, ConfirmDialog, StatusBadge, Skeleton), hata/404 sayfaları, hesap sayfası.
-- **Dependencies:** PHASE 03.
+- **Scope:** Dashboard layout (sidebar, header, breadcrumb, mobil drawer), rol bazlı navigasyon (Ayarlar/Hesap sayfası yok), ortak bileşenler (DataTable, Pagination, EmptyState, ConfirmDialog, StatusBadge, Skeleton), hata/404 sayfaları.
 - **Deliverables:** Gezinilebilir panel iskeleti.
-- **Security:** Her layout/page `requireStaff`; `Cache-Control` doğrulaması; CSP nonce entegrasyonu.
-- **Tests:** E2E: navigasyon (ADMIN vs EMPLOYEE menüsü), responsive drawer (768/1024), klavye navigasyonu, axe.
+- **Dependencies:** PHASE 03.
+- **Security checks:** Her layout/page `requireStaff`; `Cache-Control`; CSP nonce entegrasyonu.
+- **Test requirements:** E2E: ADMIN vs EMPLOYEE menüsü, responsive drawer, klavye navigasyonu, axe.
 - **Acceptance:** 1024/1440'ta sidebar, <1024'te drawer; tüm sayfalar dinamik ve no-store.
 - **DoD:** Ortak DoD.
 
 ## PHASE 05 — Service & Document Template Management
-- **Objective:** ADMIN'in hizmet ve evrak şablonlarını yönetmesi.
-- **Scope:** Hizmet CRUD (silme yok), aktif/pasif, sıralama; şablon CRUD, zorunluluk, limitler, sıralama, aktif/pasif.
+- **Scope:** Hizmet CRUD (silme yok), aktif/pasif, sıralama; evrak şablonu CRUD (başlık, açıklama, talimat, zorunlu/isteğe bağlı, sıra, aktif/pasif). Dosya boyutu/sayısı/tipi alanı **yok**.
+- **Deliverables:** `/dashboard/services*`.
 - **Dependencies:** PHASE 04.
-- **Deliverables:** `/dashboard/services*` sayfaları ve action'ları.
-- **Security:** `service:manage` yalnızca ADMIN; Zod strict; limitlerin sistem üst sınırını aşmaması.
-- **Tests:** Unit: şemalar. Integration: CRUD, yetki. E2E: admin hizmet + şablon oluşturur; EMPLOYEE erişemez.
-- **Acceptance:** Pasif hizmet başvuru formu sorgusunda dönmez (test).
+- **Security checks:** `service:manage` yalnızca ADMIN; `.strict()` şemalar.
+- **Test requirements:** Unit: şemalar. Integration: CRUD, yetki, pasif hizmetin aktif listede olmaması. E2E: ADMIN hizmet + şablon; EMPLOYEE erişemez.
+- **Acceptance:** Pasif hizmet başvuru formunda listelenmez.
 - **DoD:** Ortak DoD.
 
 ## PHASE 06 — Customer & Application Management
-- **Objective:** Başvuru oluşturma, listeleme, detay (evrak işlemleri hariç), bağlantı yönetimi.
-- **Scope:** Başvuru formu (combobox), mükerrer aday tespiti, atomik oluşturma (snapshot, numara, token), sonuç ekranı (kopyala, WhatsApp), liste (arama, filtre, sayfalama), detay (müşteri/başvuru bilgisi, statü geçmişi, notlar, bağlantı göster/yenile/iptal), müşteri bilgisi düzenleme, arşivleme, görünürlük kapsamı altyapısı.
-- **Dependencies:** PHASE 05; OD-03, OD-04, OD-10, OD-18, OD-19; D-009, D-011.
+- **Scope:** Başvuru formu (müşteri bilgileri her başvuruda yeniden girilir; eşleştirme yok), atomik oluşturma (numara, snapshot, token), sonuç ekranı (Kopyala, **kişiselleştirilmiş WhatsApp paylaşımı** + onay penceresi, Detaya git), tek başvuru listesi (arama, statü/hizmet/tarih filtresi, sayfalama), detay (müşteri bilgisi düzenleme, statü geçmişi, iç notlar, bağlantı göster/kopyala/paylaş/yenile/iptal/yeni oluştur), ADMIN manuel silme (iki aşamalı; storage silme PHASE 08 storage modülü hazır olduğunda tamamlanır — bu fazda dosyasız başvurular için).
 - **Deliverables:** `/dashboard/applications*`.
-- **Security:** Token üretimi/şifreleme/HMAC, bağlantı gösteriminin audit'i, kapsam filtresi, 404 davranışı, idempotency.
-- **Tests:** Unit: token, numara formatı. Integration: transaction geri alma, eşzamanlı numara, snapshot değişmezliği, bağlantı iptali → oturum iptali (müşteri oturumu tablosu bu fazda hazır). E2E: başvuru oluşturma akışı.
-- **Acceptance:** Brief §6'daki 9 adım tek transaction'da; sonuç ekranında tüm öğeler.
+- **Dependencies:** PHASE 05; D-011, D-033, D-036.
+- **Security checks:** Token üretimi/HMAC/AES-GCM; bağlantı gösteriminin audit'i; tek aktif token; `APP_URL` ile URL üretimi; idempotency; silme sonrası erişilemezlik.
+- **Test requirements:** Unit: token, numara, WhatsApp URL. Integration: transaction geri alma, eşzamanlı numara, snapshot, bağımsız başvurular, eşzamanlı yenileme, silme. E2E: oluşturma akışı, E4, E5 (dosyasız), S22.
+- **Acceptance:** Brief §6 adımları tek transaction'da; sonuç ekranındaki tüm öğeler.
 - **DoD:** Ortak DoD.
 
 ## PHASE 07 — Customer Portal
-- **Objective:** Güvenli müşteri erişimi ve mobile-first panel (yükleme hariç).
-- **Scope:** `/b/[token]` (veya fragment varyantı — OD-02), pre-auth cookie, OTP (e-posta sağlayıcı entegrasyonu — OD-08), müşteri oturumu, `/portal` (bilgiler, süreç göstergesi, tamamlanma göstergesi, evrak kartları salt okunur, iletişim), çıkış, salt okunur modlar.
-- **Dependencies:** PHASE 06; **OD-01, OD-02, OD-08 kararları zorunlu**; D-012, D-013.
-- **Deliverables:** Müşteri erişim akışı ve panel.
-- **Security:** Rate limit (link, OTP gönder/doğrula), timing-safe karşılaştırma, `no-referrer`, `no-store`, `noindex`, üçüncü taraf script yok, müşteri DTO whitelist, iç not sızıntı testi.
-- **Tests:** Unit: OTP, ilerleme hesapları. Integration: oturum geçerliliği, token iptali. E2E (mobil projeler): erişim, OTP, panel; S01–S04, S16, S18; 9 genişlik responsive.
-- **Acceptance:** Doğrulama öncesi hiçbir kişisel veri yanıtta yok (HTML/RSC kontrolü).
-- **DoD:** Ortak DoD + gerçek cihaz (iOS Safari, Android Chrome, WhatsApp in-app) manuel test sonuçları raporlandı.
+- **Scope:** `GET /b/[token]` (rate limit, doğrulama, imzalı portal cookie'si, 303), `/portal` (bilgiler, süreç göstergesi, tamamlanma göstergesi, evrak kartları — yükleme hariç, yorumlar, düzeltme açıklamaları, sabit iletişim kartı/placeholder, salt okunur modlar), `/link-invalid`.
+- **Deliverables:** Bağlantıyla doğrudan erişim ve mobile-first panel.
+- **Dependencies:** PHASE 06; D-032.
+- **Security checks:** GET'in veri değiştirmemesi; `no-referrer`, `no-store`, `noindex`; üçüncü taraf script yok; müşteri DTO whitelist; iç not sızıntısı; iptal/yenilemenin anında etkisi; token'ın log/hata mesajında olmaması.
+- **Test requirements:** Unit: cookie imzası, ilerleme hesapları. Integration: bağlantı GET'in yan etkisizliği; iptal sonrası cookie reddi. E2E (mobil projeler): S01–S04, S16, S20, S21; 9 genişlik.
+- **Acceptance:** Geçerli bağlantı ek adımsız panele götürür; adres çubuğunda token kalmaz; geçersiz bağlantıda hiçbir kişisel veri dönmez.
+- **DoD:** Ortak DoD + gerçek cihaz (iOS Safari, Android Chrome, WhatsApp in-app — cookie davranışı dahil) manuel test sonuçları raporlandı.
 
 ## PHASE 08 — Secure PDF Document Management
-- **Objective:** Güvenli yükleme, doğrulama, tarama, versiyonlama, görüntüleme.
-- **Scope:** Blob store'lar (non-prod), `/api/uploads` (token + callback), client confirm, upload bileşeni (ilerleme, hata, tekrar dene, çift gönderim engeli), yapısal PDF doğrulama, AV entegrasyonu (OD-07), tarama durum poll'u, `/api/files/[fileId]`, kaldırma/değiştirme, versiyonlama, cron temizliği (orphan, PENDING, REJECTED), personelin müşteri adına yüklemesi.
-- **Dependencies:** PHASE 07; **OD-07 kararı zorunlu**; D-017, D-018, D-029.
+- **Scope:** Dev/demo private Blob store'ları (ücretsiz), storage modülü (`storage.ts`, `upload-client.ts`), `/api/uploads` (token + callback), client confirm, upload bileşeni (ilerleme, hata, tekrar dene, çift gönderim engeli, değiştir/kaldır), PDF yapısal doğrulama (parser seçimi TD-06), tek aktif PDF + versiyonlama, `/api/files/[fileId]` (inline/attachment — TD-12), personelin müşteri adına (UNDER_REVIEW dahil) yüklemesi, günlük teknik temizlik (cron), başvuru silmenin storage aşaması.
 - **Deliverables:** Uçtan uca dosya yönetimi.
-- **Security:** FILE_STORAGE §6.4 kabul kriterlerinin tamamı.
-- **Tests:** Unit: sanitizasyon, PDF doğrulama (fixture seti). Integration: idempotency, yarış, sayı limiti. E2E: S07–S12, mobil dosya seçimi.
-- **Acceptance:** FILE_STORAGE §6.4 maddeleri 1–13 geçer.
-- **DoD:** Ortak DoD + SDK API'leri (maximumSizeInBytes, validUntil, ilerleme callback) TECH_STACK'te doğrulandı.
+- **Dependencies:** PHASE 07; TD-06, TD-10, TD-11, TD-12.
+- **Security checks:** FILE_STORAGE §6.4 kabul kriterlerinin tamamı; "virüssüz" etiketi olmaması.
+- **Test requirements:** Unit: sanitizasyon, doğrulama fixture seti. Integration: idempotency, yarış, tek aktif/tek devam eden yükleme, temizlik, silme. E2E: S07–S12, mobil dosya seçimi, E5 (dosyalı).
+- **Acceptance:** FILE_STORAGE §6.4 maddeleri 1–15 geçer.
+- **DoD:** Ortak DoD + SDK API'leri TECH_STACK'te doğrulandı.
 
 ## PHASE 09 — Document Review & Application Workflow
-- **Objective:** İnceleme ve statü iş akışı.
-- **Scope:** Gönderim (müşteri + müşteri adına), evrak inceleme (onay/düzeltme + gerekçe), karar değişikliği, müşteri yorumları, T2/T3/T5/T6/T7 geçişleri, izin verilen aksiyonlar, müşteri panelinde düzeltme gösterimi, yeniden gönderim, statü geçmişi.
-- **Dependencies:** PHASE 08; OD-05.
+- **Scope:** Gönderim (müşteri + müşteri adına), evrak inceleme (onay/düzeltme + gerekçe, `fileId` bağlı), karar değişikliği, müşteri yorumları, T2–T7, **ADMIN T8–T12** (gerekçeli, evrak seçimli), izin verilen aksiyonlar, müşteri panelinde düzeltme gösterimi, yeniden gönderim, statü geçmişi.
 - **Deliverables:** Tam iş akışı.
-- **Security:** Sunucu tarafı state machine, kilit + version, aktör kaydı ("müşteri adına").
-- **Tests:** Unit: geçiş matrisi %100. Integration: eşzamanlılık senaryoları. E2E: **TESTING_STRATEGY §5.1 ana senaryo** (tamamı), S11–S14.
-- **Acceptance:** Ana senaryo 19 adımın tamamı yeşil (desktop + mobil).
+- **Dependencies:** PHASE 08; D-027, D-041.
+- **Security checks:** Sunucu tarafı state machine; kilit + version; BR-57; aktör kaydı.
+- **Test requirements:** Unit: geçiş matrisleri %100. Integration: eşzamanlılık, ADMIN geçişleri. E2E: §5.1 ana senaryo (tamamı), E1–E3, S13, S14, S23.
+- **Acceptance:** Ana senaryonun 19 adımı desktop + mobilde yeşil.
 - **DoD:** Ortak DoD.
 
 ## PHASE 10 — Administration & Operations
-- **Objective:** Yönetim ekranları ve operasyon.
-- **Scope:** Çalışan yönetimi (oluştur, düzenle, rol, pasif/aktif, şifre sıfırlama, oturum sonlandırma), dashboard istatistikleri, audit log ekranı (filtre, sayfalama), ayarlar ekranı, (OD-03'e göre) atama UI'ı, müşteri anonimleştirme aracı (DATA_PRIVACY §5 — hukuki kararlara göre), saklama işleri (ayar değerleri girildiyse).
-- **Dependencies:** PHASE 09; OD-06, OD-09, OD-11.
-- **Deliverables:** `/dashboard/employees*`, `/dashboard/audit-logs`, `/dashboard/settings`, dashboard sayaçları.
-- **Security:** BR-133 (son admin koruması), audit okuma yalnızca ADMIN, ayar değişikliği audit'i.
-- **Tests:** Integration: kullanıcı yönetimi, son admin koruması, istatistik doğruluğu. E2E: S05, S06.
-- **Acceptance:** Tüm AUTHORIZATION_MATRIX yönetim satırları testli.
+- **Scope:** Çalışan yönetimi (oluştur, kullanıcı adı/şifre belirle, düzenle, rol, aktif/pasif, yeni şifre ata + oturum iptali, oturum sonlandırma), dashboard istatistikleri, audit log ekranı (filtre, sayfalama), başvuru detayında işlem geçmişi.
+- **Deliverables:** `/dashboard/employees*`, `/dashboard/audit-logs`, dashboard sayaçları.
+- **Dependencies:** PHASE 09.
+- **Security checks:** BR-133 son admin koruması; audit yalnızca ADMIN; şifrelerin hiçbir yanıtta/logda olmaması.
+- **Test requirements:** Integration: kullanıcı yönetimi, son admin koruması, istatistik doğruluğu. E2E: S05, S06, E6.
+- **Acceptance:** AUTHORIZATION_MATRIX yönetim satırlarının tamamı testli.
 - **DoD:** Ortak DoD.
 
 ## PHASE 11 — UI/UX & Performance Optimization
-- **Objective:** Erişilebilirlik, responsive kalite ve performans.
-- **Scope:** WCAG 2.2 AA denetimi ve düzeltmeleri, 9 genişlikte görsel regresyon, Lighthouse, sorgu planları (10k seed), bundle analizi, loading/empty/error durumları, metin/ton gözden geçirmesi.
+- **Scope:** WCAG 2.2 AA denetimi, 9 genişlikte görsel regresyon, Lighthouse, sorgu planları (10k seed), bundle analizi, loading/empty/error durumları, metin/ton.
 - **Dependencies:** PHASE 10.
-- **Deliverables:** Denetim raporu + düzeltmeler.
-- **Security:** Performans optimizasyonlarının cache kurallarını (D-016) ihlal etmemesi.
-- **Tests:** axe, Lighthouse, ekran okuyucu manuel testi, görsel regresyon.
-- **Acceptance:** axe kritik/ciddi ihlal yok; müşteri paneli Lighthouse mobil Perf ≥90, A11y ≥95; liste sorguları index kullanır.
+- **Security checks:** Optimizasyonların cache kurallarını (D-016) ihlal etmemesi.
+- **Test requirements:** axe, Lighthouse, ekran okuyucu, görsel regresyon.
+- **Acceptance:** axe kritik/ciddi yok; portal Lighthouse mobil Perf ≥ 90, A11y ≥ 95; sorgular index kullanır.
 - **DoD:** Ortak DoD.
 
 ## PHASE 12 — Quality Assurance & Security Audit
-- **Objective:** Production hazırlığı doğrulaması.
-- **Scope:** Tam test regresyonu, yetki matrisi %100, güvenlik E2E (S01–S20), tehdit modeli gözden geçirme, manuel sızma testi (OWASP ASVS L2 kontrol listesi seçkisi), bağımlılık denetimi, log/payload sızıntı incelemesi, production blocker listesinin kapatılması.
-- **Dependencies:** PHASE 11; hukuki değerlendirme sonuçları.
-- **Deliverables:** Güvenlik denetim raporu, production readiness checklist.
-- **Security:** SECURITY §11 blocker'larının tamamı.
-- **Tests:** Tüm suite.
-- **Acceptance:** Açık yüksek/kritik bulgu yok.
-- **DoD:** Ortak DoD + kullanıcı risk kabulü (varsa) yazılı.
+- **Scope:** Tam regresyon, yetki matrisi %100, S01–S24, tehdit modeli gözden geçirme, manuel sızma testi (ASVS L2 seçkisi), bağımlılık denetimi, log/payload sızıntı incelemesi, production blocker durumu.
+- **Dependencies:** PHASE 11.
+- **Security checks:** SECURITY §11 PB-04, PB-05, PB-07, PB-09, PB-10.
+- **Test requirements:** Tüm suite.
+- **Acceptance:** Açık yüksek/kritik bulgu yok; PB-04/PB-05 için Product Owner yazılı risk kabulü (veya alternatif önlem kararı).
+- **DoD:** Ortak DoD.
 
 ## PHASE 13 — Production Deployment
-- **Objective:** Güvenli production yayını.
-- **Scope:** Vercel Pro proje (fra1), Neon prod projesi (aws-eu-central-1, ücretli plan), Blob prod store (fra1), production env/secrets, domain + HSTS, GitHub branch koruma + secret scanning, migration, bootstrap admin, cron, yedek/geri yükleme provası, izleme, olay müdahale planı, smoke test.
-- **Dependencies:** PHASE 12; kullanıcının ücretli plan ve hukuki onayı.
-- **Deliverables:** Canlı sistem, operasyon runbook'u.
-- **Security:** MFA, en az yetki, production izolasyonu, secret rotasyon prosedürü.
-- **Tests:** Production smoke test (sahte test başvurusu, sonra silinir), geri yükleme provası.
-- **Acceptance:** Smoke test yeşil, geri yükleme provası başarılı, tüm blocker'lar kapalı.
-- **DoD:** Ortak DoD + PROJECT_STATE "Production" durumuna geçti.
+- **Scope:** Ticari kullanıma uygun ücretsiz (veya kullanıcının açıkça onayladığı) hosting/DB/storage değerlendirmesi ve seçimi (DEPLOYMENT §6.3), production ortamı, env/secrets, sağlayıcı alt alan adı (`APP_URL`), GitHub branch koruma + secret scanning, migration, bootstrap admin, günlük temizlik zamanlaması, yedek/geri yükleme provası, izleme, olay müdahale planı, smoke test.
+- **Dependencies:** PHASE 12; PB-01, PB-02, PB-03, PB-06, PB-08, PB-11 kapalı.
+- **Security checks:** MFA, en az yetki, izolasyon, rotasyon prosedürü, sağlayıcı log politikası incelemesi (TM-15).
+- **Test requirements:** Production smoke test (sahte başvuru, sonra silinir), geri yükleme provası.
+- **Acceptance:** Tüm production blocker'ları kapalı; smoke test yeşil.
+- **DoD:** Ortak DoD + PROJECT_STATE "Production".

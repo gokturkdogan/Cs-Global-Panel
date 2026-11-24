@@ -1,6 +1,8 @@
 # Tehdit Modeli
 
-> Yöntem: varlık + güven sınırı analizi, STRIDE sınıflandırması, OWASP Top 10 eşlemesi. Risk = Olasılık × Etki (Düşük / Orta / Yüksek / Kritik), **önlemlerden önceki** değerlendirmedir.
+> Revizyon: 2026-11-24 (OD-01…OD-23 sonrası). Tehdit kimlikleri statü geçişleriyle (T1–T12) çakışmaması için `T01…` → **`TM-01…`** olarak yeniden adlandırıldı. Yöntem: varlık + güven sınırı analizi, STRIDE, OWASP Top 10 eşlemesi.
+> Olasılık / Etki: Düşük · Orta · Yüksek · Kritik. **Kalan risk**, önlemler uygulandıktan sonraki değerlendirmedir.
+> Kullanıcının kabul ettiği ürün kararları riskleri ortadan kaldırmaz; aşağıdaki "Production blocker" sütunu gerçek müşteri verisi kullanımından önce ne gerektiğini gösterir.
 > Önlem ayrıntıları: [SECURITY.md](SECURITY.md), [FILE_STORAGE.md](FILE_STORAGE.md), [AUTHORIZATION_MATRIX.md](AUTHORIZATION_MATRIX.md).
 
 ## 1. Varlıklar
@@ -9,69 +11,77 @@
 |---|---|
 | Müşteri belgeleri (pasaport, kimlik, banka, iş sözleşmesi, ikametgâh) | **Kritik** |
 | Müşteri iletişim bilgileri | Yüksek |
+| Müşteri bağlantıları (bearer, süresiz) | **Kritik** (belgelere erişim anahtarı) |
 | Şirket içi notlar | Yüksek |
-| Erişim token'ları, müşteri oturumları, OTP | Yüksek |
 | Personel kimlik bilgileri / oturumları | Yüksek (ADMIN: kritik) |
-| Secret'lar (DB URL, Blob token, şifreleme/HMAC anahtarları, auth secret) | **Kritik** |
+| Secret'lar (DB URL, storage token, HMAC/şifreleme anahtarları, auth secret) | **Kritik** |
 | Audit log bütünlüğü | Orta |
-| Hizmet / şablon yapılandırması | Düşük |
 
 ## 2. Güven Sınırları
 
-1. İnternet ↔ Vercel (proxy, sayfalar, actions, route handlers)
-2. Müşteri tarayıcısı ↔ Vercel Blob (doğrudan upload)
-3. Vercel Blob → uygulama callback'i
-4. Uygulama ↔ Neon (TLS)
-5. Uygulama ↔ e-posta sağlayıcı / tarama servisi
-6. Vercel Cron → uygulama
-7. Geliştirici/operatör ↔ Vercel/Neon/GitHub konsolları
+İnternet ↔ hosting (proxy, sayfalar, actions, route handlers) · Tarayıcı ↔ private storage (client upload) · Storage → uygulama callback'i · Uygulama ↔ Postgres · Zamanlanmış iş → uygulama · WhatsApp (bağlantının taşındığı kanal, kontrolümüz dışında) · Operatör ↔ hosting/DB/GitHub konsolları.
 
 ## 3. Tehdit Tablosu
 
-| # | Tehdit (STRIDE / OWASP) | Senaryo | Etki | Risk | Önlem | Test |
-|---|---|---|---|---|---|---|
-| T01 | **IDOR** (E / A01) | Müşteri `fileId` veya başvuru ID'sini değiştirerek başka müşterinin belgesine erişir | Kritik veri sızıntısı | Kritik | Müşteri kapsamı yalnızca oturumdan; istemci ID'si kapsam değil; her dosya isteğinde `application_id` eşleşmesi; 404 | Integration + E2E: iki müşteri, çapraz erişim denemeleri (başvuru, dosya, yorum) |
-| T02 | **Broken access control** (E / A01) | EMPLOYEE admin action'ını doğrudan POST ile çağırır | Yetki yükseltme | Yüksek | Her Server Action içinde RBAC; UI gizleme güvenlik değil | Matristeki her ❌ için negatif test |
-| T03 | **Privilege escalation / mass assignment** (E / A01, A04) | Profil güncellemesinde `role: 'admin'` gönderilir | Hesap ele geçirme | Yüksek | `.strict()` Zod şemaları; rol yalnızca `user:set_role`; Better Auth `additionalFields` `input: false` | Unit (şema) + integration |
-| T04 | **SQL injection** (T / A03) | Arama alanına SQL | DB tamamen | Yüksek | Drizzle parametreli sorgular; ham SQL string birleştirme yasak (lint + review) | Arama alanı fuzz testleri |
-| T05 | **XSS** (T / A03) | Müşteri adı / dosya adı / yorumda script | Personel oturumu çalınması | Yüksek | React escape, `dangerouslySetInnerHTML` yasak, nonce'lu CSP, HttpOnly cookie | E2E: payload'lı ad/dosya adı render testi |
-| T06 | **CSRF** (S / A01) | Personel başka sitede iken zararlı form | İstenmeyen mutasyon | Orta | Next.js Server Action Origin kontrolü, Better Auth origin kontrolü, SameSite=Lax, POST-only mutasyon | Origin'siz/yanlış Origin'li POST testi |
-| T07 | **Session hijacking** (S / A07) | Cookie çalınması | Hesap ele geçirme | Yüksek | HttpOnly, Secure, HSTS, kısa oturum, XSS önlemleri, oturum iptali | Cookie flag testleri |
-| T08 | **Session fixation** (S / A07) | Saldırgan önceden cookie set eder | Hesap ele geçirme | Orta | Oturum değeri yalnızca başarılı giriş/doğrulama sonrası üretilir; `__Host-` öneki | Integration |
-| T09 | **Brute-force — personel girişi** (S / A07) | Şifre deneme | Hesap ele geçirme | Yüksek | IP + kullanıcı adı bazlı DB rate limit, min 12 kr. şifre, genel hata mesajı | Rate limit integration |
-| T10 | **Brute-force — müşteri token** (S / A07) | `/b/*` tarama | Belge erişimi | Düşük (256 bit) | Entropi + IP limit + B modeli OTP | Rate limit testi |
-| T11 | **Brute-force — OTP** (S / A07) | 6 haneyi deneme | Belge erişimi | Yüksek | 5 deneme/challenge, token başına kilit, 10 dk süre | Unit + integration |
-| T12 | **Account enumeration** (I / A07) | Hata mesajı/süre farkı ile kullanıcı adı keşfi | Hedefli saldırı | Orta | Tek tip mesaj, `/is-username-available` kapalı, public sign-up yok | Test: var/yok kullanıcı yanıt eşitliği |
-| T13 | **Token sızıntısı** (I / A02) | Log, referrer, geçmiş, WhatsApp yedekleri, iletme | Belge erişimi | Yüksek | B modeli, 303 ile URL temizleme, `no-referrer`, üçüncü taraf yok, log redaksiyon, iptal/yenileme, (opsiyonel) fragment tabanlı link | Header testleri; log çıktısı incelemesi |
-| T14 | **Zararlı dosya yükleme** (T / A04, A08) | Exploit'li PDF, polyglot, sahte MIME | Personel cihazının ele geçirilmesi | **Kritik** | Katmanlı doğrulama + AV + CLEAN olmadan erişim yok + sandbox header'ları | FILE_STORAGE §6.4 test seti |
-| T15 | **Yetkisiz storage erişimi** (I / A01, A05) | Blob URL tahmini / public erişim | Belge sızıntısı | Yüksek | Private store, public URL yok, signed URL yok, okuma yalnızca Route Handler; `BLOB_READ_WRITE_TOKEN` yalnızca server | Private blob URL'ine doğrudan istek → reddedilir |
-| T16 | **Client upload token kötüye kullanımı** (T) | Token ile başka pathname'e / büyük dosya yükleme | Depolama kötüye kullanımı | Orta | Pathname sunucu belirler, içerik tipi + boyut + kısa süre, kayıt eşleşmesi | Integration |
-| T17 | **Callback sahteciliği** (S) | `/api/uploads`'a sahte "tamamlandı" isteği | Sahte dosya kaydı | Orta | SDK doğrulaması + DB `PENDING` eşleşmesi + Blob'dan gerçek varlık/boyut kontrolü | Sahte callback testi |
-| T18 | **Sensitive data exposure — RSC payload** (I / A01) | Şirket içi notlar müşteri sayfasının RSC/HTML payload'ında | Gizli bilgi sızıntısı | Yüksek | Ayrı müşteri DTO'ları, müşteri yolunda notlar tablosu import yasak (lint), açık kolon seçimi | E2E: müşteri sayfası HTML + RSC yanıtında not metni/anahtar kelime araması |
-| T19 | **Cache poisoning / cache sızıntısı** (I / A05) | Kişiye özel sayfa paylaşılan cache'e girer | Başka kullanıcıya veri | Yüksek | `cacheComponents` kapalı, `use cache` yasak, `no-store`, tüm korumalı sayfalar dinamik | İki farklı oturumla ardışık istek; response header kontrolü |
-| T20 | **Race condition** (T / A04) | İnceleme sırasında dosya değişimi; çift gönderim; eşzamanlı karar | Onaylanmamış dosyanın onaylı görünmesi | Yüksek | Kilit + version, guard'ların kilit altında kontrolü, idempotency | Paralel istek integration testleri |
-| T21 | **Pasif hesabın aktif oturumu** (E / A07) | Pasifleştirilen çalışan açık sekmeden devam eder | Yetkisiz erişim | Yüksek | `banUser` oturumları iptal eder + her istekte `banned` kontrolü + cookie cache kapalı | E2E |
-| T22 | **Denial of service** (D) | Upload/OTP/e-posta spam, büyük dosya, ağır arama | Maliyet, kesinti, e-posta itibarı | Orta | Rate limit (DB), boyut limitleri, sayfalama limiti (≤50), arama min 2 karakter, Vercel platform koruması | Limit testleri |
-| T23 | **E-posta bombardımanı (OTP)** (D) | Geçerli token ile sürekli kod isteme | Müşteriyi rahatsız etme, maliyet | Orta | 60 sn bekleme, saatlik/günlük limit | Integration |
-| T24 | **Bağımlılık açıkları** (A06) | Zafiyetli paket | Değişken | Orta | Exact sürüm, lockfile, `pnpm audit`, güncelleme süreci | CI audit |
-| T25 | **Secret sızıntısı** (I / A02, A05) | `.env` commit, client bundle'a secret | Tam ele geçirme | **Kritik** | `.gitignore` düzeltmesi, `server-only`, `NEXT_PUBLIC_` disiplini, secret scanning, bundle kontrol script'i | Bundle grep; push protection |
-| T26 | **Preview ortamında gerçek veri** (I) | Preview, production DB'ye bağlanır | KVKK ihlali | Yüksek | Ayrı Neon projesi + ayrı Blob store + env scope; preview deployment protection | Env yapılandırma denetimi (checklist) |
-| T27 | **Audit log manipülasyonu** (R / A09) | Uygulama hatası veya saldırgan log siler | İnkâr edilebilirlik | Orta | DB rol yetkisi + trigger | Integration: UPDATE/DELETE denemesi hata verir |
-| T28 | **Loglarda PII / token** (I / A09) | Hata loguna request body düşer | Veri sızıntısı | Orta | Redaksiyonlu logger, body loglanmaz | Log birim testi |
-| T29 | **Open redirect** (S / A01) | `?next=https://evil` | Phishing | Düşük | Yalnızca iç yol whitelist | Unit |
-| T30 | **Phishing / sahte bağlantı** (S) | Saldırgan müşteriye sahte CS Global linki gönderir | Kimlik/belge toplama | Orta | Tek resmî domain; panelde iletişim bilgisi; müşteri bilgilendirmesi (operasyonel); OTP'nin yalnızca kayıtlı e-postaya gitmesi | Operasyonel |
-| T31 | **Insider erişimi** (I) | Çalışan yetkisi dahilinde toplu indirme | Veri sızıntısı | Orta | Audit (görüntüleme/indirme), ASSIGNED_ONLY kapsam seçeneği, rate limit, düzenli audit incelemesi | Audit raporu |
-| T32 | **Konsol hesaplarının ele geçirilmesi** (E) | Vercel/Neon/GitHub hesabı | Tam ele geçirme | Kritik | MFA zorunlu, en az yetkili ekip üyeliği, ayrı production erişimi | Operasyonel checklist (PHASE 13) |
+| ID | Tehdit | Olasılık | Etki | Önlem | Kalan risk | Doğrulama | Production blocker |
+|---|---|---|---|---|---|---|---|
+| **TM-01** | **IDOR** — müşteri `fileId`/ID değiştirerek başka başvuruya erişir | Orta | Kritik | Kapsam yalnızca oturumdan; dosyada `application_id` eşleşmesi; 404 | Düşük | Integration + E2E çapraz erişim (S01, S02) | Hayır (testler PB-07 kapsamında) |
+| **TM-02** | **Broken access control** — EMPLOYEE admin action'ını doğrudan POST eder | Orta | Yüksek | Her action'da RBAC; UI gizleme güvenlik değil | Düşük | Yetki matrisi negatif testleri | PB-07 |
+| **TM-03** | **Mass assignment / privilege escalation** (`role` gönderme) | Orta | Yüksek | `.strict()` şemalar; rol yalnızca `user:set_role` | Düşük | Unit + integration | PB-07 |
+| **TM-04** | **SQL injection** | Düşük | Kritik | Drizzle parametreli sorgular | Düşük | Arama fuzz testleri | Hayır |
+| **TM-05** | **XSS** (müşteri adı, dosya adı, yorum) | Orta | Yüksek | React escape, `dangerouslySetInnerHTML` yasak, nonce CSP, HttpOnly | Düşük | S19 | Hayır |
+| **TM-06** | **CSRF** | Düşük | Orta | Next.js Origin kontrolü, Better Auth origin kontrolü, SameSite=Lax, `/api/uploads` Origin kontrolü | Düşük | S17 | Hayır |
+| **TM-07** | **Personel oturumu çalınması** | Düşük | Yüksek | HttpOnly, Secure, HSTS, XSS önlemleri, oturum iptali | Orta — **7 günlük oturum** çalınırsa 7 gün geçerli (hareketsizlik zaman aşımı yok, OD-22) | Cookie flag testleri | Hayır (kabul edilmiş parametre; risk kaydı) |
+| **TM-08** | **Oturum sabitleme** | Düşük | Orta | Oturum yalnızca başarılı giriş/bağlantı doğrulaması sonrası üretilir; `__Host-` öneki | Düşük | Integration | Hayır |
+| **TM-09** | **Personel şifre brute-force / zayıf şifre** — min **8** karakter (OD-22) | Orta | Yüksek | scrypt; IP + kullanıcı adı bazlı DB rate limit; şifreleri ADMIN belirler (ADMIN uzun rastgele şifre seçebilir — operasyonel öneri); genel hata mesajı | Orta — 8 karakterlik insan seçimi şifreler sözlük saldırısına açıktır; dağıtık saldırı IP limitini aşabilir | Rate limit integration testleri | Hayır (kabul edilmiş; ADMIN'e uzun şifre önerisi) |
+| **TM-10** | **Kullanıcı adı bazlı kilitleme ile DoS** (saldırgan personeli kilitler) | Düşük | Orta | 15 dk kısa blok; IP limiti | Düşük-Orta | Integration | Hayır |
+| **TM-11** | **Token brute-force** (`/b/*` tarama) | Çok düşük | Kritik | 256 bit entropi; IP rate limit | Çok düşük | Rate limit testi; entropi unit testi | Hayır |
+| **TM-12** | **Account enumeration** | Düşük | Orta | Tek tip mesaj; `is-username-available` kapalı; sign-up yok | Düşük | Var/yok kullanıcı yanıt eşitliği testi | Hayır |
+| **TM-13** | **Bearer bağlantının sızması** (iletilen mesaj, WhatsApp yedeği/iCloud/Google Drive, paylaşılan/kayıp telefon, ekran görüntüsü) — **OTP yok + süresiz bağlantı** (OD-01, OD-04) | **Yüksek** (yıllar içinde birikimli) | **Kritik** — pasaport/kimlik/banka belgeleri görüntülenip indirilebilir, sahte belge yüklenebilir | Personel iptal/yenileme (anında etkili); "paylaşmayınız" uyarısı; belge görüntüleme/indirme audit'i; `no-referrer`; üçüncü taraf yok | **Yüksek** — bağlantı ele geçirildiğinde ek bariyer yoktur; tamamlanan/iptal edilen başvuruların bağlantıları da süresiz açıktır | Manuel senaryo; iptal/yenileme testleri (S03, S04) | **Evet — PB-04: yazılı risk kabulü + KVKK değerlendirmesi** |
+| **TM-14** | **Yanlış kişiye bağlantı gönderimi** (çalışan hatası, yanlış numara) | Orta | Kritik | Paylaşım onay penceresinde müşteri adı + telefon gösterimi (BR-162); hızlı iptal/yenileme | Orta | E2E (onay penceresi içeriği) | PB-04 kapsamında |
+| **TM-15** | **Path tabanlı token'ın altyapı loglarında görünmesi** (OD-02) | Orta | Yüksek | Uygulama loglarında redaksiyon; platform log erişimini kısıtlama; log drain yok | **Orta — kontrolümüz dışında; tamamen önlendiği garanti edilemez** | Uygulama log çıktısı incelemesi; sağlayıcı log politikasının PHASE 13'te incelenmesi | PB-04 kapsamında |
+| **TM-16** | **Zararlı PDF** — antivirüs taraması yok (OD-07); personel cihazında görüntüleyici exploit'i | Orta | **Kritik** | Yapısal doğrulama + aktif içerik/gömülü dosya/şifreleme reddi + kaynak sınırları; private storage; sandbox header'ları; tarayıcıda görüntüleme; personel cihazında güncel OS/tarayıcı + yerleşik AV (operasyonel) | **Orta-Yüksek** — bilinen zararlı yazılım imzaları ve parser'ın görmediği exploit'ler tespit edilmez | FILE_STORAGE §6.4 test seti | **Evet — PB-05: yazılı risk kabulü + personel cihaz politikası** |
+| **TM-17** | **Yetkisiz storage erişimi** | Düşük | Kritik | Private store; public URL yok; signed URL yok; storage token yalnızca sunucuda | Düşük | Private URL'e doğrudan istek → reddedilir | Hayır |
+| **TM-18** | **Client upload token / callback kötüye kullanımı** | Düşük | Orta | Pathname sunucuda; tip + boyut + kısa süre; DB kayıt eşleşmesi; storage'dan gerçek boyut | Düşük | Sahte callback testi | Hayır |
+| **TM-19** | **İç notların müşteri payload'ına sızması** (HTML/RSC) | Orta | Yüksek | Ayrı müşteri DTO'ları; `features/portal` import kısıtı; açık kolon seçimi | Düşük | S16 (işaretçi string araması) | PB-07 |
+| **TM-20** | **Cache üzerinden veri sızıntısı** | Düşük | Yüksek | `cacheComponents` kapalı; `use cache` yasak; `no-store`; tüm korumalı sayfalar dinamik | Düşük | S15 | PB-07 |
+| **TM-21** | **Race condition** — eski versiyon onayının yeni dosyayı onaylaması (OD-17), çift gönderim, eşzamanlı bağlantı yenileme (OD-18) | Orta | Yüksek | Satır kilitleri + version; review `fileId` eşleşmesi (BR-57); partial unique index'ler (tek aktif dosya, tek aktif token, tek devam eden yükleme) | Düşük | Paralel istek integration testleri | PB-07 |
+| **TM-22** | **Pasif hesabın aktif oturumu** | Düşük | Yüksek | `banUser` oturumları iptal eder; her istekte `banned`; cookie cache kapalı | Düşük | S06 | Hayır |
+| **TM-23** | **Kapalı olması gereken Better Auth uç noktalarının doğrudan çağrılması** (`change-password`, `update-user`, `admin/*`) (OD-11) | Orta | Yüksek | `disabledPaths` + `hooks.before`; testler | Orta — `auth.api` etkileşimi doğrulanmadı (TD-03) | Her kapalı uç noktaya doğrudan HTTP isteği testi | **Evet — PB-10** |
+| **TM-24** | **Tüm çalışanların tüm başvurulara erişimi** — insider toplu görüntüleme/indirme (OD-03) | Düşük-Orta | Yüksek | Belge görüntüleme/indirme audit'i; dosya rate limit; ADMIN'in audit log incelemesi; personel gizlilik taahhüdü (operasyonel) | Orta — kapsam kısıtı yok | Audit kayıt testleri | Hayır (kabul edilmiş; operasyonel kontrol önerilir) |
+| **TM-25** | **IP/cihaz verisi saklanmaması** (OD-09) → olay incelemesinde kaynak tespiti yapılamaması | — | Orta | Audit'te aktör/işlem/zaman; hosting sağlayıcısının kendi logları (bizim politikamızdan bağımsız) | Orta — adli inceleme kabiliyeti sınırlı | — | Hayır (kabul edilmiş) |
+| **TM-26** | **Better Auth'un IP/UA'yı sessizce kaydetmesi** (OD-09 ihlali) | Orta | Orta (KVKK) | `disableIpTracking`; session hook; DB CHECK ile yazma girişiminin başarısız olması | Düşük | Giriş sonrası `sessions` satırı kontrolü | PB-10 |
+| **TM-27** | **Manuel silmenin kısmi kalması** (storage'da sahipsiz kişisel veri) (OD-06) | Düşük | Yüksek | İki aşamalı silme; DB satırı storage boşalmadan silinmez; yeniden deneme; prefix mutabakatı | Düşük | Hata enjeksiyonlu integration testi | Hayır |
+| **TM-28** | **Yanlış başvurunun silinmesi** (geri dönüşsüz) | Düşük | Yüksek | Yalnızca ADMIN; başvuru numarası yazılarak onay | Orta — yedekten geri dönüş sağlayıcı planına bağlı | E2E onay akışı | Hayır |
+| **TM-29** | **Verilerin süresiz birikmesi** (otomatik saklama yok, OD-06) | Yüksek | Orta (KVKK) | Şirketin manuel imha süreci; ADMIN silme aracı | **Yüksek (hukuki)** — manuel silme süresiz saklama için dayanak değildir | — | **Evet — PB-03 (hukuki değerlendirme)** |
+| **TM-30** | **Ücretsiz altyapı riskleri** (OD-12): ticari kullanım ihlali, kota aşımıyla erişim kesintisi, SLA/yedek eksikliği, beklenmeyen ücret | Yüksek | Yüksek | Production ücretsiz planlar ticari kullanım koşulları doğrulanmadan açılmaz; harcama limiti/kredi kartı istemeyen planlar tercih; kapasite izleme | Yüksek | PHASE 13 öncesi sağlayıcı değerlendirmesi | **Evet — PB-01, PB-02, PB-08** |
+| **TM-31** | **Denial of service** (upload/bağlantı spam, ağır arama) | Orta | Orta | Rate limit; sabit boyut; sayfa ≤ 50; arama min 2 kr.; ücretsiz kotaların tükenmesi riski | Orta (kota) | Limit testleri | PB-02 ile ilişkili |
+| **TM-32** | **Bağımlılık açıkları** | Orta | Değişken | Exact sürüm, lockfile, `pnpm audit` | Düşük | CI audit | PB-09 |
+| **TM-33** | **Secret sızıntısı** (`.env` commit, client bundle) | Orta | Kritik | `.gitignore` (D-031), `server-only`, `NEXT_PUBLIC_` yok, bundle kontrolü, secret scanning | Düşük | Bundle grep; push protection | Hayır |
+| **TM-34** | **Preview/demo ortamında gerçek veri** | Orta | Yüksek | Ayrı DB/storage/secret; yalnızca sahte seed | Düşük | Ortam yapılandırma kontrol listesi | PB-06 |
+| **TM-35** | **Audit log manipülasyonu** | Düşük | Orta | DB yetkisi + trigger | Düşük | UPDATE/DELETE denemesi testi | Hayır |
+| **TM-36** | **Host header ile sahte bağlantı üretimi** (OD-20) | Düşük | Orta | URL'ler yalnızca `APP_URL`'den | Düşük | Sahte Host header testi | Hayır |
+| **TM-37** | **Domain değişikliğinde eski bağlantıların kırılması** (OD-20) | Orta | Orta | Eski alan adı korunuyorsa yönlendirme; korunamıyorsa toplu bağlantı yenileme + yeniden paylaşım (DEPLOYMENT §8) | Orta | — | Hayır |
+| **TM-38** | **Phishing / sahte bağlantı** | Orta | Orta | Tek resmî alan adı; müşteriye operasyonel bilgilendirme | Orta | — | Hayır |
+| **TM-39** | **Konsol hesaplarının ele geçirilmesi** | Düşük | Kritik | MFA zorunlu; en az yetki | Düşük | PHASE 13 kontrol listesi | PB-06 kapsamında |
 
-## 4. Kabul Edilen / Kalan Riskler (onay bekler)
+## 4. Birleşik Risk Değerlendirmesi
 
-| Risk | Durum |
+| Kombinasyon | Değerlendirme |
 |---|---|
-| E-posta hesabı ele geçirilmiş müşteri (B modelinde) | Kalan risk — kabul önerilir |
-| AV seçeneği (c) seçilirse bilinen zararlı yazılım imzalarının kontrol edilmemesi | Kullanıcı kararı (OD-07) |
-| Vercel platform loglarında path-tabanlı token | B modeli ile azaltılır; fragment tabanlı link (OD-02) ile ortadan kalkar |
-| ABD merkezli sağlayıcılara (Vercel, Neon/Databricks) veri aktarımı | Hukuki değerlendirme (DATA_PRIVACY §8) |
+| **OTP yok + süresiz bağlantı + path tabanlı token + müşterinin belge indirebilmesi** | Bu sistemdeki **en yüksek risk**tir. Bağlantı tek başına, süresiz olarak, en hassas belgelere okuma/indirme erişimi sağlar ve WhatsApp sohbetleri, yedekleri ve platform logları gibi kontrolümüz dışındaki yerlerde bulunur. Kalan risk: **Yüksek**. |
+| 8 karakter şifre + 7 günlük oturum + tüm çalışanların tüm başvurulara erişimi | Tek bir personel hesabının ele geçirilmesi tüm müşteri belgelerine 7 güne kadar erişim sağlar. Kalan risk: **Orta-Yüksek**. |
+| Antivirüs yok + personelin tüm belgeleri açması | Tek bir zararlı PDF personel cihazını hedef alabilir. Kalan risk: **Orta-Yüksek**. |
+| IP/cihaz verisi yok + bearer link | Bağlantının kötüye kullanıldığını tespit etmek pratikte mümkün olmayabilir (yalnızca görüntüleme/indirme zamanları audit'te). |
+| Ücretsiz altyapı + otomatik silme yok | Kota dolması ve hukuki saklama yükümlülüğü riskleri birlikte büyür. |
+
+### Düşük maliyetli ek önlem seçenekleri (uygulanmadı — kullanıcı kararı gerektirir)
+Bu seçenekler kabul edilmiş kararlarla çelişebileceği için **kapsama eklenmemiştir**; production risk kabulü sırasında değerlendirilmek üzere listelenmiştir:
+1. **Müşteri panelinde, yüklenmiş belgelerin indirilmesini/görüntülenmesini kapatmak** (müşteri yalnızca yükler ve durumunu görür). Bağlantı sızdığında belgelerin dışarı alınmasını engeller; maliyeti sıfırdır. *(Brief'teki "Dosya görüntüleme ve indirme" müşteri özelliğiyle çelişir.)*
+2. **Başvuru tamamlandığında/iptal edildiğinde personelin bağlantıyı manuel iptal etmesini öneren onay penceresi metni** (otomatik iptal değil; OD-04 ile uyumlu, ancak yeni UI davranışıdır).
+3. **ADMIN için "güçlü şifre üret" yardımcısı** (8 karakter minimumu değişmeden, varsayılan olarak 16+ karakterlik rastgele şifre önerir).
+4. **Müşteri panelinde telefon/e-postanın maskelenmesi** (bağlantı sızıntısında PII ifşasını azaltır; brief'teki tam gösterim gereksinimiyle çelişir).
 
 ## 5. Gözden Geçirme
 
-Tehdit modeli her fazın sonunda ilgili özellik için güncellenir; PHASE 12'de tam gözden geçirme ve sızma testi (manuel) yapılır.
+Tehdit modeli her faz sonunda ilgili özellik için güncellenir; PHASE 12'de tam gözden geçirme ve manuel sızma testi yapılır. Production öncesi PB-04 ve PB-05 için Product Owner'ın **yazılı risk kabulü** alınır.

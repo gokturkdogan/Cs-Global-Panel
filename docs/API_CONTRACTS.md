@@ -1,7 +1,7 @@
 # API Sözleşmeleri
 
-> Bu doküman **plan**dır; PHASE 00'da hiçbir endpoint implement edilmemiştir. İsimler PHASE ilerledikçe kesinleşir; değişiklikler CHANGELOG'a yazılır.
-> Mimari gerekçe: [ARCHITECTURE.md](ARCHITECTURE.md) §6 · Yetkiler: [AUTHORIZATION_MATRIX.md](AUTHORIZATION_MATRIX.md) · Kurallar: [BUSINESS_RULES.md](BUSINESS_RULES.md)
+> **Plan**dır; hiçbir endpoint implement edilmemiştir. Değişiklikler CHANGELOG'a yazılır.
+> Mimari: [ARCHITECTURE.md](ARCHITECTURE.md) §6 · Yetkiler: [AUTHORIZATION_MATRIX.md](AUTHORIZATION_MATRIX.md) · Kurallar: [BUSINESS_RULES.md](BUSINESS_RULES.md) · Şema: [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)
 
 ## 1. Ortak Sözleşme
 
@@ -10,100 +10,92 @@ type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: ErrorCode; message: string; fieldErrors?: Record<string, string[]> } };
 ```
-- `message` Türkçe, kullanıcıya gösterilebilir; teknik ayrıntı içermez.
-- Tüm action input'ları Zod `.strict()` şemalarıyla doğrulanır.
-- Optimistic lock gerektiren mutasyonlar `expectedVersion: number` alır; uyuşmazlıkta `CONFLICT`.
-- Liste uç noktaları: `page` (≥1), `pageSize` (10/20/50, varsayılan 20), sonuç `{ items, total, page, pageSize }`.
-- Tarihler ISO 8601 UTC string olarak DTO'da; formatlama UI'da.
+- `message` Türkçe, kullanıcıya gösterilebilir; token/iç ayrıntı içermez.
+- Input'lar Zod `.strict()`.
+- Optimistic lock gerektiren mutasyonlar `expectedVersion` alır → uyuşmazlıkta `CONFLICT`.
+- Liste: `page` (≥1), `pageSize` (10/20/50, varsayılan 20) → `{ items, total, page, pageSize }`.
+- Tarihler DTO'da ISO 8601 UTC.
 
 ## 2. Server Actions — Personel
 
-Tüm aksiyonlar `requireStaff(permission)` ile başlar.
+Tümü `requireStaff(permission)` ile başlar.
 
-### 2.1 Auth / Hesap (`features/auth/actions.ts`)
+### 2.1 Başvurular (`features/applications/actions.ts`)
 | Action | Input | Çıktı | İzin | Audit |
 |---|---|---|---|---|
-| `changeOwnPasswordAction` | `{ currentPassword, newPassword }` | `void` | 👤 | `USER_PASSWORD_CHANGED` |
-| `revokeOwnOtherSessionsAction` | `{}` | `{ count }` | 👤 | `USER_SESSIONS_REVOKED` |
-
-Giriş/çıkış Better Auth client (`authClient.signIn.username`, `signOut`) üzerinden `/api/auth/*`'a gider.
-
-### 2.2 Başvurular (`features/applications/actions.ts`)
-| Action | Input | Çıktı | İzin | Audit |
-|---|---|---|---|---|
-| `findCustomerMatchesAction` | `{ phone, email }` | `{ matches: { customerId, maskedName, maskedPhone, maskedEmail, applicationCount }[] }` | `application:create` | — |
-| `createApplicationAction` | `{ idempotencyKey, firstName, lastName, phone, email, serviceId, internalNote?, customerChoice: { type: 'new' } \| { type: 'existing', customerId, updateContact: boolean } }` | `{ applicationId, applicationNumber, customerFullName, serviceName, accessLink }` | `application:create` | `APPLICATION_CREATED`, `ACCESS_LINK_CREATED` |
+| `createApplicationAction` | `{ idempotencyKey, firstName, lastName, phone, email, serviceId, internalNote? }` | `{ applicationId, applicationNumber, customerFullName, customerPhone, serviceName, accessLink, whatsappUrl }` | `application:create` | `APPLICATION_CREATED`, `ACCESS_LINK_CREATED` |
 | `updateCustomerInfoAction` | `{ applicationId, expectedVersion, firstName, lastName, phone, email }` | `{ version }` | `application:update_customer_info` | `APPLICATION_UPDATED` |
-| `transitionApplicationAction` | `{ applicationId, expectedVersion, action: 'REQUEST_REVISION' \| 'APPROVE_DOCUMENTS' \| 'START_PROCESSING' \| 'COMPLETE' \| 'CANCEL', reason? }` | `{ status, version }` | `application:transition` / `application:cancel` | `APPLICATION_STATUS_CHANGED` |
+| `transitionApplicationAction` | `{ applicationId, expectedVersion, action: TransitionCode, reason?, revisionItems?: { requirementId, fileId, customerMessage }[] }` | `{ status, version }` | `application:transition` · `application:cancel` · `application:reopen_revert` (aksiyona göre) | `APPLICATION_STATUS_CHANGED` (+ T12'de `DOCUMENT_REVISION_REQUESTED`) |
 | `submitOnBehalfAction` | `{ applicationId, expectedVersion }` | `{ status, version }` | `application:submit` | `APPLICATION_SUBMITTED` / `RESUBMITTED` |
-| `archiveApplicationAction` / `unarchiveApplicationAction` | `{ applicationId }` | `void` | `application:archive` | `APPLICATION_ARCHIVED` / `UNARCHIVED` |
-| `assignApplicationAction` (OD-03) | `{ applicationId, userId \| null }` | `void` | `application:assign` | `APPLICATION_UPDATED` |
-| `revealAccessLinkAction` | `{ applicationId }` | `{ accessLink, expiresAt }` | `access_link:view_copy` | `ACCESS_LINK_VIEWED` |
-| `rotateAccessLinkAction` | `{ applicationId }` | `{ accessLink, expiresAt }` | `access_link:rotate` | `ACCESS_LINK_ROTATED` |
-| `revokeAccessLinkAction` | `{ applicationId }` | `void` | `access_link:revoke` | `ACCESS_LINK_REVOKED` |
+| `revealAccessLinkAction` | `{ applicationId }` | `{ accessLink, whatsappUrl, customerFullName, customerPhone } \| { accessLink: null }` | `access_link:view_copy` | `ACCESS_LINK_VIEWED` |
+| `rotateAccessLinkAction` | `{ applicationId, expectedVersion }` (yenileme ve iptal edilmişin yerine yeni oluşturma) | `{ accessLink, whatsappUrl }` | `access_link:rotate` | `ACCESS_LINK_ROTATED` / `ACCESS_LINK_CREATED` |
+| `revokeAccessLinkAction` | `{ applicationId, expectedVersion }` | `void` | `access_link:revoke` | `ACCESS_LINK_REVOKED` |
 | `addInternalNoteAction` | `{ applicationId, requirementId?, body }` | `{ noteId }` | `internal_note:create` | `INTERNAL_NOTE_ADDED` |
+| `deleteApplicationAction` (ADMIN; idempotent — "Silmeyi tamamla" için de kullanılır) | `{ applicationId, confirmApplicationNumber }` | `{ status: 'DELETED' \| 'PENDING_RETRY' }` | `application:delete` | `APPLICATION_DELETION_REQUESTED`, `APPLICATION_DELETED` |
 
-Okuma (RSC'den doğrudan çağrılan server-only fonksiyonlar, action değil): `listApplications(actor, filters)`, `getStaffApplicationDetail(actor, id)`, `getDashboardStats(actor)`.
+`TransitionCode` (sunucudaki domain modülü doğrular): `REQUEST_REVISION`, `APPROVE_DOCUMENTS`, `START_PROCESSING`, `COMPLETE`, `CANCEL` (reason zorunlu), `REOPEN_CANCELLED`, `REOPEN_COMPLETED`, `REVERT_TO_DOCUMENTS_APPROVED`, `REVERT_TO_REVIEW`, `REVERT_FOR_REVISION` (reason + `revisionItems` zorunlu) — [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) T2–T12. `REOPEN_CANCELLED` hedef statü almaz; sunucu geçmişten belirler.
 
-Liste filtreleri (`searchParams`, Zod ile parse): `q` (2–100 kr.), `serviceId`, `status`, `createdFrom`, `createdTo` (Europe/Istanbul günü → UTC aralık), `archived` (`exclude` \| `only`), `page`, `pageSize`, `sort` (`created_desc` varsayılan).
+`whatsappUrl` sunucuda üretilir: `https://wa.me/<telefon rakamları>?text=<encodeURIComponent(BR-161 şablonu)>`. UI, açmadan önce onay penceresinde ad-soyad ve telefonu gösterir (BR-162).
 
-### 2.3 Evraklar (`features/documents/actions.ts`)
+Okuma (RSC'den çağrılan server-only fonksiyonlar): `listApplications(actor, filters)`, `getStaffApplicationDetail(actor, id)`, `getApplicationActivity(actor, id)`, `getDashboardStats(actor)`.
+
+Liste filtreleri (`searchParams`, Zod): `q` (2–100), `status` (`ALL` \| 7 statü), `serviceId`, `createdFrom`, `createdTo` (Europe/Istanbul günü → UTC), `page`, `pageSize`, `sort` (`created_desc`). Arşiv filtresi yok.
+
+### 2.2 Evraklar (`features/documents/actions.ts`)
 | Action | Input | Çıktı | İzin | Audit |
 |---|---|---|---|---|
-| `reviewDocumentAction` | `{ requirementId, expectedVersion, decision: 'APPROVED' \| 'REVISION_REQUIRED', customerMessage? }` | `{ status, version, reviewId }` | `document:review` | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` |
+| `reviewDocumentAction` | `{ requirementId, fileId, expectedVersion, decision: 'APPROVED' \| 'REVISION_REQUIRED', customerMessage? }` | `{ status, version, reviewId }` | `document:review` | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` |
 | `addDocumentCommentAction` | `{ applicationId, requirementId?, body }` | `{ commentId }` | `document_comment:create` | `DOCUMENT_COMMENT_ADDED` |
-| `removeFileAction` (personel) | `{ fileId }` | `{ requirementStatus }` | `file:remove` | `DOCUMENT_DELETED` |
-| `confirmUploadAction` (ortak) | `{ fileId }` | `{ fileId, uploadStatus, scanStatus }` | upload'ı başlatan aktör | `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` |
+| `removeFileAction` | `{ fileId, expectedVersion }` | `{ requirementStatus }` | `file:remove` | `DOCUMENT_DELETED` |
+| `confirmUploadAction` (ortak) | `{ fileId }` | `{ fileId, status: 'VALIDATING' \| 'ACTIVE' \| 'REJECTED', message? }` | yüklemeyi başlatan aktör | `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` / `DOCUMENT_VALIDATION_REJECTED` |
+| `getUploadStatusAction` (ortak) | `{ fileId }` | `{ status, message? }` | yüklemeyi başlatan aktör | — |
 
-### 2.4 Hizmetler (`features/services/actions.ts`) — yalnızca ADMIN
-| Action | Input | Çıktı | Audit |
-|---|---|---|---|
-| `createServiceAction` | `{ name, description?, isActive }` | `{ serviceId }` | `SERVICE_CREATED` |
-| `updateServiceAction` | `{ serviceId, name, description? }` | `void` | `SERVICE_UPDATED` |
-| `setServiceActiveAction` | `{ serviceId, isActive }` | `void` | `SERVICE_ACTIVATED` / `DEACTIVATED` |
-| `reorderServicesAction` | `{ orderedIds: uuid[] }` | `void` | `SERVICE_UPDATED` |
-| `createDocumentTemplateAction` | `{ serviceId, title, description?, instructions?, isRequired, maxFileSizeBytes?, maxFileCount? }` | `{ requirementId }` | `DOCUMENT_TEMPLATE_CREATED` |
-| `updateDocumentTemplateAction` | `{ requirementId, ...aynı alanlar, isActive }` | `void` | `DOCUMENT_TEMPLATE_UPDATED` |
-| `reorderDocumentTemplatesAction` | `{ serviceId, orderedIds }` | `void` | `DOCUMENT_TEMPLATE_UPDATED` |
+`reviewDocumentAction`: `fileId` kilit altında aktif dosya değilse `CONFLICT` (BR-57).
 
-### 2.5 Çalışanlar (`features/employees/actions.ts`) — yalnızca ADMIN
-Better Auth admin plugin'in **server-side** API'si (`auth.api.*`) üzerinden; istemciye admin client açılmaz.
-
-| Action | Input | Çıktı | Audit |
-|---|---|---|---|
-| `createEmployeeAction` | `{ name, username, email, role, temporaryPassword }` | `{ userId }` | `USER_CREATED` |
-| `updateEmployeeAction` | `{ userId, name, username, email }` | `void` | `USER_UPDATED` |
-| `setEmployeeRoleAction` | `{ userId, role }` | `void` | `USER_ROLE_CHANGED` |
-| `deactivateEmployeeAction` / `reactivateEmployeeAction` | `{ userId, reason? }` | `void` | `USER_DEACTIVATED` / `REACTIVATED` |
-| `resetEmployeePasswordAction` | `{ userId, temporaryPassword }` | `void` | `USER_PASSWORD_RESET` (+ oturum iptali) |
-| `revokeEmployeeSessionsAction` | `{ userId }` | `{ count }` | `USER_SESSIONS_REVOKED` |
-
-Geçici şifre: ADMIN UI'da güvenli rastgele şifre **üretilir** (client-side `crypto.getRandomValues`) ve bir kez gösterilir; sunucuya yalnızca action input'u olarak gider, loglanmaz.
-
-### 2.6 Ayarlar (`features/settings/actions.ts`) — yalnızca ADMIN
+### 2.3 Hizmetler (`features/services/actions.ts`) — ADMIN
 | Action | Input | Audit |
 |---|---|---|
-| `updateSettingsAction` | `system_settings` alanlarının alt kümesi (Zod) | `SETTINGS_UPDATED` |
+| `createServiceAction` | `{ name, description?, isActive }` | `SERVICE_CREATED` |
+| `updateServiceAction` | `{ serviceId, name, description? }` | `SERVICE_UPDATED` |
+| `setServiceActiveAction` | `{ serviceId, isActive }` | `SERVICE_ACTIVATED` / `DEACTIVATED` |
+| `reorderServicesAction` | `{ orderedIds }` | `SERVICE_UPDATED` |
+| `createDocumentTemplateAction` | `{ serviceId, title, description?, instructions?, isRequired }` | `DOCUMENT_TEMPLATE_CREATED` |
+| `updateDocumentTemplateAction` | `{ requirementId, title, description?, instructions?, isRequired, isActive }` | `DOCUMENT_TEMPLATE_UPDATED` |
+| `reorderDocumentTemplatesAction` | `{ serviceId, orderedIds }` | `DOCUMENT_TEMPLATE_UPDATED` |
 
-### 2.7 Audit (okuma)
-`listAuditLogs(actor, { action?, actorUserId?, resourceType?, resourceId?, applicationId?, from?, to?, page, pageSize })` — yalnızca ADMIN.
+Dosya boyutu/sayısı/tipi alanları yoktur (OD-16).
+
+### 2.4 Çalışanlar (`features/employees/actions.ts`) — ADMIN
+Better Auth admin plugin'in **sunucu tarafı** `auth.api` çağrıları; istemcide admin client yok.
+
+| Action | Input | Audit |
+|---|---|---|
+| `createEmployeeAction` | `{ name, username, email?, role, password }` | `USER_CREATED` |
+| `updateEmployeeAction` | `{ userId, name, username, email? }` | `USER_UPDATED` |
+| `setEmployeeRoleAction` | `{ userId, role }` (BR-133) | `USER_ROLE_CHANGED` |
+| `deactivateEmployeeAction` / `reactivateEmployeeAction` | `{ userId, reason? }` | `USER_DEACTIVATED` / `REACTIVATED` |
+| `setEmployeePasswordAction` | `{ userId, newPassword }` → ardından tüm oturumları iptal | `USER_PASSWORD_SET`, `USER_SESSIONS_REVOKED` |
+| `revokeEmployeeSessionsAction` | `{ userId }` | `USER_SESSIONS_REVOKED` |
+
+`email?`: Better Auth zorunlu alanı için politika TD-05. Şifreler yalnızca action input'u olarak sunucuya gider, loglanmaz, hiçbir yanıtta dönmez.
+Kaldırılan: `changeOwnPasswordAction`, `revokeOwnOtherSessionsAction`, `resetEmployeePasswordAction` (→ `setEmployeePasswordAction`).
+
+### 2.5 Audit (okuma)
+`listAuditLogs(actor, { action?, actorUserId?, resourceType?, applicationId?, from?, to?, page, pageSize })` — ADMIN.
 
 ## 3. Server Actions — Müşteri (`features/portal/actions.ts`)
 
-Kapsam her zaman oturumdan (`requireCustomer()`); input'ta `applicationId` **yoktur**.
+Kapsam her zaman `requireCustomer()` oturumundan; input'ta `applicationId` **yoktur**.
 
-| Action | Ön koşul | Input | Çıktı | Audit |
-|---|---|---|---|---|
-| `requestOtpAction` | Pre-auth cookie | `{}` | `{ maskedEmail, resendAvailableAt }` | `CUSTOMER_OTP_SENT` |
-| `verifyOtpAction` | Pre-auth cookie | `{ code: /^\d{6}$/ }` | redirect `/portal` | `CUSTOMER_ACCESS_GRANTED` / `CUSTOMER_OTP_FAILED` |
-| `exchangeFragmentTokenAction` (yalnızca OD-02 = fragment) | — | `{ token }` | redirect `/portal/verify` | — |
-| `submitForReviewAction` | Customer session | `{ expectedVersion }` | `{ status }` | `APPLICATION_SUBMITTED` / `RESUBMITTED` |
-| `removeOwnFileAction` | Customer session | `{ fileId }` | `{ requirementStatus }` | `DOCUMENT_DELETED` |
-| `confirmUploadAction` | Customer session | `{ fileId }` | `{ uploadStatus, scanStatus }` | `DOCUMENT_UPLOADED` |
-| `getUploadStatusAction` | Customer session | `{ fileIds: uuid[] (≤10) }` | `{ fileId, scanStatus }[]` | — (tarama durumunu poll etmek için, 3 sn aralık, maks 2 dk) |
-| `customerLogoutAction` | Customer session | `{}` | redirect | — |
+| Action | Input | Çıktı | Audit |
+|---|---|---|---|
+| `submitForReviewAction` | `{ expectedVersion }` | `{ status }` | `APPLICATION_SUBMITTED` / `RESUBMITTED` |
+| `removeOwnFileAction` | `{ fileId, expectedVersion }` | `{ requirementStatus }` | `DOCUMENT_DELETED` |
+| `confirmUploadAction` / `getUploadStatusAction` | §2.2 ile aynı | | |
 
-Okuma: `getCustomerPortalView(customerSession)` → `CustomerPortalDTO`:
+Kaldırılan: `requestOtpAction`, `verifyOtpAction`, `exchangeFragmentTokenAction`, `customerLogoutAction`.
+
+Okuma: `getCustomerPortalView(portalSession)` → `CustomerPortalDTO`:
 ```ts
 type CustomerPortalDTO = {
   customer: { firstName: string; lastName: string; phone: string; email: string };
@@ -112,53 +104,54 @@ type CustomerPortalDTO = {
   completion: { requiredTotal: number; requiredUploaded: number; requiredApproved: number; percent: number };
   documents: Array<{
     id: string; title: string; description: string | null; instructions: string | null;
-    isRequired: boolean; status: DocumentStatus; statusLabel: string;
-    maxFileSizeBytes: number; maxFileCount: number; canModify: boolean;
+    isRequired: boolean; status: DocumentStatus; statusLabel: string; version: number;
+    canUpload: boolean; canRemove: boolean;
     latestRevisionMessage: string | null;
     comments: Array<{ body: string; createdAt: string }>;
-    files: Array<{ id: string; name: string; sizeBytes: number | null; uploadedAt: string | null; scanStatus: 'PENDING'|'CLEAN'|'REJECTED'|'ERROR'; canRemove: boolean }>;
+    activeFile: { id: string; name: string; sizeBytes: number; uploadedAt: string } | null;
+    pendingUpload: { id: string; status: 'UPLOAD_PENDING' | 'VALIDATING' } | null;
   }>;
   canSubmit: boolean; submitBlockers: string[];
-  contact: { companyName: string; phone?: string; email?: string; whatsapp?: string; message?: string };
+  contact: { companyName: string; phone: string | null; whatsappUrl: string | null };
 };
 ```
-**İçermez:** iç notlar, personel adları, aktörler, iptal gerekçesi, `scan_reason_code`, eski versiyonlar, audit, assigned user, ID'ler dışında iç alanlar.
+**İçermez:** iç notlar, personel adları, aktörler, gerekçeler, `rejection_reason` kodu (yalnızca Türkçe mesaj), eski versiyonlar, audit, token.
 
 ## 4. Route Handlers
 
 ### 4.1 `GET|POST /api/auth/[...all]`
-Better Auth `toNextJsHandler(auth)`. Açık uç noktalar (PHASE 03'te kesinleşir): `sign-in/username`, `sign-out`, `get-session`, `change-password`, `admin/*` (yalnızca server-side `auth.api` ile kullanılır; client admin çağrıları için de sunucu yetki kontrolü Better Auth'ta). Kapatılanlar: `sign-up/*`, `sign-in/email`, `is-username-available`, `admin/impersonate-user`.
+`toNextJsHandler(auth)`. Açık: `sign-in/username`, `sign-out`, `get-session`. Kapalı (SECURITY §2): `sign-up/*`, `sign-in/email`, `change-password`, `change-email`, `update-user`, `delete-user`, `request-password-reset`, `reset-password`, `is-username-available`, `admin/*` (HTTP), impersonation.
 
 ### 4.2 `POST /api/uploads`
-`handleUpload` (`@vercel/blob/client`).
-- **Token isteği** (client'tan): `clientPayload = JSON.stringify({ requirementId, fileName, size })`. `onBeforeGenerateToken`: aktör (staff veya customer cookie) + BR-44 + limitler → `PENDING` kayıt → `{ allowedContentTypes: ['application/pdf'], maximumSizeInBytes, validUntil, addRandomSuffix: false, tokenPayload: JSON.stringify({ fileId }) }`. Pathname sunucu tarafından belirlenir.
-- **Callback** (Blob'dan): `onUploadCompleted({ blob, tokenPayload })` → `completeUpload(fileId, blob)` idempotent → tarama tetikle.
-- Hatalar: 400 (kalıcı — Blob yeniden denemez), 429 (rate limit), 500 (geçici).
-- Cookie tabanlı auth: token isteği same-origin `fetch` ile gelir; Origin header kontrolü yapılır (Server Action dışı olduğu için CSRF korumasını elle uygula: `Origin === APP_URL`).
+`handleUpload`:
+- **Token isteği** (client): `clientPayload = { requirementId, fileName, size }`; `Origin === APP_URL` kontrolü; aktör (staff cookie veya portal cookie); BR-44; `size ≤ MAX_PDF_SIZE_BYTES`; transaction'da önceki pending'i `EXPIRED`, yeni `UPLOAD_PENDING`; yanıt: `{ allowedContentTypes: ['application/pdf'], maximumSizeInBytes: MAX_PDF_SIZE_BYTES, validUntil: now+15dk, addRandomSuffix: false, tokenPayload: { fileId } }` — pathname sunucuda.
+- **Callback** (storage): `onUploadCompleted` → `completeUpload(fileId)` (idempotent: claim → doğrula → aktive et / reddet).
+- Hatalar: 400 (kalıcı), 409 (`UPLOAD_IN_PROGRESS`), 429, 500.
 
 ### 4.3 `GET /api/files/[fileId]?disposition=inline|attachment`
-[FILE_STORAGE.md](FILE_STORAGE.md) §3. Yanıt: `200` stream · `401` · `404` (yetkisiz/kapsam dışı/temiz değil — ayırt edilmez) · `429`.
+[FILE_STORAGE.md](FILE_STORAGE.md) §3. `200` stream · `401` · `404` (yetkisiz/kapsam dışı/aktif değil — ayırt edilmez) · `429`.
 
 ### 4.4 `GET /b/[token]`
 | Durum | Yanıt |
 |---|---|
-| Geçerli | `303 → /portal/verify` + `Set-Cookie: __Host-cs_preauth` |
-| Geçersiz / iptal / süresi dolmuş | `200` genel bilgi sayfası (veya `303 → /portal/link-invalid`); ayrım yapılmaz: "Bu bağlantı geçerli değil veya süresi dolmuş. Lütfen CS Global ile iletişime geçin." |
-| Rate limit | `429` aynı genel sayfa |
-Her yanıt: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`.
+| Geçerli | `303 → /portal` + `Set-Cookie: __Host-cs_portal` |
+| Geçersiz / iptal / silinmekte | `303 → /link-invalid` (ayrım yok) |
+| Rate limit | `429` genel sayfa |
+Her yanıt: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`. Hiçbir veri değiştirilmez, audit yazılmaz (BR-105).
 
 ### 4.5 `GET /api/cron/cleanup`
-`Authorization: Bearer ${CRON_SECRET}` zorunlu. Görevler: süresi dolan `PENDING` upload'lar, `REJECTED` blob'lar, OTP/oturum/rate-limit temizliği, terminal başvuruların bağlantı süresi, (ayar dolu ise) saklama süresi dolan dosyalar, tarama yeniden denemeleri. Her görev sınırlı batch (ör. 100) ile çalışır; yanıt `{ tasks: { name, processed }[] }`. Audit `RETENTION_PURGE_EXECUTED`.
+`Authorization: Bearer ${CRON_SECRET}`. Görevler (teknik): süresi dolan `UPLOAD_PENDING` → `EXPIRED` + blob sil; takılı `VALIDATING` → `REJECTED`; reddedilmiş blob kalıntıları; orphan blob mutabakatı; yarım kalan başvuru silmelerini tamamlama; süresi dolmuş personel oturumları; süresi dolmuş rate limit anahtarları. Batch sınırlı; yanıt `{ tasks: { name, processed }[] }`; audit `TECHNICAL_CLEANUP_EXECUTED`. **Müşteri verisi saklama süresi işlemi içermez.**
 
-## 5. Mutasyon Envanteri (özet)
+## 5. Mutasyon Envanteri
 
-| Alan | Mutasyon sayısı | Mekanizma |
+| Alan | Sayı | Mekanizma |
 |---|---|---|
-| Auth/hesap | 2 + Better Auth | SA + RH |
-| Başvuru | 11 | SA |
-| Evrak/dosya | 4 + upload RH | SA + RH |
+| Başvuru (oluştur, müşteri bilgisi, geçiş, müşteri adına gönder, bağlantı göster/yenile/iptal, not, sil) | 9 | SA |
+| Evrak/dosya (karar, yorum, kaldır, upload onayı, upload durumu) | 5 + upload RH | SA + RH |
 | Hizmet/şablon | 7 | SA |
 | Çalışan | 6 | SA |
-| Ayar | 1 | SA |
-| Müşteri | 7 (+1 opsiyonel) | SA |
-| Bakım | 1 | RH (cron) |
+| Müşteri (gönder, kaldır, upload onayı/durumu) | 4 | SA |
+| Auth | Better Auth (giriş/çıkış) | RH |
+| Teknik | 1 | RH (cron) |
+
+Önceki sürüme göre kaldırılan: müşteri eşleştirme, arşiv/arşivden çıkarma, atama, ayarlar, OTP (2), fragment token, müşteri çıkışı, kendi şifresini değiştirme, kendi oturumlarını kapatma.

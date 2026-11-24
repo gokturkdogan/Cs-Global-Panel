@@ -1,17 +1,19 @@
 # Teknik Mimari
 
-> Sürümler: [TECH_STACK.md](TECH_STACK.md) · API sözleşmeleri: [API_CONTRACTS.md](API_CONTRACTS.md) · Güvenlik: [SECURITY.md](SECURITY.md)
+> Sürümler: [TECH_STACK.md](TECH_STACK.md) · API: [API_CONTRACTS.md](API_CONTRACTS.md) · Güvenlik: [SECURITY.md](SECURITY.md)
+> Revizyon 2026-11-24: OD-01…OD-23 doğrultusunda sadeleştirildi (OTP, e-posta, müşteri profili/eşleştirme, atama, arşiv, ayarlar, harici AV kaldırıldı).
 
 ## 1. Mimari Özet
 
-- **Tek repository, modüler monolit.** Next.js 16 (App Router) hem UI hem backend. Ayrı backend sunucusu, mikroservis yok (D-001).
-- **React Server Components varsayılan**; Client Component yalnızca etkileşim gereken yerde (form, upload, combobox, dialog, kopyala butonu).
-- **Mutasyonlar:** Server Actions (form tabanlı). **Binary / harici çağrı / auth:** Route Handlers (§6).
-- **Katmanlar:** UI → Action/Route (giriş noktası) → Feature servisleri (domain + use-case) → Data access (Drizzle) → Neon Postgres. Dosyalar Vercel Private Blob.
-- **Her giriş noktası** kimlik doğrular ve yetkilendirir. `proxy.ts` yalnızca iyimser yönlendirme + güvenlik header'ları.
-- **Paylaşılan cache yok** (hassas veri için). `cacheComponents` kapalı, `use cache` hassas veride yasak (D-016).
+- **Tek repository, modüler monolit**, tek Next.js 16 (App Router) uygulaması; ayrı backend yok (D-001).
+- **RSC varsayılan**; Client Component yalnızca etkileşim için (formlar, upload, combobox, dialog, kopyala/paylaş).
+- **Mutasyonlar:** Server Actions. **Binary / harici callback / auth / bağlantı girişi / zamanlanmış iş:** Route Handlers (§6).
+- **Katmanlar:** UI → giriş noktası (action/route) → feature servisleri (domain + use-case) → data access (Drizzle) → Postgres. Dosyalar private object storage'da, tek storage modülü arkasında.
+- **Harici servis yok:** e-posta, SMS, antivirüs, kuyruk, Redis, analytics yok. Zorunlu altyapı: hosting + Postgres + private storage (OD-08, OD-07, OD-12).
+- **Sabit yapılandırma:** şirket iletişim bilgileri, dosya limitleri, şifre/oturum parametreleri, rate limitler koddaki sabitlerdir; ayarlar sayfası/tablosu yok (§11).
+- **Paylaşılan cache yok** (D-016).
 
-## 2. Sistem Mimarisi Diyagramı
+## 2. Sistem Mimarisi
 
 ```mermaid
 flowchart LR
@@ -19,38 +21,39 @@ flowchart LR
         S[Personel tarayıcısı<br/>Desktop]
         C[Müşteri tarayıcısı<br/>Mobil / WhatsApp in-app]
     end
+    W[WhatsApp<br/>personel manuel paylaşır]
 
-    subgraph Vercel["Vercel (fra1)"]
-        P[proxy.ts<br/>CSP nonce, header'lar,<br/>iyimser auth yönlendirme]
-        subgraph Next["Next.js 16 App (Node.js runtime)"]
+    subgraph Host["Hosting (dev/demo: Vercel fra1 · production: açık PB-01)"]
+        P[proxy.ts<br/>CSP nonce, header'lar,<br/>iyimser yönlendirme]
+        subgraph Next["Next.js 16 (Node.js runtime)"]
             RSC[Server Components<br/>dashboard / portal]
-            SA[Server Actions<br/>mutasyonlar]
-            RH[Route Handlers<br/>/api/auth, /api/uploads,<br/>/api/files, /api/cron]
-            SVC[Feature servisleri<br/>domain kuralları, state machine]
-            DAL[Data Access Layer<br/>server-only, DTO]
+            SA[Server Actions]
+            RH[Route Handlers<br/>/b/token, /api/auth,<br/>/api/uploads, /api/files, /api/cron]
+            SVC[Feature servisleri<br/>state machine, kurallar]
+            DAL[Data access<br/>server-only, DTO]
             AUTH[Better Auth<br/>username + admin]
-            CUST[Müşteri erişimi<br/>token, OTP, customer session]
+            CA[Müşteri erişimi<br/>token HMAC/AES-GCM,<br/>imzalı oturum cookie'si]
+            STG[Storage modülü]
+            VAL[PDF yapısal doğrulama]
         end
-        CRON[Vercel Cron<br/>orphan / retention temizliği]
+        CRON[Günlük teknik temizlik]
     end
 
-    DB[(Neon Postgres<br/>aws-eu-central-1)]
-    BLOB[(Vercel Private Blob<br/>fra1)]
-    MAIL[E-posta sağlayıcı<br/>OTP — OD-08]
-    SCAN[Zararlı yazılım tarama<br/>OD-07]
+    DB[(Postgres — Neon<br/>aws-eu-central-1)]
+    BLOB[(Private object storage<br/>Vercel Blob fra1)]
 
     S --> P --> RSC
     C --> P
+    W -. "bağlantı /b/token" .-> C
     RSC --> DAL
     SA --> SVC --> DAL --> DB
     RH --> SVC
     AUTH --> DB
-    CUST --> DB
-    CUST --> MAIL
-    C -- "doğrudan PDF upload<br/>(client token)" --> BLOB
-    BLOB -- "onUploadCompleted callback" --> RH
-    RH -- "get() stream" --> BLOB
-    SVC -- "tarama" --> SCAN
+    CA --> DB
+    SVC --> STG --> BLOB
+    SVC --> VAL
+    C -- "doğrudan PDF upload (client token)" --> BLOB
+    BLOB -- "upload callback" --> RH
     CRON --> RH
 ```
 
@@ -65,31 +68,27 @@ sequenceDiagram
     participant S as applicationService
     participant DB as Postgres (tek transaction)
 
-    E->>UI: Form doldur (ad, soyad, tel, e-posta, hizmet, not)
-    UI->>A: findCustomerMatches (telefon / e-posta)
-    A-->>UI: Olası eşleşmeler (maskeli)
-    E->>UI: "Bu müşteriye bağla" veya "Yeni müşteri"
-    UI->>A: submit(form, customerChoice, idempotencyKey)
-    A->>A: Zod doğrula, session çöz, RBAC (application:create)
+    E->>UI: Ad, soyad, telefon, e-posta, hizmet, (not)
+    UI->>A: submit(form, idempotencyKey)
+    A->>A: Zod, requireStaff(application:create)
     A->>S: createApplication(input, actor)
     S->>DB: BEGIN
-    S->>DB: idempotency kontrolü (idempotency_key unique)
-    S->>DB: hizmet aktif mi? aktif şablon var mı? (FOR SHARE)
-    S->>DB: müşteri INSERT veya mevcut müşteriyi doğrula
-    S->>DB: yıllık sayaç UPSERT ... RETURNING (satır kilidi)
-    S->>DB: applications INSERT (status=AWAITING_DOCUMENTS)
+    S->>DB: idempotency kontrolü
+    S->>DB: hizmet aktif mi? aktif şablon var mı?
+    S->>DB: yıllık sayaç UPSERT RETURNING
+    S->>DB: applications INSERT (müşteri bilgileri + service_name_snapshot, AWAITING_DOCUMENTS)
     S->>DB: application_document_requirements INSERT (snapshot)
-    S->>S: token = CSPRNG 256-bit; hash = HMAC; enc = AES-256-GCM
-    S->>DB: application_access_tokens INSERT (hash, enc)
+    S->>S: token = CSPRNG 256 bit · hash = HMAC · enc = AES-256-GCM
+    S->>DB: application_access_tokens INSERT
     S->>DB: application_status_history INSERT (NULL → AWAITING_DOCUMENTS)
     S->>DB: application_internal_notes INSERT (varsa)
     S->>DB: audit_logs INSERT (APPLICATION_CREATED, ACCESS_LINK_CREATED)
     S->>DB: COMMIT
-    S-->>A: {applicationId, number, link}
-    A-->>UI: Sonuç ekranı (kopyala, WhatsApp, detaya git)
+    S-->>A: {applicationId, number, link, whatsappUrl}
+    A-->>UI: Sonuç: başarı mesajı, ad-soyad, no, hizmet, bağlantı,<br/>Kopyala · WhatsApp ile Paylaş · Detaya git
 ```
 
-Herhangi bir adım başarısız olursa transaction tamamen geri alınır; sayaç da geri alındığı için numara boşluğu oluşmaz.
+Müşteri eşleştirme/mükerrer kontrolü yoktur (OD-10). Herhangi bir adım başarısız olursa her şey geri alınır.
 
 ## 4. Müşteri Erişim Akışı
 
@@ -98,206 +97,195 @@ sequenceDiagram
     autonumber
     actor M as Müşteri
     participant B as GET /b/[token]
-    participant V as /portal/verify
-    participant OTP as Server Actions (OTP)
     participant P as /portal
+    participant DB as Postgres
 
-    M->>B: WhatsApp'tan bağlantıyı açar
-    B->>B: rate limit (IP) · HMAC(token) ile ara · iptal/süre kontrolü
-    alt geçersiz / iptal / süresi dolmuş
-        B-->>M: Genel hata sayfası (veri yok)
+    M->>B: WhatsApp'taki bağlantıyı açar
+    B->>B: IP rate limit (HMAC'li kısa ömürlü anahtar)
+    B->>DB: HMAC(token) ile ara · iptal değil · başvuru silinmiyor
+    alt geçersiz
+        B-->>M: 303 → /link-invalid (genel mesaj, token yok)
     else geçerli
-        B-->>M: 303 → /portal/verify + kısa ömürlü pre-auth cookie<br/>(token URL'den kalkar)
+        B-->>M: Set-Cookie __Host-cs_portal (imzalı, 7 gün) + 303 → /portal
     end
-    M->>V: "Kod gönder" (maskeli e-posta gösterilir: a***@g***.com)
-    V->>OTP: requestOtp() — POST, rate limit, cooldown
-    OTP-->>M: 6 haneli kod e-postayla (10 dk geçerli)
-    M->>V: Kodu girer
-    V->>OTP: verifyOtp(code) — maks 5 deneme
-    OTP->>OTP: customer_session oluştur, pre-auth cookie sil
-    OTP-->>M: Session cookie (HttpOnly, Secure, SameSite=Lax) → /portal
-    M->>P: Başvuru, evraklar, yükleme
+    M->>P: /portal (token'sız URL)
+    P->>DB: cookie imzası + süre + token durumu kontrolü
+    P-->>M: Başvuru, evraklar, yükleme
 ```
 
-Ayrıntılar ve alternatifler (yalnızca bağlantı, fragment tabanlı token): [SECURITY.md](SECURITY.md) §4–5.
+Ek doğrulama adımı yoktur (OD-01). GET hiçbir veriyi değiştirmez (BR-105). Ayrıntı: [SECURITY.md](SECURITY.md) §3.
 
 ## 5. Katmanlar ve Sorumluluklar
 
 | Katman | Konum | Kural |
 |---|---|---|
-| UI (RSC) | `src/app/**/page.tsx`, `src/features/*/components` | Veri okumayı DAL fonksiyonlarıyla yapar; yalnızca DTO alır. |
-| UI (Client) | `"use client"` bileşenler | Yalnızca DTO / serileştirilebilir prop alır. Secret, DB, storage import edemez. |
-| Giriş noktaları | `src/features/*/actions.ts` (`"use server"`), `src/app/api/**/route.ts` | Zod doğrulama → aktör çözme → yetki → servis çağrısı → `ActionResult`. **İş kuralı içermez.** |
-| Servisler (use-case) | `src/features/*/service.ts` | Transaction, domain guard, audit. `server-only`. |
-| Domain (saf) | `src/features/*/domain/*.ts` | State machine, tamamlanma hesapları, izin hesapları. **I/O yok**, unit test edilir. Client'ta da import edilebilir (yalnızca saf kod). |
-| Data access | `src/features/*/queries.ts`, `src/server/db` | Drizzle sorguları, DTO eşleme, kapsam filtresi. `server-only`. |
-| Altyapı | `src/server/{auth,db,storage,security,audit,email,env}` | Better Auth, DB client, Blob, kripto, rate limit, e-posta, env. `server-only`. |
+| UI (RSC) | `src/app/**/page.tsx`, `src/features/*/components` | Veriyi DAL fonksiyonlarıyla okur; yalnızca DTO alır. |
+| UI (Client) | `"use client"` bileşenler | Yalnızca DTO / serileştirilebilir prop. Secret, DB, storage import edemez. |
+| Giriş noktaları | `src/features/*/actions.ts`, `src/app/**/route.ts` | Zod → aktör → yetki → servis → `ActionResult`. İş kuralı içermez. |
+| Servisler | `src/features/*/service.ts` | Transaction, guard, audit. `server-only`. |
+| Domain (saf) | `src/features/*/domain/*.ts` | State machine'ler, tamamlanma hesapları, etiketler. I/O yok; unit test. |
+| Data access | `src/features/*/queries.ts` | Drizzle sorguları, DTO eşleme, `deletion_requested_at IS NULL` filtresi. `server-only`. |
+| Altyapı | `src/server/*` | Auth, DB, storage, PDF doğrulama, kripto, rate limit, audit, env. `server-only`. |
 
 ### DTO kuralı
-- Personel DTO'ları ve müşteri DTO'ları **ayrı tipler ve ayrı sorgu fonksiyonlarıdır** (`getStaffApplicationDetail`, `getCustomerPortalView`).
-- Müşteri sorgu fonksiyonları `application_internal_notes`, `audit_logs`, `users` tablolarını **import etmez** (ESLint `no-restricted-imports` kuralı ile `src/features/portal/**` içinde zorlanır — PHASE 01).
-- `select` her zaman açık kolon listesiyle yapılır; `select *` eşdeğeri (`db.select().from(x)`) müşteri yolunda yasaktır.
+- Personel ve müşteri DTO'ları ayrı tipler ve ayrı sorgu fonksiyonlarıdır (`getStaffApplicationDetail`, `getCustomerPortalView`).
+- `src/features/portal/**` `application_internal_notes`, `audit_logs`, `users` şemalarını **import edemez** (ESLint `no-restricted-imports` — PHASE 01).
+- Sorgular açık kolon listesiyle yapılır.
 
 ## 6. Server Actions vs Route Handlers
 
 | Kullanım | Mekanizma | Gerekçe |
 |---|---|---|
-| Form mutasyonları (başvuru, müşteri, hizmet, şablon, çalışan, ayar, inceleme, statü geçişi, not, yorum, bağlantı yenile/iptal) | **Server Action** | Next.js'in yerleşik Origin/Host CSRF kontrolü, progressive enhancement, tipli sözleşme, `revalidatePath` ile UI güncelleme. Payload küçük (<1 MB). |
-| Müşteri OTP iste / doğrula, incelemeye gönder, dosya kaldır | **Server Action** | Aynı gerekçeler; müşteri oturum cookie'si action içinde doğrulanır. |
-| Better Auth (`/api/auth/[...all]`) | **Route Handler** | Kütüphanenin zorunlu handler'ı (`toNextJsHandler`). |
-| Upload token üretimi + Blob `onUploadCompleted` callback (`/api/uploads`) | **Route Handler** | `handleUpload` API'si Request/Response bekler; callback Vercel Blob'dan gelen harici HTTP çağrısıdır. |
-| Upload onayı (client confirm) | **Server Action** | Yerel geliştirmede callback çalışmadığı için; idempotent. |
-| PDF görüntüle / indir (`/api/files/[fileId]`) | **Route Handler** | Binary stream yanıt, `Content-Disposition`, `Cache-Control: no-store`, CSP sandbox header'ları. Server Action binary döndürmeye uygun değil. |
-| Bağlantı girişi (`/b/[token]`) | **Route Handler (GET)** | Token'ı doğrulayıp pre-auth cookie set eder ve 303 ile token'sız URL'e yönlendirir; sayfa render etmez. |
-| Bakım işleri (`/api/cron/*`) | **Route Handler** | Vercel Cron GET çağrısı; `CRON_SECRET` Bearer doğrulaması. |
+| Form mutasyonları (başvuru, müşteri bilgisi, hizmet, şablon, çalışan, inceleme, statü geçişi, not, yorum, bağlantı yenile/iptal, silme) | **Server Action** | Yerleşik Origin/Host CSRF kontrolü, tipli sözleşme, küçük payload (<1 MB) |
+| Müşteri gönderimi, dosya kaldırma, upload onayı | **Server Action** | Aynı; müşteri cookie'si action içinde doğrulanır |
+| Better Auth (`/api/auth/[...all]`) | **Route Handler** | Kütüphane handler'ı |
+| Upload token + storage callback (`/api/uploads`) | **Route Handler** | `handleUpload` Request/Response bekler; callback harici HTTP çağrısıdır |
+| PDF görüntüle/indir (`/api/files/[fileId]`) | **Route Handler** | Binary stream, özel header'lar |
+| Bağlantı girişi (`/b/[token]`) | **Route Handler (GET)** | Cookie set + 303; sayfa render etmez |
+| Teknik temizlik (`/api/cron/cleanup`) | **Route Handler** | Zamanlanmış GET; `CRON_SECRET` |
 
-Server Actions **public endpoint** kabul edilir: sayfa seviyesindeki auth kontrolü action'ı korumaz; her action kendi kontrolünü yapar (Next.js Data Security rehberi).
+Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar.
 
-## 7. Klasör Yapısı (nihai öneri)
+## 7. Klasör Yapısı
 
 ```
 .
 ├── CLAUDE.md
 ├── README.md
-├── docs/                          # Proje dokümantasyonu
-├── public/                        # Statik dosyalar (robots dışında hassas içerik yok)
+├── docs/
+├── public/
 ├── scripts/
-│   └── bootstrap-admin.ts         # İlk ADMIN oluşturma (PHASE 03)
-├── tests/
-│   ├── unit/                      # Saf domain, şema, kripto testleri
-│   ├── integration/               # DB + servis testleri (Neon test branch)
-│   ├── e2e/                       # Playwright (desktop + mobil projeler)
-│   └── fixtures/                  # Sahte PDF'ler (temiz, JS'li, sahte MIME...)
+│   ├── bootstrap-admin.ts         # İlk ADMIN (PHASE 03)
+│   └── recover-admin.ts           # ADMIN erişim kurtarma (PHASE 03)
+├── tests/{unit,integration,e2e,fixtures}/
 ├── drizzle.config.ts
 ├── next.config.ts
 └── src/
-    ├── proxy.ts                   # CSP nonce + header + iyimser yönlendirme (Next 16: src/ altında desteklenir)
+    ├── proxy.ts
+    ├── config/
+    │   ├── constants.ts           # MAX_PDF_SIZE_BYTES, şifre/oturum/rate limit sabitleri
+    │   └── company.ts             # Şirket telefonu, WhatsApp (değerler sağlanana kadar null)
     ├── app/
     │   ├── (auth)/login/page.tsx
     │   ├── (dashboard)/dashboard/
-    │   │   ├── layout.tsx                 # requireStaff() + sidebar/header
-    │   │   ├── page.tsx                   # Dashboard
+    │   │   ├── layout.tsx         # requireStaff()
+    │   │   ├── page.tsx           # Dashboard
     │   │   ├── applications/{page,new/page,[id]/page}.tsx
-    │   │   ├── services/{page,new/page,[id]/page}.tsx
-    │   │   ├── employees/{page,[id]/page}.tsx
-    │   │   ├── audit-logs/page.tsx
-    │   │   ├── settings/page.tsx
-    │   │   └── account/page.tsx           # Şifre değiştir (kendi hesabı)
+    │   │   ├── services/{page,new/page,[id]/page}.tsx    # ADMIN
+    │   │   ├── employees/{page,[id]/page}.tsx            # ADMIN
+    │   │   └── audit-logs/page.tsx                       # ADMIN
     │   ├── (portal)/
-    │   │   ├── b/[token]/route.ts         # Token girişi → 303
-    │   │   └── portal/{layout,page,verify/page}.tsx
-    │   ├── api/
-    │   │   ├── auth/[...all]/route.ts
-    │   │   ├── uploads/route.ts
-    │   │   ├── files/[fileId]/route.ts
-    │   │   └── cron/cleanup/route.ts
+    │   │   ├── b/[token]/route.ts
+    │   │   ├── portal/{layout,page}.tsx
+    │   │   └── link-invalid/page.tsx
+    │   ├── api/{auth/[...all],uploads,files/[fileId],cron/cleanup}/route.ts
     │   ├── layout.tsx, not-found.tsx, error.tsx, global-error.tsx
-    │   └── robots.ts                      # Disallow: /
+    │   └── robots.ts
     ├── components/
-    │   ├── ui/                            # shadcn/ui (üretilen)
-    │   ├── shared/                        # Logo, StatusBadge, EmptyState, ConfirmDialog...
-    │   ├── dashboard/                     # Sidebar, Header, Breadcrumb, DataTable
-    │   └── portal/                        # Müşteri layout parçaları
+    │   ├── ui/                    # shadcn/ui
+    │   ├── shared/                # Logo, StatusBadge, EmptyState, ConfirmDialog...
+    │   ├── dashboard/             # Sidebar, Header, Breadcrumb, DataTable
+    │   └── portal/
     ├── features/
-    │   ├── auth/            {actions, schemas, components}
-    │   ├── applications/    {actions, service, queries, schemas, components, domain/}
-    │   ├── customers/       {service, queries, schemas, domain/normalize.ts}
-    │   ├── services/        {actions, service, queries, schemas, components}
-    │   ├── documents/       {actions, service, queries, schemas, components, domain/}
-    │   ├── portal/          {actions, service, queries, schemas, components}  # müşteri yolu
-    │   ├── employees/       {actions, service, queries, schemas, components}
-    │   ├── audit/           {service, queries, components}
-    │   └── settings/        {actions, service, queries, schemas, components}
-    ├── server/                            # Tümü `import 'server-only'`
-    │   ├── env.ts                         # Zod ile env doğrulama
+    │   ├── auth/          {components, schemas}
+    │   ├── applications/  {actions, service, queries, schemas, components, domain/}
+    │   ├── services/      {actions, service, queries, schemas, components}
+    │   ├── documents/     {actions, service, queries, schemas, components, domain/}
+    │   ├── portal/        {actions, service, queries, components}
+    │   ├── employees/     {actions, service, queries, schemas, components}
+    │   └── audit/         {service, queries, components}
+    ├── server/                    # Tümü `import 'server-only'`
+    │   ├── env.ts
     │   ├── db/{client.ts, schema/*.ts, migrations/}
     │   ├── auth/{auth.ts, session.ts, permissions.ts}
-    │   ├── customer-access/{tokens.ts, otp.ts, session.ts}
-    │   ├── storage/{blob.ts, pdf-validation.ts, scanner.ts}
+    │   ├── customer-access/{tokens.ts, portal-session.ts}
+    │   ├── storage/{storage.ts, pdf-validation.ts}
     │   ├── security/{crypto.ts, rate-limit.ts, headers.ts}
-    │   ├── audit/log.ts
-    │   └── email/send.ts
-    ├── lib/                               # İzomorfik saf yardımcılar
-    │   ├── dates.ts                       # UTC ↔ Europe/Istanbul formatlama
-    │   ├── search.ts                      # Türkçe katlama
-    │   ├── result.ts                      # ActionResult tipi
-    │   └── utils.ts                       # cn() vb.
-    └── types/                             # Yalnızca gerçekten paylaşılan tipler (minimal)
+    │   └── audit/log.ts
+    └── lib/                       # İzomorfik saf yardımcılar
+        ├── dates.ts, search.ts, phone.ts, result.ts, messages.ts, whatsapp.ts, utils.ts
+        └── upload-client.ts       # uploadPdf() — client tarafı storage sınırı
 ```
 
-Brief'teki önerilen yapıdan farklar:
-- `src/db` → `src/server/db` (server-only sınırını klasörle görünür kılmak için).
-- `src/lib/{auth,security,storage}` → `src/server/*` (secret içeren her şey `server/` altında; `lib/` yalnızca saf ve izomorfik).
-- `features/portal` eklendi: müşteri yolu kodu personel koduyla karışmasın, import kısıtı uygulanabilsin.
-- Migration'lar `src/server/db/migrations` (drizzle-kit `out`).
-- `tests/fixtures` eklendi.
+Önceki yapıdan kaldırılanlar: `features/customers`, `features/settings`, `server/email`, `server/customer-access/otp.ts`, `/dashboard/settings`, `/dashboard/account`, `/portal/verify`, `src/types` (gerçek ihtiyaç doğunca eklenir).
 
 ### Client/Server sınırı
-1. `src/server/**` ve tüm `service.ts` / `queries.ts` dosyaları ilk satırda `import 'server-only'`.
-2. Yalnızca `NEXT_PUBLIC_APP_URL` (ve gerekirse `NEXT_PUBLIC_*` ile başlayan zararsız değerler) client'a çıkar. `env.ts` server değişkenlerini `server-only` modülde tutar.
-3. ESLint `no-restricted-imports`: `src/components/**` ve `"use client"` dosyalarından `@/server/*` import'u yasak.
-4. PHASE 01 build çıktısında client chunk'ları içinde secret adlarının bulunmadığı bir script ile kontrol edilir.
+1. `src/server/**`, `service.ts`, `queries.ts` ilk satırda `import 'server-only'`.
+2. `NEXT_PUBLIC_*` değişken **yok**; bağlantılar sunucuda üretilir.
+3. ESLint `no-restricted-imports`: `src/components/**` ve `"use client"` dosyalarından `@/server/*` yasak.
+4. PHASE 01'de client chunk'larında secret adı kontrol script'i.
 
 ## 8. Route Mimarisi
 
 | Route | Amaç | Roller | AuthN | AuthZ | Render | Cache | Hassas veri |
 |---|---|---|---|---|---|---|---|
-| `/` | Yönlendirme (`/login` veya `/dashboard`) | Herkes | — | — | Server redirect | no-store | Yok |
-| `/login` | Personel girişi | Anonim | — | Girişliyse `/dashboard`'a | RSC + client form | no-store | Yok |
-| `/dashboard` | Özet sayaçlar, son başvurular | ADMIN, EMPLOYEE | Staff session | `dashboard:read_stats` + kapsam | RSC (dinamik) | no-store | Orta |
-| `/dashboard/applications` | Liste, arama, filtre, sayfalama (searchParams) | ADMIN, EMPLOYEE | ✅ | `application:list` + kapsam | RSC | no-store | Yüksek |
-| `/dashboard/applications/new` | Başvuru oluşturma | ADMIN, EMPLOYEE | ✅ | `application:create` | RSC + client form | no-store | Yüksek |
-| `/dashboard/applications/[id]` | Detay, evraklar, inceleme, notlar, geçmiş, bağlantı | ADMIN, EMPLOYEE | ✅ | `application:read` + kapsam (404) | RSC + client adalar | no-store | **Çok yüksek** |
-| `/dashboard/services` · `/new` · `/[id]` | Hizmet + şablon yönetimi | ADMIN | ✅ | `service:manage` | RSC + client form | no-store | Düşük |
+| `/` | `/login` veya `/dashboard`'a yönlendirme | Herkes | — | — | Redirect | no-store | Yok |
+| `/login` | Personel girişi (yalnızca kullanıcı adı + şifre) | Anonim | — | Girişliyse yönlendir | RSC + client form | no-store | Yok |
+| `/dashboard` | Sayaçlar, son başvurular, inceleme bekleyenler | ADMIN, EMPLOYEE | Staff session | `dashboard:read_stats` | RSC | no-store | Orta |
+| `/dashboard/applications` | Tek liste; arama, statü/hizmet/tarih filtresi, sayfalama | ADMIN, EMPLOYEE | ✅ | `application:list` | RSC | no-store | Yüksek |
+| `/dashboard/applications/new` | Başvuru oluşturma + sonuç ekranı | ADMIN, EMPLOYEE | ✅ | `application:create` | RSC + client form | no-store | Yüksek |
+| `/dashboard/applications/[id]` | Detay: müşteri bilgisi, evraklar, inceleme, yorum, not, geçmiş, bağlantı, (ADMIN) geri alma/yeniden açma/silme | ADMIN, EMPLOYEE | ✅ | `application:read` (+ aksiyon izinleri) | RSC + client adalar | no-store | **Çok yüksek** |
+| `/dashboard/services` · `/new` · `/[id]` | Hizmet + evrak şablonu | ADMIN | ✅ | `service:manage` | RSC + client form | no-store | Düşük |
 | `/dashboard/employees` · `/[id]` | Çalışan yönetimi | ADMIN | ✅ | `user:*` | RSC + client form | no-store | Orta |
-| `/dashboard/audit-logs` | Audit listesi | ADMIN | ✅ | `audit_log:read` | RSC | no-store | Orta |
-| `/dashboard/settings` | Ayarlar | ADMIN | ✅ | `settings:*` | RSC + client form | no-store | Düşük |
-| `/dashboard/account` | Kendi şifresi / oturumları | ADMIN, EMPLOYEE | ✅ | 👤 | RSC + client form | no-store | Düşük |
-| `GET /b/[token]` | Token doğrula → pre-auth cookie → 303 `/portal/verify` | Anonim | Token | Token geçerliliği | Route Handler | no-store | Token |
-| `/portal/verify` | OTP iste / doğrula | Pre-auth | Pre-auth cookie | Bağlı token hâlâ geçerli | RSC + client form | no-store | Maskeli e-posta |
-| `/portal` | Müşteri paneli | CUSTOMER | Customer session | Oturumun tek başvurusu | RSC + client adalar (upload) | no-store | **Çok yüksek** |
-| `/api/auth/[...all]` | Better Auth | — | Better Auth | Better Auth + admin plugin | Route Handler | no-store | Kimlik |
-| `POST /api/uploads` | Upload token üret / Blob callback | Staff, CUSTOMER, Blob (callback) | Session veya callback doğrulaması | `file:upload` + BR-44 | Route Handler | no-store | Metadata |
-| `GET /api/files/[fileId]` | PDF stream (`?disposition=inline\|attachment`) | Staff, CUSTOMER | Session | `file:view_download` + kapsam + `CLEAN` | Route Handler | no-store | **Belge** |
-| `GET /api/cron/cleanup` | Orphan upload, süresi dolan OTP/session/token, saklama temizliği | SYSTEM | `CRON_SECRET` | — | Route Handler | no-store | — |
+| `/dashboard/audit-logs` | Genel işlem geçmişi | ADMIN | ✅ | `audit_log:read` | RSC | no-store | Orta |
+| `GET /b/[token]` | Token doğrula → cookie → 303 `/portal` | Anonim | Token | Token geçerliliği | Route Handler | no-store | Token |
+| `/portal` | Müşteri paneli | CUSTOMER | Portal cookie | Tek başvuru | RSC + client adalar | no-store | **Çok yüksek** |
+| `/link-invalid` | Genel geçersiz bağlantı mesajı | Herkes | — | — | RSC (statik içerik, no-store) | no-store | Yok |
+| `/api/auth/[...all]` | Better Auth (kapalı uç noktalar hariç) | — | Better Auth | — | Route Handler | no-store | Kimlik |
+| `POST /api/uploads` | Upload token / storage callback | Staff, CUSTOMER, storage | Session / callback doğrulaması | `file:upload` + BR-44 | Route Handler | no-store | Metadata |
+| `GET /api/files/[fileId]` | PDF stream | Staff, CUSTOMER | Session | `file:view_download` | Route Handler | no-store | **Belge** |
+| `GET /api/cron/cleanup` | Teknik temizlik | SYSTEM | `CRON_SECRET` | — | Route Handler | no-store | — |
 
-Personel alanında ayrıca `/dashboard/applications/[id]` altında ayrı sayfa açmak yerine sekmeler (evraklar / geçmiş / notlar) kullanılır — gereksiz route çoğaltılmaz.
+Kaldırılan route'lar: `/dashboard/settings`, `/dashboard/account`, `/portal/verify`, arşiv görünümleri.
 
 ## 9. Cache Stratejisi (Next.js 16)
 
-Doğrulanan davranış (nextjs.org/docs): Cache Components **opt-in**; açık değilken `fetch` cache'lenmez, `cookies()`/`headers()` okuyan sayfalar dinamik render edilir; Route Handler GET'ler varsayılan dinamik. `use cache` içinde `cookies()`/`headers()` çağrılamaz.
+Doğrulanan davranış: Cache Components opt-in; kapalıyken `fetch` cache'lenmez, `cookies()`/`headers()` okuyan sayfalar dinamik; Route Handler GET'ler varsayılan dinamik; `use cache` içinde `cookies()` çağrılamaz.
 
 Kurallar (D-016):
-1. `cacheComponents` **kapalı** (MVP). Açılması ayrı karar gerektirir.
-2. `'use cache'`, `unstable_cache`, `fetch(..., { cache: 'force-cache' })`, `export const dynamic = 'force-static'`, `revalidate = N` **hassas veri içeren hiçbir yerde kullanılmaz**. ESLint/grep kontrolü PHASE 01'de eklenir.
-3. Tüm `/dashboard`, `/portal`, `/b`, `/api` yanıtlarına `Cache-Control: private, no-store, max-age=0` (next.config `headers()` + Route Handler'larda açıkça).
-4. Her korumalı layout/page `requireStaff()` / `requireCustomer()` çağırır → `cookies()` okur → dinamik render garanti.
-5. CDN/edge cache kullanılmaz; Vercel'in `Vary`/`Cache-Control` davranışı PHASE 04'te response header'ları incelenerek doğrulanır.
-6. Client Router Cache: çıkış (logout), bağlantı iptali ve rol değişikliği sonrası `router.refresh()` ve tam sayfa yönlendirmesi; müşteri oturumu bittiğinde `/portal` → `/b`-hata sayfası.
-7. React `cache()` (istek kapsamlı memoization) aktör çözümü için **kullanılabilir** — istekler arası paylaşılmaz.
-8. Paylaşılabilir cache yalnızca şu verilerde düşünülebilir: yok (MVP). Aktif hizmet listesi bile küçük olduğundan her istekte DB'den okunur.
+1. `cacheComponents` **kapalı**.
+2. `'use cache'`, `unstable_cache`, `force-cache`, `force-static`, `revalidate = N` hassas veride **yasak** (lint/grep — PHASE 01).
+3. `/dashboard`, `/portal`, `/b`, `/api`: `Cache-Control: private, no-store, max-age=0`.
+4. Korumalı layout/page `requireStaff()` / `requireCustomer()` çağırır → dinamik render.
+5. Çıkış, bağlantı iptali, rol değişikliği sonrası `router.refresh()` / tam yönlendirme.
+6. React `cache()` yalnızca istek kapsamlı memoization için.
 
 ## 10. Hata Yönetimi
 
-- `ActionResult<T> = { ok: true; data: T } | { ok: false; error: { code: ErrorCode; message: string; fieldErrors?: Record<string, string[]> } }`.
-- `ErrorCode`: `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT` (optimistic lock), `INVALID_STATUS_TRANSITION`, `GUARD_FAILED`, `RATE_LIMITED`, `FILE_REJECTED`, `INTERNAL_ERROR`.
-- Domain hataları tipli `DomainError` sınıfıyla fırlatılır, giriş noktasında `ActionResult`'a çevrilir. Beklenmeyen hatalar loglanır (PII'siz, korelasyon ID'li) ve kullanıcıya "Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin." döner.
-- Türkçe mesajlar `src/lib/messages.ts` içinde tek yerde (i18n kütüphanesi yok — çoklu dil kapsam dışı).
-- `error.tsx` / `global-error.tsx` stack trace göstermez.
+- `ActionResult<T> = { ok: true; data: T } | { ok: false; error: { code; message; fieldErrors? } }`.
+- `ErrorCode`: `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `INVALID_STATUS_TRANSITION`, `GUARD_FAILED`, `RATE_LIMITED`, `FILE_REJECTED`, `UPLOAD_IN_PROGRESS`, `INTERNAL_ERROR`.
+- Türkçe mesajlar `src/lib/messages.ts`'te. Beklenmeyen hatalar PII'siz loglanır; kullanıcıya genel mesaj.
+- Hata sayfaları stack trace, token veya iç ID göstermez.
 
-## 11. Environment Doğrulama
+## 11. Sabit Yapılandırma ve Environment
 
-`src/server/env.ts`: Zod şeması ile uygulama başlangıcında (ilk import) doğrulanır; eksik/hatalı değişkende açık hata ile başlamaz. Değişken listesi: [DEPLOYMENT.md](DEPLOYMENT.md) §3.
+### 11.1 `src/config/constants.ts` (panelden değiştirilemez)
+| Sabit | Değer | Kaynak |
+|---|---|---|
+| `ALLOWED_FILE_MIME` / `ALLOWED_FILE_EXTENSION` | `application/pdf` / `.pdf` | OD-16 |
+| `MAX_PDF_SIZE_BYTES` | `10 * 1024 * 1024` = **10 485 760** ("10 MB") | OD-16 |
+| `UPLOAD_TOKEN_TTL_SECONDS` | 900 | FILE_STORAGE §2.1 |
+| `STALE_VALIDATION_MINUTES` | 10 | FILE_STORAGE §2.1 |
+| `PASSWORD_MIN_LENGTH` / `PASSWORD_MAX_LENGTH` | 8 / 128 | OD-22 |
+| `STAFF_SESSION_MAX_AGE_SECONDS` | 604800 (7 gün, uzatılmaz) | OD-22 |
+| `CUSTOMER_SESSION_MAX_AGE_SECONDS` | 604800 (7 gün, uzatılmaz) | OD-22 |
+| `ACCESS_TOKEN_BYTES` | 32 (256 bit) | OD-01 |
+| Rate limitler | SECURITY §6 | |
+| `PAGE_SIZES` | 10 / 20 / 50 | |
+
+### 11.2 `src/config/company.ts` (OD-14)
+`{ name: 'CS Global', phone: null, whatsapp: null }` — gerçek değerler Product Owner tarafından sağlanınca doldurulur; `null` iken UI disabled/placeholder gösterir (BR-171).
+
+### 11.3 Environment
+`src/server/env.ts` (Zod) başlangıçta doğrular. Liste: [DEPLOYMENT.md](DEPLOYMENT.md) §3. `APP_URL` tek bağlantı kaynağıdır (OD-20).
 
 ## 12. Transaction ve Idempotency
 
-- DB erişimi `pg.Pool` (pooled URL) + `drizzle-orm/node-postgres`; interactive transaction'lar `db.transaction(async (tx) => ...)` (D-006).
-- Transaction'lar kısa tutulur: dış çağrılar (e-posta gönderimi, Blob `get`, tarama) **transaction dışında** yapılır.
-- Idempotency: başvuru oluşturma formu bir `idempotencyKey` (UUID, client'ta form açılışında üretilir) gönderir; `applications.idempotency_key` unique. Aynı anahtarla ikinci istek mevcut sonucu döndürür.
-- Upload tamamlama: pathname unique (BR-92). Gönderim: statü guard'ı (BR-53).
+- `pg.Pool` (pooled URL) + `drizzle-orm/node-postgres`; interactive transaction (D-006).
+- Transaction içinde ağ çağrısı yok (storage, doğrulama dışarıda).
+- Başvuru oluşturma `idempotencyKey`; upload claim satır kilidi; gönderim statü guard'ı; bağlantı yenileme `applications FOR UPDATE` + partial unique index.
 
-## 13. Gözlemlenebilirlik (MVP)
+## 13. Gözlemlenebilirlik
 
-- Vercel runtime logları + yapılandırılmış `console` logları (JSON, seviye, korelasyon ID). PII ve token **loglanmaz**; log yardımcı fonksiyonu bilinen hassas anahtarları maskeleyen bir redaksiyon listesi kullanır.
-- `/b/[token]` yolu Vercel request loglarına düşer → token log sızıntısı riski ve azaltımı [SECURITY.md](SECURITY.md) §5.
-- Harici APM/analytics MVP'de yok; müşteri panelinde üçüncü taraf script **yasak**.
+- Hosting runtime logları + yapılandırılmış JSON loglar; PII ve token **loglanmaz** (redaksiyon listesi; `/b/` path'i maskelenir).
+- Harici APM/analytics/hata izleme servisi yok; müşteri tarafında üçüncü taraf script yasak.

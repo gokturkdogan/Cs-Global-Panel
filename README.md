@@ -4,17 +4,17 @@ CS Global Customer Panel
 **CS Global Visa Management Platform** — CS Global'in vize danışmanlık süreçlerinde müşteri evraklarının toplanması, incelenmesi ve süreç takibi için geliştirilen web platformu.
 
 - **Şirket Yönetim Paneli:** Yönetici ve çalışanlar için başvuru, evrak inceleme, hizmet ve çalışan yönetimi.
-- **Müşteri Paneli:** Başvuruya özel güvenli bağlantı ile erişilen, mobil öncelikli evrak yükleme ve süreç takip ekranı.
+- **Müşteri Paneli:** Başvuruya özel bağlantı ile doğrudan erişilen, mobil öncelikli evrak yükleme ve süreç takip ekranı.
 
 > Bu platform bir konsolosluk veya resmî vize başvuru sistemi değildir.
 
 ## Durum
 
-**PHASE 00 — Proje temeli ve mimari** (yalnızca dokümantasyon). Uygulama kodu henüz bulunmamaktadır. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+**PHASE 00 — Proje temeli ve mimari** (yalnızca dokümantasyon; ürün kararları 23/23 kabul edildi). Uygulama kodu henüz bulunmamaktadır. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 
-Next.js 16 · React 19 · TypeScript 6 · Tailwind CSS 4 · shadcn/ui · Drizzle ORM · Neon PostgreSQL · Better Auth · Vercel Private Blob · Vitest · Playwright. Doğrulanmış sürümler: [docs/TECH_STACK.md](docs/TECH_STACK.md).
+Next.js 16 · React 19 · TypeScript (6.0.x önerisi) · Node.js 24 LTS · Tailwind CSS 4 · shadcn/ui · Drizzle ORM · Neon PostgreSQL · Better Auth · Vercel Private Blob · Vitest · Playwright. Hedef aylık altyapı maliyeti: 0. Doğrulanmış sürümler: [docs/TECH_STACK.md](docs/TECH_STACK.md).
 
 ## Dokümantasyon
 
