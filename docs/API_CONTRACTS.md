@@ -65,8 +65,7 @@ Liste filtreleri (`searchParams`, Zod): `q` (2–100), `status` (`ALL` \| 7 stat
 | `reviewDocumentAction` | `{ requirementId, fileId, expectedVersion, decision: 'APPROVED' \| 'REVISION_REQUIRED', customerMessage? }` | `{ status, version, reviewId }` | Personel | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` |
 | `addDocumentCommentAction` | `{ applicationId, requirementId?, body }` | `{ commentId }` | Personel | `DOCUMENT_COMMENT_ADDED` |
 | `removeFileAction` | `{ fileId, expectedVersion }` | `{ requirementStatus }` | Personel | `DOCUMENT_DELETED` |
-| `confirmUploadAction` (ortak) | `{ fileId }` | `{ fileId, status: 'VALIDATING' \| 'ACTIVE' \| 'REJECTED', message? }` | yüklemeyi başlatan aktör | `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` / `DOCUMENT_VALIDATION_REJECTED` |
-| `getUploadStatusAction` (ortak) | `{ fileId }` | `{ status, message? }` | yüklemeyi başlatan aktör | — |
+| ~~`confirmUploadAction`~~ / ~~`getUploadStatusAction`~~ | — | — | — | **Superseded** (PHASE 08, D-100): yükleme tek Route Handler isteğinde senkron tamamlanır (§4.2) |
 
 `reviewDocumentAction`: `fileId` kilit altında aktif dosya değilse `CONFLICT` (BR-57).
 
@@ -98,10 +97,12 @@ Kapsam her zaman müşteri oturumundan (`requireCustomerAccess(contextId)` — P
 |---|---|---|---|
 | `submitForReviewAction` | `{ expectedVersion }` | `{ status }` | `APPLICATION_SUBMITTED` / `RESUBMITTED` |
 | `removeOwnFileAction` | `{ fileId, expectedVersion }` | `{ requirementStatus }` | `DOCUMENT_DELETED` |
-| `confirmUploadAction` / `getUploadStatusAction` | §2.2 ile aynı | | |
+| ~~`confirmUploadAction` / `getUploadStatusAction`~~ | Superseded — §4.2 (müşteri yükleme route'u) | | |
 
 Kaldırılan: `requestOtpAction`, `verifyOtpAction`, `exchangeFragmentTokenAction`, `customerLogoutAction`.
 
+> **PHASE 08 güncellemesi (D-091):** `documents[]` ayrıca `requirementId`, `version` (yükleme `expectedVersion`'ı) ve `activeFile: { id, name, sizeBytes, uploadedAt } | null` (yalnızca ACTIVE; storage anahtarı/versiyonu/SHA-256/yükleyen yok) içerir; `canUpload` sunucu bileşeninde `canUploadDocument("CUSTOMER", …)` ile hesaplanır.
+>
 > **PHASE 07'de uygulanan okuma (D-091):** `getCustomerPortalView(db, access)` → `{ customer: { firstName, lastName }, application: { number, serviceName, createdAt, status }, documents: [{ title, description, instructions, isRequired, status, revisionMessage }] }`. İlerleme/tamamlanma sunucu bileşeninde saf fonksiyonlarla hesaplanır (D-092). Telefon/e-posta, kimlikler, dosya, yorum, `canSubmit` alanları **henüz yok** — aşağıdaki hedef DTO PHASE 08/09'da tamamlanır.
 
 Hedef okuma: `getCustomerPortalView(portalSession)` → `CustomerPortalDTO`:
@@ -131,14 +132,15 @@ type CustomerPortalDTO = {
 ### 4.1 `/api/auth/*` — **bağlanmaz** (D-060)
 Better Auth HTTP route'u yoktur; tüm `/api/auth/*` istekleri 404 döner. Personel girişi ve çıkışı Server Action'lardır (`signInAction`, `signOutAction` — §2.4); oturum sunucuda `auth.api.getSession` ile okunur. Kayıt, e-posta ile giriş, şifre değiştirme/sıfırlama, e-posta değiştirme, kullanıcı güncelleme/silme, impersonation ve admin uç noktaları HTTP'den erişilemez.
 
-### 4.2 `POST /api/uploads`
-`handleUpload`:
-- **Token isteği** (client): `clientPayload = { requirementId, fileName, size }`; `Origin === APP_URL` kontrolü; aktör (staff cookie veya portal cookie); BR-44; `size ≤ MAX_PDF_SIZE_BYTES`; transaction'da önceki pending'i `EXPIRED`, yeni `UPLOAD_PENDING`; yanıt: `{ allowedContentTypes: ['application/pdf'], maximumSizeInBytes: MAX_PDF_SIZE_BYTES, validUntil: now+15dk, addRandomSuffix: false, tokenPayload: { fileId } }` — pathname sunucuda.
-- **Callback** (storage): `onUploadCompleted` → `completeUpload(fileId)` (idempotent: claim → doğrula → aktive et / reddet).
-- Hatalar: 400 (kalıcı), 409 (`UPLOAD_IN_PROGRESS`), 429, 500.
+### 4.2 PDF yükleme — `POST /api/documents/[requirementId]/file` (personel) · `POST /api/portal/[context]/documents/[requirementId]/file` (müşteri) — **PHASE 08'de uygulandı (D-100, D-103)**
+- **İstek:** gövde = ham PDF; `Content-Type: application/pdf`; `Content-Length` zorunlu (1…10 485 760); `X-Upload-Filename: <encodeURIComponent(ad)>`; `?expectedVersion=<evrak sürümü>` (Zod `.strict()`); `Origin` = APP_URL zorunlu. `applicationId` yoktur (personel: evraktan; müşteri: yalnızca oturumdan).
+- **Başarı `200`:** `{ ok: true, message: "Yüklendi", fileId, versionNumber, documentStatus }` — yalnızca aktivasyon commit'inden sonra.
+- **Hatalar** (gövde: `{ ok: false, code, message }`, Türkçe; iç ayrıntı yok): `401 UNAUTHENTICATED`/`ACCESS_ENDED` · `403 FORBIDDEN` (köken) · `404 NOT_FOUND` (yok / başka başvuru / silinmekte — ayırt edilmez) · `409 CONTEXT_MISMATCH` (müşteri; başka başvuru açıldı) · `409 NOT_ALLOWED` (BR-44) · `409 CONFLICT` (sürüm) · `409 UPLOAD_IN_PROGRESS` · `409 STATE_CHANGED` · `411 LENGTH_REQUIRED` · `413 TOO_LARGE` · `415 NOT_PDF` · `400 EMPTY`/`LENGTH_MISMATCH`/`ABORTED`/`TIMEOUT` · `422 <PDF ret kodu>` (`NOT_PDF`, `ACTIVE_CONTENT`, `EMBEDDED_FILE`, `ENCRYPTED`, `MALFORMED`, `TOO_LARGE`, `RESOURCE_LIMIT`) · `429 RATE_LIMITED` · `503 BUSY`/`STORAGE_LIMIT`/`STORAGE_UNAVAILABLE`/`STORAGE_NOT_CONFIGURED` · `507 QUOTA_EXCEEDED` · `500 INTERNAL`. Hata mesajları "Önceki dosyanız korunuyor" bilgisini içerir (uygun olanlarda).
+- Başlıklar: `no-store`, `no-referrer`, `nosniff`, `X-Frame-Options: DENY`, CSP `default-src 'none'`.
+- **Superseded:** önceki `POST /api/uploads` (Vercel Blob `handleUpload` token + callback) — OD-25.
 
-### 4.3 `GET /api/files/[fileId]?disposition=inline|attachment`
-[FILE_STORAGE.md](FILE_STORAGE.md) §3. `200` stream · `401` · `404` (yetkisiz/kapsam dışı/aktif değil — ayırt edilmez) · `429`.
+### 4.3 PDF görüntüleme/indirme — `GET /api/files/[fileId]` (personel) · `GET /api/portal/[context]/files/[fileId]` (müşteri) — **PHASE 08'de uygulandı (D-104)**
+`?disposition=inline|attachment` (varsayılan attachment). [FILE_STORAGE.md](FILE_STORAGE.md) §3. `200` akış · `401` · `404` (yetkisiz/kapsam dışı/aktif değil/eski versiyon (müşteri) — ayırt edilmez) · `409 CONTEXT_MISMATCH` (müşteri) · `429` · `502 INTEGRITY` · `503`.
 
 ### 4.4 `GET /b/[token]`
 | Durum | Yanıt |
@@ -156,7 +158,7 @@ Her yanıt: `Cache-Control: private, no-store, max-age=0`, `Referrer-Policy: no-
 | `/portal` | Bağlamsız eski adres: oturum açmaz, "Oturumunuz sona erdi / bağlantıyı yeniden açın" bilgisi |
 | `/link-invalid`, `/link-unavailable` | Genel bilgi + iletişim kartı; kişisel veri yok |
 
-### 4.5 `GET /api/cron/cleanup`
+### 4.5 `GET /api/cron/cleanup` — **uygulanmadı** (PHASE 08: teknik temizlik CLI — `pnpm storage:cleanup`, D-105; zamanlama PHASE 10/13)
 `Authorization: Bearer ${CRON_SECRET}`. Görevler (teknik): süresi dolan `UPLOAD_PENDING` → `EXPIRED` + blob sil; takılı `VALIDATING` → `REJECTED`; reddedilmiş blob kalıntıları; orphan blob mutabakatı; yarım kalan başvuru silmelerini tamamlama; süresi dolmuş personel oturumları; süresi dolmuş rate limit anahtarları. Batch sınırlı; yanıt `{ tasks: { name, processed }[] }`; audit `TECHNICAL_CLEANUP_EXECUTED`. **Müşteri verisi saklama süresi işlemi içermez.**
 
 ## 5. Mutasyon Envanteri

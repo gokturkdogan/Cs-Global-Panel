@@ -232,6 +232,8 @@ export type ApplicationDetail = {
     readonly instructions: string | null;
     readonly isRequired: boolean;
     readonly status: DocumentStatus;
+    /** Optimistic lock — dosya yüklemesinde `expectedVersion` (BR-90). */
+    readonly version: number;
   }[];
   readonly history: readonly {
     readonly id: string;
@@ -280,6 +282,7 @@ export async function getApplicationDetail(
         instructions: snapshots.instructions,
         isRequired: snapshots.isRequired,
         status: snapshots.status,
+        version: snapshots.version,
       })
       .from(snapshots)
       .where(eq(snapshots.applicationId, applicationId))

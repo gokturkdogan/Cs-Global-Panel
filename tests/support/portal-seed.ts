@@ -123,8 +123,10 @@ export async function seedApplication(
       await db.query(
         `INSERT INTO application_document_files
            (id, application_id, requirement_id, status, version_number, blob_pathname, original_filename,
-            size_bytes, sha256, uploaded_by_actor_type, uploaded_by_user_id, upload_expires_at, activated_at)
-         VALUES ($1, $2, $3, 'ACTIVE', 1, $4, 'belge.pdf', 1024, $5, 'USER', $6, now() + interval '15 minutes', now())`,
+            size_bytes, sha256, uploaded_by_actor_type, uploaded_by_user_id, upload_expires_at, activated_at,
+            storage_version_id)
+         VALUES ($1, $2, $3, 'ACTIVE', 1, $4, 'belge.pdf', 1024, $5, 'USER', $6, now() + interval '15 minutes', now(),
+            $7)`,
         [
           fileId,
           applicationId,
@@ -132,6 +134,7 @@ export async function seedApplication(
           `applications/${applicationId}/${requirementId}/${fileId}.pdf`,
           randomBytes(32).toString("hex"),
           userId,
+          `seed-version-${fileId}`,
         ],
       );
       await db.query(

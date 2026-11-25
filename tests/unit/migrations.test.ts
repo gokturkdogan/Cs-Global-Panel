@@ -33,6 +33,10 @@ describe("migration dosyaları", () => {
     const ALLOWED_DESTRUCTIVE: Record<string, RegExp> = {
       "0003_fixed_two_account_model.sql":
         /ALTER TABLE "(users|sessions)" DROP (COLUMN|CONSTRAINT) "(impersonated_by|banned|ban_reason|ban_expires|sessions_no_impersonation_check|users_username_format_check)";/g,
+      // PHASE 08: token FK'leri ON DELETE CASCADE ile yeniden tanımlanır (veri silinmez; aynı migration'da
+      // eklenir) — başvuru silmede zincirleme silme NO ACTION'a takılmasın.
+      "0005_storage_b2.sql":
+        /ALTER TABLE "(application_document_files|application_status_history)" DROP CONSTRAINT "(app_doc_files_access_token_fk|app_status_history_access_token_fk)";/g,
     };
     for (const file of sqlFiles) {
       const allowed = ALLOWED_DESTRUCTIVE[file];

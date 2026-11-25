@@ -316,12 +316,15 @@ describe("müşteri yolu statik güvenceleri", () => {
     expect(source).not.toMatch(/\.insert\(|\.update\(|\.delete\(|writeAuditLog/);
   });
 
-  it("portal DTO'sunda teknik kimlik, telefon, e-posta, token, dosya bilgisi yok", () => {
+  it("portal DTO'sunda telefon, e-posta, token, storage anahtarı/versiyonu, SHA-256, yükleyen bilgisi yok", () => {
     const source = readFileSync("src/features/customer-portal/queries.ts", "utf8");
     const typeBlock = source.slice(
       source.indexOf("export type CustomerDocument"),
       source.indexOf("export async function"),
     );
-    expect(typeBlock).not.toMatch(/\bid\b|phone|email|token|blob|sha256|fileId|version/i);
+    // PHASE 08 (D-091 güncellemesi): kendi evrak kimliği/sürümü ve ACTIVE dosyanın görünen bilgileri izinli.
+    expect(typeBlock).not.toMatch(
+      /phone|email|token|blob|sha256|storage|pathname|uploadedBy|applicationId/i,
+    );
   });
 });

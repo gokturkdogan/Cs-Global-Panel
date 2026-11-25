@@ -29,6 +29,8 @@ const EXPECTED_PRIVILEGES: Record<string, Privilege[]> = {
   application_status_history: ["SELECT", "INSERT"],
   audit_logs: ["SELECT", "INSERT"],
   rate_limit_buckets: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+  // PHASE 08: tek satırlık kota kilidi/mutabakat durumu — ekleme/silme yok.
+  storage_quota_state: ["SELECT", "UPDATE"],
 };
 const ALL_PRIVILEGES = [
   "SELECT",

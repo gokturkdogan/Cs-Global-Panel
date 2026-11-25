@@ -74,7 +74,7 @@
 - **DoD:** Ortak DoD.
 - **Sonuç (2026-11-24):** Oluşturma (atomik, idempotent, önizleme parmak izi), liste (URL dışı arama, filtre, sayfalama), detay, müşteri düzenleme, bağlantı göster/kopyala/yenile/iptal/yeniden oluştur, WhatsApp hazırlığı, dashboard bağlantıları; D-078…D-086. **Bu fazda yapılmayan (PHASE 06 talimatı dışında):** iç notlar, başvuru silme, tarih aralığı filtresi — sonraki ilgili fazlara.
 
-## PHASE 07 — Customer Portal (tamamlandı — kullanıcı onayı bekliyor)
+## PHASE 07 — Customer Portal (tamamlandı — onaylandı 2026-11-25; D-087/D-093 koşullu)
 - **Scope:** `GET /b/[token]` (rate limit, doğrulama, imzalı portal cookie'si, 303), `/portal` (bilgiler, süreç göstergesi, tamamlanma göstergesi, evrak kartları — yükleme hariç, yorumlar, düzeltme açıklamaları, sabit iletişim kartı/placeholder, salt okunur modlar), `/link-invalid`.
 - **Deliverables:** Bağlantıyla doğrudan erişim ve mobile-first panel.
 - **Dependencies:** PHASE 06; D-032.
@@ -84,14 +84,15 @@
 - **DoD:** Ortak DoD + gerçek cihaz (iOS Safari, Android Chrome, WhatsApp in-app — cookie davranışı dahil) manuel test sonuçları raporlandı.
 - **Sonuç (2026-11-25):** `/b/[token]` (biçim kontrolü, HMAC arama, imzalı oturum, 303 token'sız `/portal/<bağlam>`), 7 gün sabit oturum, her istekte iptal/yenileme/silme kontrolü, çoklu sekme bağlam izolasyonu, `/link-invalid`, `/link-unavailable`, mobile-first salt okunur panel (hoş geldiniz, süreç, evrak ilerlemesi, evrak kartları + düzeltme açıklaması, yükleme/gönderim yer tutucuları, iletişim kartı), başlıklar ve log redaksiyonu; D-087…D-095. **Yapılmayan / ertelenen:** IP rate limit (TD-04 → PHASE 13, D-093); müşteri yorumları (PHASE 09 — yorum modeli henüz yok); gerçek cihaz/WhatsApp in-app manuel testi (**yapılmadı** — cihaz erişimi yok; PHASE 12/13 öncesi gerekli). Testler izole Docker ortamında (Chrome, WebKit, mobil emülasyon).
 
-## PHASE 08 — Secure PDF Document Management
-- **Scope:** Dev/demo private Blob store'ları (ücretsiz), storage modülü (`storage.ts`, `upload-client.ts`), `/api/uploads` (token + callback), client confirm, upload bileşeni (ilerleme, hata, tekrar dene, çift gönderim engeli, değiştir/kaldır), PDF yapısal doğrulama (parser seçimi TD-06), tek aktif PDF + versiyonlama, `/api/files/[fileId]` (inline/attachment — TD-12), personelin müşteri adına (UNDER_REVIEW dahil) yüklemesi, günlük teknik temizlik (cron), başvuru silmenin storage aşaması.
-- **Deliverables:** Uçtan uca dosya yönetimi.
-- **Dependencies:** PHASE 07; TD-06, TD-10, TD-11, TD-12.
-- **Security checks:** FILE_STORAGE §6.4 kabul kriterlerinin tamamı; görüntüleme ve indirme uç noktasında (`/api/files/[fileId]`) her istekte sunucu tarafı yetkilendirme — yalnızca indirme butonunu gizlemek kontrol sayılmaz; "virüssüz" etiketi olmaması.
-- **Test requirements:** Unit: sanitizasyon, doğrulama fixture seti. Integration: idempotency, yarış, tek aktif/tek devam eden yükleme, temizlik, silme. E2E: S07–S12, mobil dosya seçimi, E5 (dosyalı).
-- **Acceptance:** FILE_STORAGE §6.4 maddeleri 1–15 geçer.
-- **DoD:** Ortak DoD + SDK API'leri TECH_STACK'te doğrulandı.
+## PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage (tamamlandı — kullanıcı onayı bekliyor)
+- **Kapsam değişikliği (OD-25, 2026-11-25):** Vercel Blob + doğrudan client upload + `/api/uploads` token/callback + günlük cron tasarımı yerine **Backblaze B2 private bucket** + sunucu üzerinden yükleme + elle çalıştırılan bakım komutları. Önceki kapsam metni: "Dev/demo private Blob store'ları, `storage.ts`/`upload-client.ts`, `/api/uploads` (token + callback), client confirm, …, günlük teknik temizlik (cron), başvuru silmenin storage aşaması" — Superseded.
+- **Scope (uygulanan):** storage soyutlaması (B2 + yerel private), güvenli env yapılandırması (`pnpm env:b2`), canlı duman testi (`pnpm storage:verify`), yükleme route'ları (personel müşteri adına + müşteri), PDF yapısal doğrulama (pdf.js + nesne düzeyi tarama, izole worker — TD-06), SHA-256, tek aktif PDF + versiyonlama, atomik yaşam döngüsü + hata kurtarma, depolama kotası, görüntüleme/indirme route'ları (TD-12 kısmen), müşteri ve personel UI, dosya geçmişi, dashboard kapasite kartı, mutabakat/temizlik komutları, migration 0005.
+- **Kapsam dışı (bu fazda):** kaldırma (BR-44 "kaldır" — PHASE 09), başvuru silmenin storage aşaması (PHASE 10), zamanlanmış temizlik (PHASE 10/13), incelemeye gönderme/inceleme (PHASE 09).
+- **Dependencies:** PHASE 07; OD-25; D-096…D-107.
+- **Security checks:** FILE_STORAGE §6.4; her görüntüleme/indirme isteğinde sunucu tarafı yetkilendirme; "virüssüz" etiketi yok; TM-40 dosya kısmı; TM-50…TM-53.
+- **Acceptance:** FILE_STORAGE §6.4 1–13 testle geçer; 14 (yanlış pozitif ölçümü) PHASE 12; 15 (başvuru silme) PHASE 10.
+- **DoD:** Ortak DoD + SDK/sağlayıcı davranışı TECH_STACK §3.8'de doğrulandı + canlı `storage:verify` (kullanıcının anahtarı girmesine bağlı).
+- **Sonuç (2026-11-25):** Uygulandı; unit, izole integration ve izole E2E (Chrome, WebKit, mobil emülasyon) yeşil; migration 0005 önce izole ortamda sonra `neondb`'de; ortak veritabanı verisi değişmedi. **Yapılmayan:** canlı B2 doğrulaması (anahtar henüz `.env.local`'da yok — kullanıcı `pnpm env:b2` + `pnpm storage:verify` çalıştıracak); gerçek cihaz testleri; gerçek belge setiyle yanlış pozitif ölçümü.
 
 ## PHASE 09 — Document Review & Application Workflow
 - **Scope:** Gönderim (müşteri + müşteri adına), evrak inceleme (onay/düzeltme + gerekçe, `fileId` bağlı), karar değişikliği, müşteri yorumları, T2–T7, **T8–T12** (her iki hesap; gerekçeli, evrak seçimli), izin verilen aksiyonlar, müşteri panelinde düzeltme gösterimi, yeniden gönderim, statü geçmişi.

@@ -4,7 +4,7 @@
 > Kaynaklar: npm registry (`npm view`), nodejs.org release index, vercel.com/docs, neon.com/docs, better-auth.com/docs, nextjs.org/docs.
 > PHASE 01'de (2026-11-24) yeniden doğrulandı; kurulan paketler `package.json` içinde **exact** sürümle sabit, `pnpm-lock.yaml` repoda. **Kurulu sürümler için tek kaynak §0**; §2 doğrulama kaydıdır.
 
-İlgili kararlar: [DECISION_LOG.md](DECISION_LOG.md) (D-002 … D-006, D-016, D-017, D-019, D-042 … D-051).
+İlgili kararlar: [DECISION_LOG.md](DECISION_LOG.md) (D-002 … D-006, D-016, D-017 (Superseded), D-019, D-042 … D-051, D-096 … D-099).
 
 ---
 
@@ -29,6 +29,8 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 | `drizzle-orm` | 0.45.4 (PHASE 02) | ORM, `node-postgres` sürücüsü, migrator | ✅ pg >=8 |
 | `pg` | 8.23.1 (PHASE 02) | PostgreSQL sürücüsü (Pool, interaktif transaction) | ✅ |
 | `better-auth` | 1.7.27 (PHASE 03) | Personel kimlik doğrulama (username plugin, scrypt, oturum) | ✅ next ^16, drizzle-orm ^0.45.2, drizzle-kit >=0.31.4, pg ^8 |
+| `@aws-sdk/client-s3` | 3.1176.0 (PHASE 08, D-096) | Backblaze B2 S3 uyumlu API (yalnızca sunucu). npm registry 2026-11-25: Apache-2.0, deprecated değil, `engines.node >=20`; 3.1177.0 `minimumReleaseAge` (24 saat) nedeniyle kurulmadı; başka AWS paketi eklenmedi | — |
+| `pdfjs-dist` | 6.5.438 (PHASE 08, D-099) | Yapısal PDF ayrıştırma (izole worker; render yok). Mozilla, Apache-2.0, 2026-11-01, deprecated değil, `engines.node >=22.13 \|\| >=24`; isteğe bağlı `@napi-rs/canvas` kurulmaz (`ignoredOptionalDependencies`); `serverExternalPackages` | — |
 | `libphonenumber-js` | 1.13.17 (PHASE 06, D-085) | Telefon → E.164 normalizasyonu (BR-07); `libphonenumber-js/max` yalnızca sunucuda (istemci bundle'ına girmez). npm registry: MIT, 2026-11-19, deprecated değil, bağımlılıksız; `pnpm audit` yeni bulgu yok | — |
 
 **Test altyapısı (npm bağımlılığı değil — PHASE 05, D-077):** Docker Engine 28.4.0 (Docker Desktop, yerel) + resmî `postgres:18-alpine` imajı (PostgreSQL 18.7, `builtin` C.UTF-8). Yalnızca `pnpm test:*:isolated` için; ücretsiz, geçici, 127.0.0.1. PHASE 05'te yeni npm bağımlılığı eklenmedi (Radix AlertDialog mevcut `radix-ui` paketinden; React Hook Form gereksiz bulundu).
@@ -54,7 +56,7 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 
 **Araçlar (bağımlılık değil):** `pnpm@10.34.9` (`packageManager`, D-004), Node.js 24 LTS (`engines.node: 24.x`, `.nvmrc`: `24`), `shadcn@4.23.0` CLI (`pnpm dlx`), create-next-app@16.4.6 (yalnızca geçici dizinde şablon incelemesi için).
 
-**Sonraki fazlara bırakılanlar (kurulmadı):** `react-hook-form`, `@hookform/resolvers` (ilk form fazı); `@vercel/blob` 2.9.0 (PHASE 08); `tw-animate-css` (animasyonlu bileşen gerekirse). Sürümler kurulum anında yeniden doğrulanır.
+**Sonraki fazlara bırakılanlar (kurulmadı):** `react-hook-form`, `@hookform/resolvers` (ilk form fazı); ~~`@vercel/blob` 2.9.0 (PHASE 08)~~ — OD-25 ile Backblaze B2 seçildi, kurulmadı; `tw-animate-css` (animasyonlu bileşen gerekirse). Sürümler kurulum anında yeniden doğrulanır.
 
 **PHASE 02'de kurulmayanlar:** `tsx` (Node 24 TypeScript'i doğrudan çalıştırır — D-057), `@neondatabase/serverless` (HTTP sürücüsü interaktif transaction/`FOR UPDATE` için uygun değil — D-006/D-055), `dotenv` (`process.loadEnvFile`).
 
@@ -133,7 +135,8 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 
 | Paket | latest | Notlar |
 |---|---|---|
-| `@vercel/blob` | 2.9.0 | `engines.node >=20`. Private storage için **>= 2.3** gerekli ✅ |
+| `@vercel/blob` | 2.9.0 | **Kullanılmıyor** (OD-25 — Superseded). Kayıt amacıyla korunur. |
+| `@aws-sdk/client-s3` | 3.1176.0 (kurulu) | Backblaze B2 (PHASE 08) — §3.8 |
 | `@vercel/functions` | 3.11.3 | `waitUntil`, DB pool yardımcıları — ihtiyaç doğarsa (PHASE 02'de değerlendirilecek). |
 
 ### Testing
@@ -214,7 +217,7 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 - **Email OTP plugin:** kullanıcı hesabına bağlı — müşteri OTP'si kapsam dışı olduğundan (OD-01) kullanılmaz.
 - **Doğrulanamayanlar:** core tabloların tam kolon listesi; admin plugin session alanı adı; impersonation'ı tamamen kapatma seçeneği; admin plugin ile kullanıcı adı güncelleme yöntemi; Drizzle adapter import yolu (`better-auth/adapters/drizzle` vs `@better-auth/drizzle-adapter`). → PHASE 03.
 
-### 3.6 Vercel Blob — doğrulanan özellikler
+### 3.6 Vercel Blob — doğrulanan özellikler (**Superseded** — OD-25; kayıt amacıyla korunur)
 - **Private storage mevcut** (`access: 'private'`, `@vercel/blob >= 2.3`). Private blob'ların public URL'si yoktur; okuma kimlik doğrulama gerektirir.
 - Okuma: `get(pathname, { access: 'private' })` → stream; Route Handler üzerinden `new NextResponse(result.stream, ...)` ile servis edilmesi **dokümante edilmiş pattern**.
 - Client upload: `handleUpload({ onBeforeGenerateToken, onUploadCompleted })` (`@vercel/blob/client`), client tarafında `upload(name, file, { access: 'private', handleUploadUrl })`. `allowedContentTypes`, `addRandomSuffix`, `tokenPayload` destekli. `maximumSizeInBytes` / `validUntil` (varsayılan 1 saat) — `handleUpload` için tam referans okunamadı, PHASE 08'de doğrulanacak.
@@ -225,7 +228,8 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 - Aynı pathname'e yazma varsayılan olarak reddedilir (`allowOverwrite` kapalı).
 - Upload progress callback API'si PHASE 08'de doğrulanacak (TD-11).
 
-### 3.7 Vercel Functions limitleri
+### 3.7 Vercel Functions limitleri (hosting seçilirse geçerli — PHASE 13)
+> PHASE 08 notu: yükleme artık sunucu üzerinden (D-100); 4.5 MB gövde sınırı olan bir platform 10 MiB PDF'i kabul edemez → PHASE 13 zorunlu uyumluluk kriteri.
 - Request body: **4.5 MB** (20 MiB public beta, Pro + özel ayar gerekli) → **PDF'ler function üzerinden geçirilmeyecek**, doğrudan Blob'a client upload yapılacak.
 - Response body: 4.5 MB, **streaming yanıtlar hariç** → PDF indirme stream ile yapılır.
 - Server Actions `bodySizeLimit` varsayılanı **1 MB**.
@@ -240,7 +244,7 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 - **Hedef aylık maliyet 0** (OD-12). Ücretli plan kullanıcı onayı olmadan kullanılmaz.
 - **Vercel Hobby ticari kullanıma izin vermez:** Terms §4: *"You shall only use the Services under a Hobby plan for your personal or non-commercial use."* → Geliştirme/demo için kullanılır; production hosting kararı açıktır (PB-01).
 - **Vercel Hobby cron:** en sık günde bir, ±59 dk hassasiyet (vercel.com/docs/cron-jobs/usage-and-pricing, 2026-11-24) — günlük teknik temizlik için yeterli. Sayfa, Cron Jobs'un ileride "Schedules"a taşınacağını belirtiyor.
-- **Vercel Blob Hobby:** 1 GB — gerçek kullanım için kapasite yetersiz olabilir (PB-02).
+- **Backblaze B2 (OD-25):** ilk 10 GB depolama her zaman ücretsiz; aylık ortalama depolamanın 3 katına kadar indirme ücretsiz; Class A ücretsiz; cap'ler günlük harcama sınırı (00:00 GMT sıfırlama); cap ayarlanmazsa kullanım sınırsızdır. Ticari kullanım koşulları ve veri işleme sözleşmesi gerçek müşteri verisinden önce değerlendirilmelidir. Uygulama kotası 9 GB (D-101). (Önceki: Vercel Blob Hobby 1 GB — kullanılmıyor.)
 - **Neon Free:** "Prototypes, side projects, and small teams"; SLA yok; ticari kullanım hakkında açık ifade bulunamadı; geri yükleme penceresi 6 saat.
 
 ---
@@ -267,13 +271,13 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 
 1. pnpm 10.34.9'un (Corepack/`packageManager`) seçilecek hosting build ortamında kullanıldığı (PHASE 13; Vercel'de doğrulanmadı — deployment yapılmadı).
 2. Better Auth: `disabledPaths`/`hooks.before` ile `auth.api` etkileşimi (TD-03); user-agent'ın yazılmaması (TD-04); core tablo kolonları (PHASE 03).
-3. `handleUpload` `maximumSizeInBytes` / `validUntil` / ilerleme callback'i kesin API'si (TD-11, PHASE 08).
+3. ~~`handleUpload` API'si (TD-11)~~ — geçersiz (OD-25, D-100).
 4. Neon PgBouncer transaction mode kısıtları (PHASE 02).
 5. Neon'da `pg_trgm` desteği (PHASE 02).
 6. Hosting sağlayıcısında güvenilir istemci IP header'ı (TD-04, PHASE 03).
-7. Vercel Blob at-rest şifreleme ve sürüm/yedek özelliği (PHASE 08).
+7. B2 SSE-B2 ve versiyon davranışı belgelerden doğrulandı (§3.8); canlı doğrulama `pnpm storage:verify` (kullanıcının anahtarı girmesine bağlı). Object Lock ve replikasyon durumu doğrulanmadı.
 8. Ticari kullanıma uygun ücretsiz production altyapısı (TD-07, PHASE 13).
-9. PDF parser kütüphanesi (TD-06, PHASE 08).
+9. ~~PDF parser kütüphanesi (TD-06)~~ — çözüldü: pdfjs-dist 6.5.438 (D-099).
 
 ## 7. Yeniden Doğrulama Kaydı
 
@@ -287,3 +291,14 @@ Vercel Functions desteklenen Node sürümleri: **26.x (varsayılan), 24.x, 22.x*
 
 ## 8. PHASE 07 Notu
 Yeni bağımlılık yok. Kullanılan Next.js 16.4.6 yapılandırması kurulu dokümandan doğrulandı (`node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/logging.md`): `logging.incomingRequests.ignore` (regex dizisi) ve `logging.serverFunctions: false`; dev smoke testinde `/b/` istekleri log'a yazılmadı. Tailwind 4 `wrap-anywhere` yardımcı sınıfı (`overflow-wrap: anywhere`) kullanıldı. Oturum imzası Node `crypto` (HMAC-SHA256, `timingSafeEqual`) ile; harici oturum/JWT kütüphanesi yok.
+
+### 3.8 Backblaze B2 — doğrulanan özellikler (PHASE 08, 2026-11-25)
+Kaynak: backblaze.com/apidocs ve /docs (FILE_STORAGE başlığı).
+- S3 uyumlu uç nokta `https://s3.<region>.backblazeb2.com`; SDK'ler yalnızca uç nokta ister; path-style ve virtual-host biçimleri geçerli (uygulama path-style). Master Application Key S3 API'de kullanılamaz.
+- Bucket'lar her zaman versiyonludur; PutObject yeni fiziksel versiyon oluşturur ve `x-amz-version-id` döner; versionId'siz DeleteObject **delete marker** ekler (veri kalır), versionId'li DeleteObject kalıcı siler. ListObjectVersions destekli (Class C).
+- SSE-B2: `x-amz-server-side-encryption: AES256` ile; yanıtlar aynı başlığı içerir; varsayılan bucket şifrelemesi mevcut nesneleri geriye dönük değiştirmez; SSE-KMS yok.
+- İşlem sınıfları: Class A (PutObject, DeleteObject) ücretsiz; Class B (GetObject, HeadObject); Class C (ListObjectVersions, ListBuckets, HeadBucket…).
+- **Belgelerde bulunamayan:** AWS SDK varsayılan CRC32/`x-amz-checksum-*` başlıkları (→ `WHEN_REQUIRED`), `If-None-Match` koşullu yazma, cap aşımındaki S3 hata kodu, S3 GET Range'in açık belgesi (native API 206 destekler). S3 apidocs sayfaları 2023 tarihli ("stale").
+
+## 9. PHASE 08 Notu
+Yeni bağımlılıklar: `@aws-sdk/client-s3` 3.1176.0, `pdfjs-dist` 6.5.438 (gerekçeler D-096, D-099). `pnpm audit --audit-level=high`: yüksek/kritik yok; önceki 1 orta seviye bulgu (drizzle-kit → esbuild, yalnızca geliştirme) sürüyor. Next.js 16.4.6: `proxyClientMaxBodySize` (proxy gövde tamponu, varsayılan 10 MB, aşımda kesme) kurulu dokümandan doğrulandı → dosya yolları proxy kapsamı dışında; `serverExternalPackages: ["pdfjs-dist"]`; Turbopack `new Worker(...)` girişini paketler (pdf.js worker modülü açıkça yüklenir).

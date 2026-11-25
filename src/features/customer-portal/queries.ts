@@ -6,6 +6,7 @@ import type { ApplicationStatus, DocumentStatus } from "@/config/statuses";
 import type { Database } from "@/server/db/client";
 import type { ActiveAccess } from "@/server/customer-session/access";
 import {
+  applicationDocumentFiles as files,
   applicationDocumentRequirements as snapshots,
   applications,
   documentReviews as reviews,
@@ -13,15 +14,28 @@ import {
 
 /**
  * Müşteri portalı okuma sorgusu (PHASE 07, D-091). YALNIZCA doğrulanmış erişimin başvurusu
- * (`access.applicationId`); istemciden başvuru kimliği alınmaz. Açık kolon seçimi; DTO'da teknik
- * kimlik, telefon, e-posta, token, iç not, personel, audit, dosya/depolama bilgisi yoktur.
+ * (`access.applicationId`); istemciden başvuru kimliği alınmaz. Açık kolon seçimi; DTO'da telefon,
+ * e-posta, token, iç not, personel, audit, storage anahtarı/sağlayıcı bilgisi, eski dosya versiyonları
+ * yoktur. PHASE 08: evrak kimliği + sürümü (yalnızca bu başvurunun evrakları; yükleme hedefi ve
+ * `expectedVersion`) ve yalnızca ACTIVE dosyanın görünen adı/boyutu/tarihi eklendi (D-091 güncellemesi).
  * Evraklar başvuru anındaki snapshot'tan (BR-30), belirleyici sırada.
  * Bu modül iç not, audit, kullanıcı ve token tablolarını import etmez (ESLint kuralı).
  */
 
 type Reader = Pick<Database, "select" | "selectDistinctOn">;
 
+export type CustomerActiveFile = {
+  readonly id: string;
+  readonly name: string;
+  readonly sizeBytes: number;
+  readonly uploadedAt: string;
+};
+
 export type CustomerDocument = {
+  readonly requirementId: string;
+  /** Optimistic lock — yüklemede `expectedVersion`. */
+  readonly version: number;
+  readonly activeFile: CustomerActiveFile | null;
   readonly title: string;
   readonly description: string | null;
   readonly instructions: string | null;
@@ -68,6 +82,7 @@ export async function getCustomerPortalView(
       instructions: snapshots.instructions,
       isRequired: snapshots.isRequired,
       status: snapshots.status,
+      version: snapshots.version,
     })
     .from(snapshots)
     .where(eq(snapshots.applicationId, access.applicationId))
@@ -87,6 +102,28 @@ export async function getCustomerPortalView(
       ),
     )
     .orderBy(reviews.requirementId, desc(reviews.createdAt));
+  // Yalnızca ACTIVE dosya (BR-72: müşteri eski versiyonları görmez); storage'a istek yapılmaz.
+  const activeRows = await db
+    .select({
+      id: files.id,
+      requirementId: files.requirementId,
+      name: files.originalFilename,
+      sizeBytes: files.sizeBytes,
+      activatedAt: files.activatedAt,
+    })
+    .from(files)
+    .where(and(eq(files.applicationId, access.applicationId), eq(files.status, "ACTIVE")));
+  const activeByRequirement = new Map<string, CustomerActiveFile>();
+  for (const row of activeRows) {
+    if (row.sizeBytes === null || row.activatedAt === null) continue;
+    activeByRequirement.set(row.requirementId, {
+      id: row.id,
+      name: row.name,
+      sizeBytes: row.sizeBytes,
+      uploadedAt: row.activatedAt.toISOString(),
+    });
+  }
+
   const revisionByRequirement = new Map<string, string | null>(
     revisionRows.map((row) => [row.requirementId, row.message]),
   );
@@ -100,6 +137,9 @@ export async function getCustomerPortalView(
       status: application.status,
     },
     documents: rows.map((row) => ({
+      requirementId: row.id,
+      version: row.version,
+      activeFile: activeByRequirement.get(row.id) ?? null,
       title: row.title,
       description: row.description,
       instructions: row.instructions,

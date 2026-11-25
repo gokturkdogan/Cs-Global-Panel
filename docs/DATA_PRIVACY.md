@@ -9,7 +9,7 @@
 | CS Global | **Veri sorumlusu** |
 | Hosting sağlayıcısı (geliştirme/demo: Vercel; production: açık — PB-01) | Veri işleyen |
 | Veritabanı sağlayıcısı (Neon / production'da açık) | Veri işleyen |
-| Object storage sağlayıcısı (Vercel Blob / production'da açık) | Veri işleyen |
+| Object storage sağlayıcısı (**Backblaze B2**, EU Central — OD-25; production bucket'ı henüz yok) | Veri işleyen (DPA/ticari koşullar doğrulanmadı) |
 | WhatsApp / Meta | Bağlantı ve kişiselleştirilmiş mesaj (ad, soyad, hizmet adı) bu kanaldan **personel tarafından manuel** gönderilir; şirketin mevcut WhatsApp kullanımı kapsamında değerlendirilmelidir |
 | GitHub | Yalnızca kod; kişisel veri işlenmez |
 
@@ -60,11 +60,11 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 
 | Katman | Durum |
 |---|---|
-| Aktarım | TLS: tarayıcı ↔ hosting (HSTS), uygulama ↔ DB (`sslmode=verify-full` zorunlu; PHASE 02'de TLS 1.3 + doğrulanmış sertifika test edildi), uygulama ↔ storage (HTTPS) |
+| Aktarım | TLS: tarayıcı ↔ hosting (HSTS), uygulama ↔ DB (`sslmode=verify-full` zorunlu; PHASE 02'de TLS 1.3 + doğrulanmış sertifika test edildi), uygulama ↔ storage (HTTPS zorunlu — `B2_ENDPOINT` yalnızca `https://s3.<bölge>.backblazeb2.com`) |
 | Neon at-rest | AES-256 (Neon güvenlik dokümanı) |
-| Vercel Blob at-rest | **Doğrulanmadı** — PHASE 08'de |
+| Backblaze B2 at-rest | **SSE-B2** (AES-256, sağlayıcı yönetimli anahtar) bucket varsayılanı + her yazmada `x-amz-server-side-encryption: AES256` istenir ve yanıtta doğrulanır (D-096). Canlı doğrulama `pnpm storage:verify` ile (kullanıcının anahtarı girmesine bağlı). SSE-C/müşteri anahtarı kullanılmaz. |
 | Uygulama seviyesi | Bağlantı token'ı: HMAC hash + AES-256-GCM kopya (PHASE 06'da uygulandı — D-080); personel şifreleri scrypt |
-| Belge uygulama seviyesi şifreleme | MVP'de yok (client upload ve doğrulama ile çelişir); private storage + erişim kontrolü + sağlayıcı at-rest şifrelemesi |
+| Belge uygulama seviyesi şifreleme | MVP'de yok; private bucket + yalnızca sunucu üzerinden yetkili erişim + sağlayıcı at-rest şifrelemesi (SSE-B2) |
 
 ## 7. Erişim Kayıtları ve Olay Müdahalesi
 
@@ -78,7 +78,7 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 
 ## 8. Yurt Dışına Veri Aktarımı
 
-- Geliştirme/demo altyapısı (Vercel `fra1`, Neon `aws-eu-central-1`) **Türkiye dışındadır**; sağlayıcılar ABD merkezlidir. Production sağlayıcısı henüz seçilmedi (PB-01) — seçimde veri konumu bir kriterdir.
+- Geliştirme/demo altyapısı (Vercel `fra1`, Neon `aws-eu-central-1`, Backblaze B2 `eu-central-003`) **Türkiye dışındadır**; sağlayıcılar ABD merkezlidir. Production sağlayıcısı henüz seçilmedi (PB-01) — seçimde veri konumu bir kriterdir.
 - KVKK m.9 (2024 değişikliği): yeterlilik kararı, uygun güvenceler (ör. Kurul'un **standart sözleşmeleri** ve bildirim yükümlülüğü) veya arızi istisnalar. **Hangi dayanağın kullanılacağı ve ücretsiz plan sağlayıcılarının gerekli sözleşmeleri sağlayıp sağlamadığı hukukçu tarafından değerlendirilmelidir.**
 - Türkiye'de barındırma alternatifi stack değişikliği gerektirebilir; kullanıcı onayı olmadan stack değiştirilmez.
 
@@ -100,8 +100,8 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 
 | Ortam | DB | Storage | Secret | Veri |
 |---|---|---|---|---|
-| Development (PHASE 02 itibarıyla — D-059) | Neon Free projesinde **tek veritabanı** (`neondb`); testler ve seed aynı veritabanını kullanır | Ayrı Blob store (dev) | `.env.local` | Sahte |
-| Preview / Demo | Neon Free non-prod projesi, preview branch'leri | Ayrı Blob store (demo) | Sağlayıcı Preview scope | Sahte |
+| Development (PHASE 02 itibarıyla — D-059) | Neon Free projesinde **tek veritabanı** (`neondb`); testler ve seed aynı veritabanını kullanır | B2 bucket `cs-global-documents` (geliştirme); otomatik testler geçici yerel depolama | `.env.local` | Sahte |
+| Preview / Demo | Neon Free non-prod projesi, preview branch'leri | Ayrı B2 bucket (oluşturulmadı) | Sağlayıcı Preview scope | Sahte |
 | Production | **Ayrı proje/hesap** — sağlayıcı açık (PB-01) | **Ayrı store** | Production scope | Gerçek |
 
 Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md). ⚠️ D-059 (tek veritabanı) nedeniyle gerçek müşteri verisi bu veritabanına **girmeden önce** ayrı production veritabanı gerekir (PB-06, TM-43).
@@ -120,3 +120,11 @@ Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md). ⚠️ D-059 (tek veritabanı) nedeni
 - Geçersiz/iptal/süresi dolmuş/bağlam uyuşmazlığı ekranları kişisel veri içermez.
 - Bağlantı bearer credential olduğundan bağlantıya sahip herkes bu verileri görebilir (TM-13, PB-04 — açık).
 - Testler yalnızca sentetik veriyle ve izole geçici veritabanında; gerçek müşteriye bağlantı gönderilmedi.
+
+## 12a. PHASE 08 Uygulama Notları (dosya depolama — Backblaze B2)
+- **AB bölgesi tek başına KVKK uyumu sağlamaz.** Backblaze B2 EU Central seçimi veri konumunu AB ile sınırlar; ancak sağlayıcı ABD merkezlidir ve yurt dışına aktarım (KVKK m.9) değerlendirmesi, veri işleme sözleşmesi (DPA), ticari kullanım koşulları, saklama/imha ve yedekleme gereksinimleri **gerçek müşteri verisi kullanılmadan önce** hukukçu tarafından değerlendirilmelidir (PB-03).
+- Bucket private; CORS kapalı; public/imzalı URL yok; anahtar bucket'a kısıtlı (OD-25). Dosyalar yalnızca yetkili route'lardan akış olarak sunulur; her görüntüleme/indirme audit'lenir (aktör + dosya kimliği; dosya adı/IP/UA yok).
+- Nesne anahtarında kişisel veri yok (yalnızca UUID); orijinal dosya adı yalnızca DB metadata'sında; log ve audit'te dosya adı, PDF içeriği, SHA-256 yok.
+- Saklama: kayıtlı geçerli versiyonlar otomatik silinmez (OD-06); kapasite dolduğunda da silinmez. Teknik temizlik yalnızca başarısız/yarım yüklemelerin nesnelerini siler (saklama politikası değildir).
+- B2 lifecycle "tüm versiyonları sakla": uygulama dışından (panelden) silinen bir dosya için silme işareti ve eski versiyon kalır; kalıcı silme versiyona özgüdür. Başvuru silmenin storage aşaması (tüm fiziksel versiyonlar) PHASE 10.
+- Gerçek müşteri PDF'i hiçbir ortamda kullanılmadı; testler sentetik PDF üretir, gerçek B2'ye otomatik testlerde bağlanılmaz.

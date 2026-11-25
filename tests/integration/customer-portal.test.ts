@@ -315,6 +315,15 @@ describe.runIf(isIsolatedTestDatabase())(`müşteri portalı — ${ISOLATION_SKI
     });
     expect(view!.documents[1]!.revisionMessage).toBeNull();
     expect(view!.documents[0]!.instructions).toContain("<script>alert(1)</script>"); // düz metin; render'da inert
+    // PHASE 08 (D-091 güncellemesi): kendi evrak kimliği/sürümü ve yalnızca ACTIVE dosyanın görünen
+    // bilgileri DTO'dadır; storage anahtarı, sağlayıcı versiyonu, SHA-256 ve yükleyen bilgisi yoktur.
+    expect(view!.documents[0]!.requirementId).toBe(requirement.id);
+    expect(Object.keys(view!.documents[0]!.activeFile ?? {}).sort()).toEqual([
+      "id",
+      "name",
+      "sizeBytes",
+      "uploadedAt",
+    ]);
     const serialized = JSON.stringify(view);
     for (const forbidden of [
       noteMarker,
@@ -323,8 +332,9 @@ describe.runIf(isIsolatedTestDatabase())(`müşteri portalı — ${ISOLATION_SKI
       app.token,
       app.applicationId,
       app.accessTokenId!,
-      requirement.id,
-      file.rows[0]!.id,
+      "applications/",
+      "test-version-",
+      "sha256",
       other.applicationNumber,
       "Başkası",
       "Sonradan Eklenen",

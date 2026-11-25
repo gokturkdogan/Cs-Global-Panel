@@ -213,10 +213,9 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       '<img src=x onerror=alert(1)><script>alert("x")</script>',
     );
     await expect(page.locator('img[src="x"]')).toHaveCount(0);
-    await expect(page.getByTestId("upload-placeholder").first()).toContainText(
-      "PDF yükleme yakında kullanıma açılacak.",
-    );
-    await expect(page.locator('input[type="file"]')).toHaveCount(0);
+    // PHASE 08: yükleme alanı gerçek (her yüklenebilir evrak için bir PDF seçici); sayfa açılışında PDF okunmaz.
+    await expect(page.getByRole("button", { name: "PDF Yükle" })).toHaveCount(3);
+    await expect(page.locator('input[type="file"][accept="application/pdf,.pdf"]')).toHaveCount(3);
     await expect(page.getByRole("button", { name: "İncelemeye Gönder" })).toBeDisabled();
     await expect(page.getByRole("navigation")).toHaveCount(0);
 
@@ -559,9 +558,13 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     await expect(page.getByTestId("document-progress-text")).toHaveText(
       "1 / 2 zorunlu evrak yüklendi · %50",
     );
-    await expect(page.getByTestId("portal-document").first().getByRole("status")).toContainText(
-      "Sayfa okunaklı değil, lütfen yeniden tarayın.",
-    );
+    await expect(
+      page
+        .getByTestId("portal-document")
+        .first()
+        .getByRole("status")
+        .filter({ hasText: "Sayfa okunaklı değil" }),
+    ).toContainText("Sayfa okunaklı değil, lütfen yeniden tarayın.");
     await expect(page.getByRole("button", { name: "İncelemeye Gönder" })).toBeDisabled();
     await shot(page, testInfo, "status-revision");
 
@@ -574,7 +577,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       "CS Global danışmanlık süreciniz tamamlandı. (Resmî vize sonucu değildir.)",
     );
     await expect(page.locator('[data-state="done"]')).toHaveCount(5);
-    await expect(page.getByTestId("upload-placeholder")).toHaveCount(0);
+    await expect(page.getByTestId("pdf-upload")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "İncelemeye Gönder" })).toHaveCount(0);
     await shot(page, testInfo, "status-completed");
 
@@ -584,7 +587,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       "Bu başvuru iptal edilmiştir.",
     );
     await expect(page.getByTestId("process-steps")).toHaveCount(0);
-    await expect(page.getByTestId("upload-placeholder")).toHaveCount(0);
+    await expect(page.getByTestId("pdf-upload")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "İncelemeye Gönder" })).toHaveCount(0);
     await shot(page, testInfo, "status-cancelled");
 

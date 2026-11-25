@@ -105,6 +105,48 @@ export default defineConfig([
       ],
     },
   },
+  {
+    // Müşteri dosya route'ları (PHASE 08, D-095): yalnızca müşteri oturumu (`requireCustomerAccess`).
+    // Personel kimlik doğrulaması, başvuru/hizmet yönetimi, token ve iç not modülleri kullanılamaz;
+    // dosya işlemleri yalnızca ortak `@/features/documents/*` üzerinden (audit yazımı oradadır).
+    files: ["src/app/api/portal/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            nextCacheImportRestriction,
+            {
+              name: "@/server/db/schema",
+              importNames: [
+                "applicationInternalNotes",
+                "users",
+                "accounts",
+                "sessions",
+                "verifications",
+              ],
+              message: "Müşteri dosya route'larında iç not veya personel tablosu kullanılamaz.",
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                "@/server/auth",
+                "@/server/auth/*",
+                "@/server/access-tokens/*",
+                "@/features/applications/*",
+                "@/features/services/*",
+                "@/features/dashboard/*",
+                "@/features/documents/queries",
+              ],
+              message:
+                "Müşteri dosya route'ları personel modüllerini kullanamaz (ayrı güvenlik bağlamı).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   globalIgnores([
     ".next/**",
     "out/**",

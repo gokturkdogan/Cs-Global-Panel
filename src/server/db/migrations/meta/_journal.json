@@ -36,6 +36,13 @@
       "when": 1795542847925,
       "tag": "0004_template_optimistic_lock",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795592556573,
+      "tag": "0005_storage_b2",
+      "breakpoints": true
     }
   ]
 }

@@ -52,3 +52,34 @@ export const SERVICE_LIST_LIMIT = 100;
 
 /** Arama metni üst sınırı (karakter). */
 export const SEARCH_QUERY_MAX_LENGTH = 100;
+
+/**
+ * Dosya depolama kotası (PHASE 08, D-101). Ücretsiz Backblaze B2 kapasitesi (10 GB) aşılmasın diye
+ * uygulama tarafı sınırlar. Ortam değişkeniyle yalnızca DAHA DÜŞÜK değer verilebilir (testler);
+ * üst sınır kodda sabittir. Bayt (10^9 = GB, ondalık — sağlayıcı faturalamasıyla aynı birim).
+ */
+export const STORAGE_HARD_MAX_TOTAL_BYTES = 9_000_000_000;
+export const STORAGE_DEFAULT_WARNING_BYTES = 8_000_000_000;
+
+/** Yükleme isteği (D-100): ham PDF gövdesi; süre, eşzamanlılık ve dosya adı sınırları. */
+export const UPLOAD_REQUEST_TIMEOUT_MS = 120_000;
+/** Rezervasyondan sonra storage yazımı bu sürede tamamlanmazsa yükleme yarım sayılır (teknik temizlik). */
+export const UPLOAD_PENDING_TTL_SECONDS = 15 * 60;
+/** Süreç başına aynı anda işlenen yükleme sayısı (bellek: en fazla 4 × 10 MB). */
+export const MAX_CONCURRENT_UPLOADS = 4;
+/** Görünen dosya adı üst sınırı (DB CHECK ile aynı). */
+export const MAX_FILENAME_LENGTH = 200;
+
+/** Yapısal PDF doğrulama kaynak sınırları (D-099). Aşılırsa `RESOURCE_LIMIT`. */
+export const PDF_VALIDATION_LIMITS = {
+  timeoutMs: 20_000,
+  maxHeapMb: 256,
+  maxPages: 2_000,
+  maxObjects: 100_000,
+  maxInflatedBytes: 64 * 1024 * 1024,
+  maxNestingDepth: 64,
+} as const;
+
+/** Dosya istekleri için aktör başına sabit pencereli limitler (sağlayıcı kotasını korur). */
+export const FILE_UPLOAD_RATE_LIMIT = { max: 30, windowSeconds: 60 * 60 } as const;
+export const FILE_DOWNLOAD_RATE_LIMIT = { max: 120, windowSeconds: 60 * 60 } as const;

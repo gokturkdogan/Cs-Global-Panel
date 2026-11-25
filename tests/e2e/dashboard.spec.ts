@@ -355,12 +355,25 @@ test.describe("veri (Desktop Chrome, sıralı)", () => {
     runtimeDb,
   }) => {
     await signInAs("employee");
-    await page.goto("/dashboard");
-    const counts = (await runtimeDb.query<Record<string, number>>(countsSql)).rows[0]!;
-    await expect(statValue(page, "Toplam Başvuru")).toHaveText(String(counts.total));
-    await expect(statValue(page, "Evrak Bekleyen")).toHaveText(String(counts.awaiting));
-    await expect(statValue(page, "İncelemede")).toHaveText(String(counts.review));
-    await expect(statValue(page, "Tamamlanan")).toHaveText(String(counts.completed));
+    // İzole koşuda diğer test dosyaları paralel olarak sentetik başvuru ekleyebilir: DB okuması ve
+    // sayfa aynı anda tutarlı olana kadar yeniden denenir (değerler yine birebir karşılaştırılır).
+    let counts: Record<string, number> = {};
+    await expect(async () => {
+      await page.goto("/dashboard");
+      counts = (await runtimeDb.query<Record<string, number>>(countsSql)).rows[0]!;
+      await expect(statValue(page, "Toplam Başvuru")).toHaveText(String(counts.total), {
+        timeout: 2_000,
+      });
+      await expect(statValue(page, "Evrak Bekleyen")).toHaveText(String(counts.awaiting), {
+        timeout: 2_000,
+      });
+      await expect(statValue(page, "İncelemede")).toHaveText(String(counts.review), {
+        timeout: 2_000,
+      });
+      await expect(statValue(page, "Tamamlanan")).toHaveText(String(counts.completed), {
+        timeout: 2_000,
+      });
+    }).toPass({ timeout: 30_000 });
     if (counts.total === 0) {
       await expect(page.getByText("Henüz başvuru bulunmuyor.")).toBeVisible();
       await expect(

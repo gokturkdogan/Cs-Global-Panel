@@ -61,7 +61,7 @@ export const messages = {
     messageCopied: "Mesaj panoya kopyalandı.",
     copyFailed: "Panoya kopyalanamadı. Metni seçip elle kopyalayın.",
     portalLimitedNotice:
-      "Müşteri paneli şu an yalnızca görüntüleme amaçlıdır; evrak yükleme ve gönderim henüz yok. Platform gerçek müşteri kullanımına hazır değildir; gerçek müşterilerle paylaşmayın.",
+      "Müşteri paneli geliştirme aşamasındadır: PDF yükleme açık, incelemeye gönderme henüz yok. Platform gerçek müşteri kullanımına hazır değildir; gerçek müşterilerle paylaşmayın ve gerçek belge yükletmeyin.",
     contactChangedWarning:
       "İletişim bilgisi değişti. Mevcut bağlantı önceki alıcıda kalmış olabilir ve hâlâ geçerlidir; gerekirse bağlantıyı yenileyin.",
     emptyTitle: "Henüz başvuru bulunmuyor.",
@@ -93,13 +93,67 @@ export const messages = {
     unavailableTitle: "Şu anda erişilemiyor",
     unavailableDescription:
       "Başvuru paneliniz geçici olarak görüntülenemiyor. Lütfen biraz sonra tekrar deneyiniz veya size gönderilen bağlantıyı yeniden açınız.",
-    uploadSoon: "PDF yükleme yakında kullanıma açılacak.",
     submitSoon: "İncelemeye gönderme yakında kullanıma açılacak.",
     contactSoon: "İletişim bilgisi yakında eklenecek.",
     privateLink: "Bu bağlantı size özeldir, başkalarıyla paylaşmayınız.",
     progressDisclaimer:
       "Bu gösterge danışmanlık sürecinin aşamasını gösterir; vize sonucu veya süre hakkında bilgi vermez.",
     completedNote: "Resmî vize sonucu değildir.",
+  },
+  files: {
+    uploadButton: "PDF Yükle",
+    uploadOnBehalf: "Müşteri Adına PDF Yükle",
+    replaceButton: "Dosyayı Değiştir",
+    view: "Dosyayı Görüntüle",
+    download: "Dosyayı İndir",
+    history: "Dosya Geçmişi",
+    stateChecking: "Dosya kontrol ediliyor…",
+    stateUploading: "Yükleniyor",
+    stateProcessing: "Sunucuda doğrulanıyor ve kaydediliyor…",
+    stateDone: "Yüklendi",
+    stateFailed: "Yükleme başarısız",
+    keptPrevious: "Önceki dosyanız korunuyor.",
+    replaceConfirmTitle: "Dosya değiştirilsin mi?",
+    replaceConfirmDescription:
+      "Yeni dosya doğrulanıp kaydedildiğinde aktif dosya olur. Mevcut dosya silinmez; dosya geçmişinde önceki versiyon olarak korunur.",
+    replaceConfirmApprovedNote:
+      "Bu evrak onaylı. Yeni dosya yüklenirse önceki onay yeni dosyaya aktarılmaz ve evrak yeniden incelemeye düşer.",
+    structuralNote: "Yapısal kontrol tamamlandı (antivirüs taraması değildir).",
+    notPdf: "Yalnızca PDF dosyası yükleyebilirsiniz.",
+    empty: "Dosya boş görünüyor. Lütfen geçerli bir PDF seçiniz.",
+    tooLarge: "Dosya en fazla 10 MB olabilir.",
+    activeContent:
+      "Bu PDF etkileşimli/aktif içerik (ör. betik veya otomatik eylem) içerdiği için kabul edilemiyor. Lütfen belgeyi yeniden PDF olarak kaydedip tekrar deneyiniz.",
+    embeddedFile: "Bu PDF içine gömülü dosya içerdiği için kabul edilemiyor.",
+    encrypted: "Şifre korumalı PDF yüklenemez. Lütfen şifresiz bir kopya yükleyiniz.",
+    malformed: "Dosya bozuk veya okunamıyor. Lütfen belgeyi yeniden kaydedip tekrar deneyiniz.",
+    resourceLimit:
+      "Dosya çok karmaşık olduğu için kontrol edilemedi. Lütfen daha sade bir PDF deneyiniz.",
+    notAllowed: "Bu evrak için şu anda dosya yüklenemez.",
+    conflict: "Bu evrak bu sırada güncellendi. Lütfen sayfayı yenileyiniz.",
+    inProgress: "Bu evrak için devam eden bir yükleme var. Lütfen biraz sonra tekrar deneyiniz.",
+    stateChanged: "Başvurunuzun durumu bu sırada değiştiği için dosya kaydedilemedi.",
+    quotaFullTitle: "Depolama kapasitesi dolu.",
+    quotaFull: "Şu anda yeni evrak yüklenemiyor. Lütfen CS Global ile iletişime geçiniz.",
+    providerLimit: "Günlük dosya erişim sınırına ulaşıldı. Lütfen daha sonra tekrar deneyiniz.",
+    unavailable: "Dosya şu anda işlenemiyor. Lütfen biraz sonra tekrar deneyiniz.",
+    busy: "Sistem şu anda yoğun. Lütfen biraz sonra tekrar deneyiniz.",
+    rateLimited: "Çok sayıda dosya isteği yapıldı. Lütfen bir süre sonra tekrar deneyiniz.",
+    accessEnded:
+      "Oturumunuz sona erdi veya bağlantınız artık geçerli değil. Lütfen size gönderilen bağlantıyı yeniden açınız.",
+    contextChanged:
+      "Bu sayfa artık güncel değil: bu tarayıcıda başka bir başvuru açıldı. Dosya yüklenmedi.",
+    network:
+      "Bağlantı kesildi. Dosya kaydedilmemiş olabilir; lütfen sayfayı yenileyip kontrol ediniz.",
+    unauthenticated: "Oturumunuz sona erdi. Lütfen yeniden giriş yapınız.",
+    noFile: "Henüz dosya yüklenmedi.",
+    capacityTitle: "Dosya Depolama",
+    capacityWarningTitle: "Depolama kapasitesi dolmak üzere.",
+    capacityWarning:
+      "Ücretsiz depolama sınırınıza yaklaşıyorsunuz. Yeni yüklemelerin durmaması için kapasiteyi kontrol ediniz.",
+    capacityFull: "Şu anda yeni evrak yüklenemiyor (uygulama kapasite sınırı).",
+    capacityNote: "Uygulama kayıtlarından hesaplanır (sağlayıcı faturalama verisi değildir).",
+    capacityUnavailable: "Depolama kullanımı şu anda hesaplanamıyor.",
   },
   validation: {
     nameRequired: "Hizmet adı zorunludur.",

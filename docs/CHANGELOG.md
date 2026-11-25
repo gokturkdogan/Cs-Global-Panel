@@ -2,6 +2,36 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage] — 2026-11-25
+
+### Added
+- **OD-25 (kullanıcı kararı):** Backblaze B2 private bucket (EU Central, SSE-B2, bucket'a kısıtlı anahtar). Vercel Blob ve client upload kararları Superseded (D-017, D-040; D-035 kısmen).
+- Storage soyutlaması `src/server/storage/*` (B2 adapter — `@aws-sdk/client-s3` 3.1176.0; yerel private adapter; lazy, fail-closed yapılandırma; production'da geliştirme bucket'ı ve testlerde B2 reddi) — D-096…D-098.
+- `pnpm env:b2` (yankısız gizli girdi, mevcut değerleri korur, 0600, atomik yazma), `pnpm storage:verify` (canlı, kontrollü), `pnpm storage:reconcile` ve `pnpm storage:cleanup` (varsayılan dry-run; versiyona özgü silme) — D-105.
+- Yapısal PDF doğrulaması: zarf + nesne düzeyi ad taraması (ObjStm, `#xx`) + `pdfjs-dist` 6.5.438; izole worker (bellek/süre sınırı, boş env) — D-099.
+- Yükleme: `POST /api/documents/[requirementId]/file` (personel, müşteri adına) ve `POST /api/portal/[context]/documents/[requirementId]/file` (müşteri); ham PDF gövdesi, sınırlı okuma, köken/kimlik/rate limit/eşzamanlılık kuyruğu; rezervasyon → B2 → aktivasyon yaşam döngüsü, SHA-256, hata kurtarma, onay geçersizleştirme audit'i — D-100, D-103, D-107.
+- Görüntüleme/indirme: `GET /api/files/[fileId]` (personel; aktif + önceki versiyonlar) ve `GET /api/portal/[context]/files/[fileId]` (müşteri; yalnızca ACTIVE); audit; güvenli başlıklar — D-104.
+- Kota: 9 GB uygulama sınırı, 8 GB uyarı, atomik rezervasyon (`storage_quota_state` kilidi), kayıt dışı kullanım dahil — D-101.
+- Migration 0005: `storage_quota_state`, `application_document_files.storage_version_id`, token FK'leri `ON DELETE CASCADE` — D-102.
+- UI: `PdfUpload` (gerçek ilerleme), müşteri evrak kartında aktif dosya + yükle/değiştir, personel `StaffDocumentCard` (versiyon, yükleyen, geçmiş, değiştirme onayı), dashboard "Dosya Depolama" kartı.
+- Testler: unit +76 (PDF fixture seti, izin matrisi, sanitizasyon, yapılandırma, kota, adapter, hata sınıflandırması, kuyruk); izole integration +23; E2E +7 senaryo (4 proje); `tests/support/pdf-fixtures.ts` (sentetik PDF üretimi).
+- Audit olayları: `DOCUMENT_APPROVAL_INVALIDATED`, `DOCUMENT_UPLOAD_FAILED`, `STORAGE_RECONCILED`; mevcut `DOCUMENT_UPLOADED/REPLACED/VALIDATION_REJECTED/VIEWED/DOWNLOADED`, `TECHNICAL_CLEANUP_EXECUTED` uygulandı.
+
+### Changed
+- PHASE 07 onayı: D-088…D-092, D-094, D-095 Accepted; D-087, D-093 koşullu Accepted.
+- `proxy.ts` matcher dosya yollarını dışlar (proxy gövdeyi 10 MB'ta keser); `next.config.ts`: `serverExternalPackages: ["pdfjs-dist"]`, dosya yollarına `no-store`/`no-referrer`.
+- Giriş rate limit sayacı ortak `src/server/security/rate-limit-counter.ts`'e taşındı (davranış aynı).
+- Müşteri portalı DTO'su: evrak kimliği/sürümü ve ACTIVE dosya bilgisi (D-091 güncellemesi); yer tutucu kaldırıldı. Personel bağlantı uyarısı güncellendi ("PDF yükleme açık, incelemeye gönderme henüz yok…").
+- İzole test betiği: geçici yerel depolama kökü, B2 değişkenleri boşaltılır. CI canary'ye sahte B2 değerleri; bundle kontrolüne B2 adları/değerleri.
+- Dokümanlar: FILE_STORAGE (yeniden yazıldı), DECISION_LOG, ARCHITECTURE, API_CONTRACTS, DATABASE_SCHEMA, BUSINESS_RULES, STATE_TRANSITIONS, AUTHORIZATION_MATRIX, SECURITY (§16), THREAT_MODEL (TM-16, TM-40, TM-50…TM-53), DATA_PRIVACY (§12a), DESIGN_SYSTEM (§14), TESTING_STRATEGY (§17), TECH_STACK (§3.8, §9), DEPLOYMENT, DEVELOPMENT_ROADMAP, PROJECT_STATE, README, CLAUDE.md, `.env.example`.
+
+### Fixed
+- Başvuru silmede müşteri yüklemesi olan başvurunun zincirleme silinememesi (token FK NO ACTION) — migration 0005.
+- Önceden var olan kararsız E2E assertion'ı (rastgele UUID'de "444").
+
+### Not Done / Not Verified
+- Canlı B2 doğrulaması (`storage:verify`) — B2 anahtarı henüz girilmedi. Gerçek cihaz testleri. Gerçek belge setiyle yanlış pozitif ölçümü. Kaldırma (PHASE 09), başvuru silme storage aşaması (PHASE 10), zamanlanmış temizlik. Commit/push yapılmadı.
+
 ## [PHASE 03 — Kapanış] — 2026-11-24
 
 ### Changed

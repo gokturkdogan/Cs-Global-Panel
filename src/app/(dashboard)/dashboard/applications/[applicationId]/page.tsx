@@ -8,10 +8,10 @@ import { MAX_PDF_SIZE_BYTES } from "@/config/constants";
 import { AccessLinkCard } from "@/features/applications/components/access-link-card";
 import { ApplicationStatusBadge } from "@/features/applications/components/application-status-badge";
 import { CustomerInfoCard } from "@/features/applications/components/customer-info-card";
-import { DocumentStatusBadge } from "@/features/applications/components/document-status-badge";
 import { APPLICATION_STATUS_PRESENTATION } from "@/features/applications/domain/status-labels";
 import { getApplicationDetail, type ApplicationDetail } from "@/features/applications/queries";
-import { RequiredBadge } from "@/features/services/components/status-badges";
+import { StaffDocumentCard } from "@/features/documents/components/staff-document-card";
+import { getApplicationFileVersions } from "@/features/documents/queries";
 import { formatDateTime } from "@/lib/format";
 import { requireStaff } from "@/server/auth/staff";
 import { getDb } from "@/server/db/client";
@@ -30,8 +30,10 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
   if (!z.uuid().safeParse(applicationId).success) notFound();
 
   let application: ApplicationDetail | null;
+  let fileVersions: Awaited<ReturnType<typeof getApplicationFileVersions>>;
   try {
     application = await getApplicationDetail(getDb(), applicationId);
+    fileVersions = await getApplicationFileVersions(getDb(), applicationId);
   } catch (error) {
     console.error("[applications] Detay okunamadı", { code: pgErrorCode(error) ?? "unknown" });
     return (
@@ -129,34 +131,20 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           </h2>
           <p className="text-sm text-muted-foreground">
             Başvuru anında kopyalanan liste (hizmet şablonundaki sonraki değişikliklerden
-            etkilenmez). Evrak yükleme ve inceleme sonraki aşamalarda kullanıma açılacak. Yalnızca
-            PDF, dosya başına en fazla {MAX_PDF_MB} MB, evrak başına tek aktif dosya.
+            etkilenmez). Yalnızca PDF, dosya başına en fazla {MAX_PDF_MB} MB, evrak başına tek aktif
+            dosya; önceki versiyonlar geçmişte korunur. Evrak inceleme (onay/düzeltme) sonraki
+            aşamada kullanıma açılacak.
           </p>
         </div>
         <ol className="grid gap-3" data-testid="application-requirements">
           {application.requirements.map((requirement, index) => (
-            <li key={requirement.id} className="grid gap-2 rounded-lg border p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <h3 className="text-base font-medium break-words">
-                  <span className="mr-2 text-muted-foreground tabular-nums">{index + 1}.</span>
-                  {requirement.title}
-                </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  <RequiredBadge isRequired={requirement.isRequired} />
-                  <DocumentStatusBadge status={requirement.status} />
-                </div>
-              </div>
-              {requirement.instructions ? (
-                <p className="text-sm break-words whitespace-pre-line">
-                  {requirement.instructions}
-                </p>
-              ) : null}
-              {requirement.description ? (
-                <p className="text-sm break-words whitespace-pre-line text-muted-foreground">
-                  {requirement.description}
-                </p>
-              ) : null}
-            </li>
+            <StaffDocumentCard
+              key={requirement.id}
+              index={index}
+              requirement={requirement}
+              applicationStatus={application.status}
+              versions={fileVersions.get(requirement.id) ?? []}
+            />
           ))}
         </ol>
       </section>

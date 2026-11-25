@@ -2,7 +2,7 @@
 
 > PostgreSQL (Neon) + Drizzle ORM 0.45.4. **PHASE 02'de uygulandı:** şema `src/server/db/schema/*`, migration'lar `src/server/db/migrations/` (0000–0002). Uygulama ayrıntıları, invariant'lar ve yetkiler §9'da. Gerçek veritabanında doğrulama durumu: [PROJECT_STATE.md](PROJECT_STATE.md).
 > İş kuralları: [BUSINESS_RULES.md](BUSINESS_RULES.md) · State machine: [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) · Silme: BR-150…BR-155
-> Revizyon (2026-11-24, OD-01…OD-23): 23 → **17 tablo**. Değişiklik özeti §8'de.
+> Revizyon (2026-11-24, OD-01…OD-23): 23 → **17 tablo**. Değişiklik özeti §8'de. **PHASE 08 (migration 0005, D-102): 18 tablo** — `storage_quota_state` eklendi (§4.14), `application_document_files.storage_version_id` (§4.6).
 
 ## 1. Genel Kurallar
 
@@ -150,7 +150,7 @@ erDiagram
 
 Better Auth `rateLimit` tablosu **oluşturulmaz**: `disableIpTracking` yerleşik HTTP rate limiter'ı kapattığı için giriş sınırlaması `rate_limit_buckets` ile yapılır (SECURITY §2).
 
-## 4. Domain Tabloları (13)
+## 4. Domain Tabloları (14)
 
 ### 4.1 `services`
 | Kolon | Tip | Null | Default | Kısıt |
@@ -247,20 +247,21 @@ Index `(application_id, sort_order)`. **Kaldırılan alanlar:** `allowed_mime_ty
 | `requirement_id` | uuid | ✗ | | FK application_document_requirements CASCADE |
 | `status` | text | ✗ | `'UPLOAD_PENDING'` | CHECK `IN ('UPLOAD_PENDING','VALIDATING','ACTIVE','SUPERSEDED','REMOVED','REJECTED','EXPIRED')` |
 | `version_number` | integer | ✓ | | Aktif olunca atanır (BR-71) |
-| `blob_pathname` | text | ✗ | | UNIQUE. `applications/{applicationId}/{requirementId}/{fileId}.pdf` — kişisel veri yok |
+| `blob_pathname` | text | ✗ | | UNIQUE. Storage nesne anahtarı (ad tarihsel; sağlayıcıdan bağımsız): `applications/{applicationId}/{requirementId}/{fileId}.pdf` — kişisel veri yok |
+| `storage_version_id` | text | ✓ | | **PHASE 08 (0005):** sağlayıcı fiziksel versiyon kimliği (B2 `x-amz-version-id`), 1–255; `ACTIVE` için zorunlu (CHECK). Görüntüleme tam bu versiyonu okur; temizlik versiyona özgü siler |
 | `original_filename` | text | ✗ | | Sanitize, ≤200 |
-| `size_bytes` | integer | ✓ | | Blob'dan doğrulanan gerçek boyut; CHECK `size_bytes <= 10485760` |
-| `sha256` | text | ✓ | | Doğrulamada hesaplanır |
+| `size_bytes` | integer | ✓ | | Sunucuda okunan gerçek bayt sayısı (rezervasyonda yazılır — kotaya dahil); CHECK `0 < size_bytes <= 10485760` |
+| `sha256` | text | ✓ | | Sunucuda gerçek baytlardan (D-107); rezervasyonda yazılır |
 | `rejection_reason` | text | ✓ | | `NOT_PDF`, `ACTIVE_CONTENT`, `EMBEDDED_FILE`, `ENCRYPTED`, `MALFORMED`, `TOO_LARGE`, `RESOURCE_LIMIT`, `STATE_CHANGED`, `VALIDATION_ERROR` — personel içi |
 | `uploaded_by_actor_type` | text | ✗ | | CHECK `IN ('USER','CUSTOMER')` |
 | `uploaded_by_user_id` | text | ✓ | | FK users RESTRICT |
-| `uploaded_by_access_token_id` | uuid | ✓ | | Bileşik FK `(uploaded_by_access_token_id, application_id)` → tokens, NO ACTION (D-052) |
-| `upload_expires_at` | timestamptz | ✗ | | Token süresi (+tolerans) |
-| `uploaded_at` | timestamptz | ✓ | | Blob alındı |
+| `uploaded_by_access_token_id` | uuid | ✓ | | Bileşik FK `(uploaded_by_access_token_id, application_id)` → tokens, **ON DELETE CASCADE** (0005; önceden NO ACTION — başvuru silmede zincirleme silmeyi düşürüyordu, D-102) |
+| `upload_expires_at` | timestamptz | ✗ | | Rezervasyon süresi (15 dk); dolmuş `UPLOAD_PENDING` temizlikte `EXPIRED` |
+| `uploaded_at` | timestamptz | ✓ | | Storage yazımı + aktivasyon |
 | `activated_at` | timestamptz | ✓ | | ACTIVE oldu |
 | `ended_at` | timestamptz | ✓ | | SUPERSEDED / REMOVED oldu |
 | `ended_by_actor_type` / `ended_by_user_id` | text | ✓ | | Kaldıran/değiştiren |
-| `blob_deleted_at` | timestamptz | ✓ | | Blob fiziksel olarak silindi (REJECTED/EXPIRED) |
+| `blob_deleted_at` | timestamptz | ✓ | | Tüm fiziksel versiyonlar silindi ve doğrulandı (REJECTED/EXPIRED). Kota: `blob_deleted_at IS NULL` kayıtlar sayılır (D-101) |
 | `created_at` | timestamptz | ✗ | now() | |
 
 Kısıtlar ve index'ler:
@@ -339,6 +340,16 @@ T8 hedefi: `SELECT from_status FROM application_status_history WHERE application
 
 OD-09 istisnası: IP'den türetilen anahtarlar yalnızca HMAC'lenmiş, pencere süresiyle sınırlı **teknik** verilerdir; audit veya kullanıcı izleme için kullanılmaz, başka tabloya kopyalanmaz. Ömür: pencere süresi + en fazla ~24 saat (günlük temizlik).
 
+### 4.14 `storage_quota_state` (PHASE 08 — migration 0005, D-101)
+| Kolon | Tip | Null | Default | Kısıt / Not |
+|---|---|---|---|---|
+| `id` | smallint | ✗ | | PK, CHECK `id = 1` (tek satır; migration ile eklenir) |
+| `untracked_bytes` | bigint | ✗ | 0 | CHECK ≥ 0. `storage:reconcile --apply` ile: DB kaydına eşlenemeyen fiziksel kullanım |
+| `reconciled_at` | timestamptz | ✓ | | Son mutabakat |
+| `updated_at` | timestamptz | ✗ | now() | trigger |
+
+Global kota kilidi: rezervasyon transaction'ı bu satırı `FOR UPDATE` kilitler (kilit sırası: applications → requirements → files → storage_quota_state). Kullanım miktarı burada tutulmaz (dosya metadata'sından hesaplanır). Runtime rolü: yalnızca `SELECT, UPDATE` (satır ekleyemez/silemez).
+
 ### 4.13 `audit_logs`
 | Kolon | Tip | Null | Not |
 |---|---|---|---|
@@ -380,7 +391,7 @@ IP / user-agent / `ip_hash` / `request_id` kolonları **yoktur** (OD-09). Index:
 | Şablon mutasyonları (PHASE 05) | hizmet/evrak alanı, aktiflik, sıra, audit | `services FOR NO KEY UPDATE` → `service_document_requirements FOR UPDATE` + `version` (D-074) |
 | Başvuru snapshot'ı (PHASE 06 sözleşmesi) | aktif şablonların kopyası | `services FOR SHARE` (başvuru kilitlerinden önce) → şablonları belirleyici sırada oku |
 
-Transaction içinde ağ çağrısı yok (Blob, doğrulama dışarıda); kilit sırası **applications → requirements → files**. Şablon tabloları (`services → service_document_requirements`) bu zincirden önce gelir; başvuru tarafındaki işlemler şablon kilidi almaz (snapshot hariç).
+Transaction içinde ağ çağrısı yok (storage ve PDF doğrulama dışarıda); kilit sırası **applications → requirements → files → storage_quota_state** (PHASE 08). Şablon tabloları (`services → service_document_requirements`) bu zincirden önce gelir; başvuru tarafındaki işlemler şablon kilidi almaz (snapshot hariç).
 
 ## 7. Migration Stratejisi (PHASE 02 — uygulandı, D-056)
 - `pnpm db:generate` (`drizzle-kit generate`) → SQL migration'lar repoya; SQL her seferinde incelenir. `push` hiçbir ortamda kullanılmaz.
@@ -439,7 +450,7 @@ Bu yetkiler sunucu tarafı yetkilendirmenin yerine geçmez: her erişim yine per
 
 ### 9.3 Mutasyon desenleri (sonraki fazlar için)
 - **Optimistic lock:** `UPDATE … SET …, version = version + 1 WHERE id = $1 AND version = $expected RETURNING …` → 0 satır = `CONFLICT` (kullanıcıya "kayıt başka biri tarafından değiştirildi"). Eşzamanlı ikinci güncelleme ilk commit'i bekler ve 0 satır döner (integration testiyle doğrulandı).
-- **Kilit sırası:** `applications` → `application_document_requirements` → `application_document_files` (`SELECT … FOR UPDATE/SHARE`). Ters sıra yasaktır (deadlock).
+- **Kilit sırası:** `applications` → `application_document_requirements` → `application_document_files` → `storage_quota_state` (PHASE 08) (`SELECT … FOR UPDATE/SHARE`). Ters sıra yasaktır (deadlock).
 - **Hata kodları:** `23505` unique → `CONFLICT`; `23514` check / `23503` FK → uygulama hatası, `INTERNAL_ERROR` (girdi doğrulaması Zod'da yapılmış olmalı); `40001` serialization / `40P01` deadlock → en fazla 1 kez yeniden deneme, sonra `CONFLICT`; `55P03` lock timeout / `57014` statement timeout → `CONFLICT`/`INTERNAL_ERROR`, yeniden deneme yok. Sonsuz retry yoktur. Hata mesajları kullanıcıya iletilmez, PII/SQL parametresi loglanmaz.
 - **Başvuru numarası:** §4.3 sayaç sorgusu; numara boşluksuz değildir (geri alınan transaction aynı numarayı bir sonrakine bırakabilir; silinen başvurunun numarası tekrar kullanılmaz — sayaç geri gitmez). 7+ haneye taşma biçimce desteklenir.
 
@@ -460,3 +471,6 @@ Mevcut tablolar yeterli; migration eklenmedi (5 migration, 17 tablo). Kullanıla
 
 ### 9.7 PHASE 07 — müşteri paneli (şema değişikliği yok)
 Migration eklenmedi (5 migration, 17 tablo). Müşteri oturumu için tablo yoktur (imzalı cookie — D-088). Okunanlar: `application_access_tokens` (`token_hash`, `revoked_at` — her istekte), `applications` (ad, soyad, numara, hizmet snapshot adı, statü, `created_at`, `deletion_requested_at`), `application_document_requirements` (snapshot), `document_reviews` (yalnızca `REVISION_REQUIRED` kararlarının `customer_message`'ı). Müşteri yolu hiçbir tabloya yazmaz; `application_internal_notes`, `audit_logs`, kimlik doğrulama tabloları müşteri modülünde ESLint ile yasaklıdır (D-091).
+
+### 9.8 PHASE 08 — migration 0005 (D-102)
+`0005_storage_b2.sql` (drizzle-kit üretimi + elle eklenen tek satır INSERT, trigger, GRANT): `storage_quota_state` tablosu; `application_document_files.storage_version_id` + CHECK'ler (biçim; `ACTIVE` ⇒ dolu); `app_doc_files_access_token_fk` ve `app_status_history_access_token_fk` **ON DELETE CASCADE** ile yeniden tanımlandı (veri silinmez; DROP/ADD aynı migration'da — unit testteki gerekçeli izin listesine eklendi). Önce izole Docker ortamında uygulandı (tüm integration/E2E), sonra `neondb`'ye (`pnpm db:migrate`; 6 migration, 18 tablo; veri parmak izi önce/sonra aynı). Yeni enum değeri yok; `VALIDATING` statüsü sunucu üzerinden yükleme akışında kullanılmaz (D-103). Kilit sırası §6'ya `storage_quota_state` eklendi.

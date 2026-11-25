@@ -8,7 +8,7 @@
 
 1. **Security & Privacy by Design** — her fazın güvenlik gereksinimleri kendi fazında tamamlanır.
 2. **Defense in depth** — proxy iyimser kontrol; asıl kontrol her giriş noktasında; DB kısıtları son savunma.
-3. **Least privilege** — rol, kaynak, DB rolü, Blob token, konsol erişimi.
+3. **Least privilege** — rol, kaynak, DB rolü, bucket'a kısıtlı B2 anahtarı, konsol erişimi.
 4. **Fail closed** — doğrulanamayan dosya erişilemez; doğrulanamayan oturum reddedilir.
 5. **Kütüphaneyi yeniden yazma** — şifre hash, personel oturumu, CSRF, cookie: Better Auth ve Next.js.
 6. **Gizli bilgi loglanmaz** — token, şifre, session/cookie değeri, PDF içeriği, gereksiz PII.
@@ -173,15 +173,19 @@ Genel Bakış (PHASE 04) okumaları audit'e yazılmaz. PHASE 03'te uygulanan: `U
 | `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETED` | USER | `{ fileCount }` (başvuru ID'si `application_id` kolonunda; PII yok) |
 | `ACCESS_LINK_CREATED` / `ACCESS_LINK_ROTATED` / `ACCESS_LINK_REVOKED` / `ACCESS_LINK_VIEWED` | USER | `{ accessTokenId }` |
 | `ACCESS_LINK_SHARE_PREPARED` (PHASE 06, D-084) | USER | `{ accessTokenId }` — WhatsApp paylaşım mesajı hazırlandı; gönderim/teslim anlamına gelmez |
-| `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` / `DOCUMENT_DELETED` | CUSTOMER / USER | `{ requirementId, fileId, versionNumber, onBehalfOfCustomer }` |
-| `DOCUMENT_VALIDATION_REJECTED` | SYSTEM | `{ fileId, reason }` |
-| `DOCUMENT_VIEWED` / `DOCUMENT_DOWNLOADED` | USER / CUSTOMER | `{ fileId }` |
+| `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` (PHASE 08) | CUSTOMER / USER | `{ fileId, requirementId, versionNumber, from, to, onBehalfOfCustomer? }` (personelde `onBehalfOfCustomer: true`) |
+| `DOCUMENT_DELETED` | CUSTOMER / USER | (kaldırma — PHASE 09) |
+| `DOCUMENT_APPROVAL_INVALIDATED` (PHASE 08) | USER | `{ fileId, requirementId, from: APPROVED, to: PENDING_REVIEW }` — onaylı evrak personel tarafından değiştirildi (BR-48) |
+| `DOCUMENT_VALIDATION_REJECTED` (PHASE 08) | CUSTOMER / USER | `{ requirementId, reason }` (yapısal ret) veya `{ fileId, requirementId, reason: STATE_CHANGED }` (aktivasyonda durum değişti) |
+| `DOCUMENT_UPLOAD_FAILED` (PHASE 08) | CUSTOMER / USER | `{ fileId, requirementId, reason }` — storage/aktivasyon hatası (`STORAGE_ERROR`, `STORAGE_LIMIT`, `STORAGE_AMBIGUOUS`, `STORAGE_NO_VERSION`, `ACTIVATION_FAILED`) |
+| `DOCUMENT_VIEWED` / `DOCUMENT_DOWNLOADED` (PHASE 08) | USER / CUSTOMER | `{ fileId, requirementId }` — storage okumasından önce |
+| `STORAGE_RECONCILED` (PHASE 08) | SYSTEM | `{ counts }` — `pnpm storage:reconcile --apply` |
 | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` | USER | `{ requirementId, fileId, reviewId }` |
 | `DOCUMENT_COMMENT_ADDED` / `INTERNAL_NOTE_ADDED` | USER | `{ id }` |
 | `SERVICE_CREATED` / `SERVICE_UPDATED` / `SERVICE_ACTIVATED` / `SERVICE_DEACTIVATED` | USER | `{ changedFields }` |
 | `DOCUMENT_TEMPLATE_CREATED` / `DOCUMENT_TEMPLATE_UPDATED` | USER | `{ serviceId, changedFields }` (sıralama: `["sortOrder"]`) |
 | `DOCUMENT_TEMPLATE_ACTIVATED` / `DOCUMENT_TEMPLATE_DEACTIVATED` (PHASE 05, D-076) | USER | `{ serviceId, changedFields }` |
-| `TECHNICAL_CLEANUP_EXECUTED` | SYSTEM | `{ counts }` |
+| `TECHNICAL_CLEANUP_EXECUTED` | SYSTEM | `{ counts }` — `pnpm storage:cleanup --apply` (PHASE 08) |
 
 Kaldırılan event'ler: `CUSTOMER_OTP_*`, `CUSTOMER_ACCESS_GRANTED`, `ACCESS_LINK_INVALID_ATTEMPT`, `APPLICATION_ARCHIVED/UNARCHIVED`, `SETTINGS_UPDATED`, `USER_PASSWORD_CHANGED`/`RESET` (→ `USER_PASSWORD_SET`), `RETENTION_PURGE_EXECUTED`.
 
@@ -218,7 +222,7 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 | # | Blocker | Not |
 |---|---|---|
 | PB-01 | Ticari kullanıma uygun, ücretsiz (veya kullanıcının onayladığı) hosting / DB / storage seçimi | Vercel Hobby ticari kullanıma izin vermez (OD-12) |
-| PB-02 | Storage kapasitesi yeterliliği | Vercel Blob Hobby: 1 GB (DEPLOYMENT §6) |
+| PB-02 | Storage kapasitesi yeterliliği | Backblaze B2 ücretsiz 10 GB; uygulama kotası 9 GB ≈ 450 başvuru; otomatik silme yok → birikimli (DEPLOYMENT §6, D-101). Açık. |
 | PB-03 | KVKK hukuki değerlendirmesi (aydınlatma, yurt dışı aktarım, saklama/imha, VERBİS, ihlal prosedürü) | DATA_PRIVACY §9 |
 | PB-04 | Bearer link + OTP yok + süresiz bağlantı + belge indirme birleşik riskinin **yazılı risk kabulü** | THREAT_MODEL TM-13–TM-15 |
 | PB-05 | Antivirüs taraması olmadan PDF kabulünün **yazılı risk kabulü** ve personel cihaz önlemleri | THREAT_MODEL TM-16 |
@@ -264,3 +268,15 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 - **Log:** geliştirme sunucusu istek log'u `/b/` yollarını yazmaz, Server Function argümanlarını loglamaz (D-093; dev smoke: log'da token ve `/b/` yolu yok). Production altyapı logları (TM-15) kontrolümüz dışında.
 - **Kötüye kullanım:** 256 bit token tahmini pratikte imkânsız; uygulama içi IP limiti TD-04'e bağlı olarak yok (D-093). OTP veya yeni kimlik doğrulama eklenmedi (OD-01).
 - **Açık:** gerçek cihaz testleri (iOS Safari, Android Chrome, WhatsApp uygulama içi tarayıcı — cookie davranışı dahil) yapılmadı; HTTPS'te `__Host-` + `Secure` cookie'nin gerçek tarayıcıda doğrulanması (P4-04 ile birlikte PHASE 13); `CUSTOMER_SESSION_SECRET` production yedekleme/rotasyon prosedürü (DEPLOYMENT); bearer link riskleri (TM-13…TM-15, PB-04) aynen açık.
+
+## 16. PHASE 08 Güvenlik Notları (PDF yükleme ve Backblaze B2)
+- **Kimlik ve kapsam:** personel dosya route'ları yalnızca `getCurrentStaff()` (yoksa 401; iki hesap eşit, RBAC yok); müşteri route'ları yalnızca `requireCustomerAccess(context)` (D-095) — başvuru yalnızca oturumdan, evrak/dosya başka başvuruya aitse 404, bağlam uyuşmazlığı 409. Aynı tarayıcıda iki cookie olsa da her route yalnızca kendi kimliğini okur (yetki yükselmesi yok). Aktivasyon transaction'ında token aktifliği ve oturum süresi yeniden kontrol edilir (iptal/yenileme yarışı).
+- **CSRF / köken:** dosya route'ları proxy kapsamı dışındadır (D-100: proxy gövdeyi 10 MB'ta keser); route içinde Origin = APP_URL zorunlu (eksik/yabancı → 403). CORS kapalı; bucket CORS'u kapalı.
+- **Girdi:** ham PDF (`Content-Type: application/pdf`), `Content-Length` zorunlu ve ≤ 10 485 760, gerçek bayt sayısı sınırlanır; Zod `.strict()` sorgu; dosya adı sanitize (§FILE_STORAGE 4) ve URL'ye yazılmaz.
+- **Kaynak tüketimi:** süreç başına 4 eşzamanlı yükleme + sınırlı kuyruk; aktör başına rate limit (30 yükleme / 120 görüntüleme saatte); PDF doğrulama ayrı worker'da bellek/süre sınırlı ve ortam değişkenleri boş (secret sızmaz); 120 sn gövde zaman aşımı.
+- **PDF:** yapısal doğrulama + nesne düzeyi aktif içerik taraması + pdf.js (D-099). **Antivirüs değildir** (OD-07, PB-05).
+- **Storage:** private bucket, bucket'a kısıtlı anahtar (master key yok), anahtar/uç nokta/bucket yalnızca doğrulanmış env'den; HTTPS zorunlu; SSE-B2 her yazmada istenir ve doğrulanır; nesne anahtarı yalnızca UUID; storage çağrısı transaction/kilit içinde yok; silme yalnızca versiyona özgü; toplu silme yok. Ham sağlayıcı URL'si, nesne anahtarı, versiyon kimliği, imzalı URL istemciye gönderilmez. Storage hataları sınıflandırılır; sağlayıcı mesajı/anahtar log'a yazılmaz.
+- **Yanıtlar:** `no-store`, `no-referrer`, `nosniff`, `X-Frame-Options: DENY`, `CORP: same-origin`, güvenli `Content-Disposition`; indirmede CSP `sandbox` (D-104). Uygulama geneli CSP/frame-ancestors zayıflatılmadı.
+- **Secret'lar:** B2 anahtarı yalnızca `pnpm env:b2` (yankısız terminal girdisi) ile `.env.local`'a; sohbette istenmez; client bundle canary kontrolü B2 adlarını/değerlerini kapsar; CI gerçek B2 hesabı kullanmaz. `APP_ENV=production` geliştirme bucket'ını reddeder; testlerde B2 reddedilir.
+- **Önizleme botları:** müşteri sayfası açılışında PDF baytı çekilmez; dosya route'ları müşteri oturumu gerektirir → bağlantı önizlemesi dosya indiremez (D-087 koşulu — WhatsApp önizleme davranışı gerçek cihazda doğrulanmadı).
+- **Açık:** gerçek tarayıcılarda satır içi PDF görüntüleme (TD-12); gerçek belge setiyle yanlış pozitif ölçümü; B2 anahtar rotasyonu prosedürü (DEPLOYMENT §5) ve canlı `storage:verify` sonucu (kullanıcının anahtarı girmesine bağlı); cap aşımında gerçek S3 hata kodu; 10 MiB gövde kabul eden production hosting (PHASE 13); PB-01…PB-11 açık.

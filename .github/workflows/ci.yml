@@ -52,6 +52,13 @@ jobs:
           ACCESS_TOKEN_ENCRYPTION_KEYS: '{"k1":"Q0FOQVJZLWNpLWVuYy1rZXktMDAwMDAwMDAwMDAwMDA="}'
           ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: k1
           CUSTOMER_SESSION_SECRET: Q0FOQVJZLWNpLXBvcnRhbC1zZXNzaW9uLTAwMDAwMDA=
+          # PHASE 08: sahte (canary) B2 değerleri — gerçek Backblaze hesabı CI'da kullanılmaz.
+          STORAGE_PROVIDER: b2
+          B2_KEY_ID: CANARYci0000000000000b2key
+          B2_APPLICATION_KEY: CANARY-ci-b2-application-key-000000000
+          B2_BUCKET_NAME: ci-canary-bucket
+          B2_ENDPOINT: https://s3.eu-central-003.backblazeb2.com
+          B2_REGION: eu-central-003
       - run: pnpm check:bundle
         env:
           DATABASE_URL: postgresql://cs_app_runtime:CANARY-ci-runtime-5d1f@ci-canary-pooler.example.invalid/cs_global_dev?sslmode=verify-full
@@ -62,6 +69,13 @@ jobs:
           ACCESS_TOKEN_ENCRYPTION_KEYS: '{"k1":"Q0FOQVJZLWNpLWVuYy1rZXktMDAwMDAwMDAwMDAwMDA="}'
           ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: k1
           CUSTOMER_SESSION_SECRET: Q0FOQVJZLWNpLXBvcnRhbC1zZXNzaW9uLTAwMDAwMDA=
+          # PHASE 08: sahte (canary) B2 değerleri — gerçek Backblaze hesabı CI'da kullanılmaz.
+          STORAGE_PROVIDER: b2
+          B2_KEY_ID: CANARYci0000000000000b2key
+          B2_APPLICATION_KEY: CANARY-ci-b2-application-key-000000000
+          B2_BUCKET_NAME: ci-canary-bucket
+          B2_ENDPOINT: https://s3.eu-central-003.backblazeb2.com
+          B2_REGION: eu-central-003
       - run: pnpm audit --audit-level=high
 
   e2e:

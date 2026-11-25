@@ -28,7 +28,7 @@ flowchart LR
         subgraph Next["Next.js 16 (Node.js runtime)"]
             RSC[Server Components<br/>dashboard / portal]
             SA[Server Actions]
-            RH[Route Handlers<br/>/b/token,<br/>/api/uploads, /api/files, /api/cron]
+            RH[Route Handlers<br/>/b/token,<br/>/api/documents/*/file, /api/portal/*,<br/>/api/files/*]
             SVC[Feature servisleri<br/>state machine, kurallar]
             DAL[Data access<br/>server-only, DTO]
             AUTH[Better Auth<br/>username + admin]
@@ -36,11 +36,11 @@ flowchart LR
             STG[Storage modülü]
             VAL[PDF yapısal doğrulama]
         end
-        CRON[Günlük teknik temizlik]
+        CRON[Teknik temizlik — pnpm storage:cleanup (elle)]
     end
 
     DB[(Postgres — Neon<br/>aws-eu-central-1)]
-    BLOB[(Private object storage<br/>Vercel Blob fra1)]
+    BLOB[(Private object storage<br/>Backblaze B2 eu-central-003<br/>SSE-B2, OD-25)]
 
     S --> P --> RSC
     C --> P
@@ -52,9 +52,8 @@ flowchart LR
     CA --> DB
     SVC --> STG --> BLOB
     SVC --> VAL
-    C -- "doğrudan PDF upload (client token)" --> BLOB
-    BLOB -- "upload callback" --> RH
-    CRON --> RH
+    C -- "ham PDF POST (XHR ilerleme)" --> RH
+    CRON -. "CLI, elle" .-> STG
 ```
 
 ## 3. Başvuru Oluşturma Akışı
@@ -140,10 +139,11 @@ Ek doğrulama adımı yoktur (OD-01). GET hiçbir veriyi değiştirmez (BR-105).
 | Form mutasyonları (başvuru, müşteri bilgisi, hizmet, şablon, inceleme, statü geçişi, not, yorum, bağlantı yenile/iptal, silme) | **Server Action** | Proxy köken kontrolü (403, D-069) + yerleşik Origin/Host CSRF kontrolü, tipli sözleşme, küçük payload (<1 MB) |
 | Müşteri gönderimi, dosya kaldırma, upload onayı | **Server Action** | Aynı; müşteri cookie'si action içinde doğrulanır |
 | Personel girişi / çıkışı | **Server Action** (`auth.api`, D-060) | Better Auth HTTP route'u bağlanmaz; CSRF için Server Action origin kontrolü |
-| Upload token + storage callback (`/api/uploads`) | **Route Handler** | `handleUpload` Request/Response bekler; callback harici HTTP çağrısıdır |
-| PDF görüntüle/indir (`/api/files/[fileId]`) | **Route Handler** | Binary stream, özel header'lar |
+| PDF yükleme (`POST /api/documents/[requirementId]/file`, `POST /api/portal/[context]/documents/[requirementId]/file`) | **Route Handler** | 10 MiB ham gövde (Server Action 1 MB sınırı değiştirilmez), gerçek ilerleme (XHR), proxy dışı (D-100) |
+| ~~Upload token + storage callback (`/api/uploads`)~~ | — | **Superseded** (OD-25, D-100) |
+| PDF görüntüle/indir (`/api/files/[fileId]` personel, `/api/portal/[context]/files/[fileId]` müşteri) | **Route Handler** | Binary stream, özel header'lar (D-104) |
 | Bağlantı girişi (`/b/[token]`) | **Route Handler (GET)** | Cookie set + 303; sayfa render etmez |
-| Teknik temizlik (`/api/cron/cleanup`) | **Route Handler** | Zamanlanmış GET; `CRON_SECRET` |
+| Teknik temizlik | **CLI** (`pnpm storage:cleanup`, `storage:reconcile`) | Ücretli cron yok; `/api/cron/cleanup` uygulanmadı — zamanlama PHASE 10/13 (D-105) |
 
 Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar.
 
@@ -192,7 +192,7 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
     │   ├── auth/          {components, schemas}
     │   ├── applications/  {actions, service, queries, schemas, components, domain/}
     │   ├── services/      {actions, service, queries, schemas, components}
-    │   ├── documents/     {actions, service, queries, schemas, components, domain/}
+    │   ├── documents/     {service, handlers, http, queries, components, domain/}   # PHASE 08 (actions PHASE 09)
     │   ├── portal/        {actions, service, queries, components}
     │   └── audit/         {service, queries, components}
     ├── server/                    # Tümü `import 'server-only'`
@@ -200,12 +200,13 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
     │   ├── db/{client.ts, settings.ts, schema/*.ts, migrations/}   # PHASE 02
     │   ├── auth/{auth.ts, staff.ts, rate-limit.ts, password-policy.ts}   # PHASE 03 (permissions.ts yok — OD-24)
     │   ├── customer-access/{tokens.ts, portal-session.ts}
-    │   ├── storage/{storage.ts, pdf-validation.ts}
+    │   ├── storage/{types, errors, config, b2, local-private, factory, quota}.ts   # PHASE 08 (D-097)
+    │   ├── pdf/{pdf-checks, validation-worker, validate}.ts                      # PHASE 08 (D-099)
     │   ├── security/{crypto.ts, rate-limit.ts, headers.ts}
     │   └── audit/log.ts
     └── lib/                       # İzomorfik saf yardımcılar
         ├── dates.ts, search.ts, phone.ts, result.ts, messages.ts, whatsapp.ts, utils.ts
-        └── upload-client.ts       # uploadPdf() — client tarafı storage sınırı
+        └── (upload-client.ts yok — PHASE 08: yükleme `PdfUpload` bileşeninde XHR ile uygulama route'una)
 ```
 
 **PHASE 02'de eklenenler:** `drizzle.config.ts`, `src/config/statuses.ts`, `src/server/db/{client.ts, settings.ts, schema/, migrations/}`, `scripts/db/`, `tests/integration/`, `vitest.integration.config.ts`.
@@ -236,9 +237,11 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
 | `/portal/[context]` | Müşteri paneli (PHASE 07 — uygulandı, salt okunur) | CUSTOMER | Portal cookie + URL bağlamı | Tek başvuru, `requireCustomerAccess` | RSC + küçük client adalar | no-store | **Çok yüksek** |
 | `/portal` | Bağlamsız eski adres: bilgi ekranı, oturum açmaz | Herkes | — | — | RSC | no-store | Yok |
 | `/link-invalid` · `/link-unavailable` | Genel geçersiz bağlantı / geçici erişim sorunu mesajı | Herkes | — | — | RSC (no-store) | no-store | Yok |
-| `POST /api/uploads` | Upload token / storage callback | Staff, CUSTOMER, storage | Session / callback doğrulaması | `file:upload` + BR-44 | Route Handler | no-store | Metadata |
-| `GET /api/files/[fileId]` | PDF stream | Staff, CUSTOMER | Session | `file:view_download` | Route Handler | no-store | **Belge** |
-| `GET /api/cron/cleanup` | Teknik temizlik | SYSTEM | `CRON_SECRET` | — | Route Handler | no-store | — |
+| `POST /api/documents/[requirementId]/file` | PDF yükleme (müşteri adına) | Staff | Personel oturumu + Origin | BR-44 (personel) | Route Handler (proxy dışı) | no-store | **Belge** |
+| `POST /api/portal/[context]/documents/[requirementId]/file` | PDF yükleme | CUSTOMER | `requireCustomerAccess(context)` + Origin | BR-44 (müşteri) | Route Handler (proxy dışı) | no-store | **Belge** |
+| `GET /api/files/[fileId]` | PDF stream (aktif + önceki versiyonlar) | Staff | Personel oturumu | — | Route Handler (proxy dışı) | no-store | **Belge** |
+| `GET /api/portal/[context]/files/[fileId]` | PDF stream (yalnızca ACTIVE) | CUSTOMER | `requireCustomerAccess(context)` | kapsam: oturum başvurusu | Route Handler (proxy dışı) | no-store | **Belge** |
+| ~~`GET /api/cron/cleanup`~~ | Teknik temizlik | — | — | — | Uygulanmadı (CLI — D-105) | — | — |
 
 Kaldırılan route'lar: `/dashboard/settings`, `/dashboard/account`, `/portal/verify`, arşiv görünümleri.
 
@@ -338,3 +341,12 @@ Kurallar (D-016):
 - **İstemci adaları:** `RevalidateOnReturn` (sekmeye/bfcache'ten dönüşte sunucuda yeniden doğrulama), `ReloadButton`, `error.tsx`. Müşteri verisi istemci durumunda/depolamada tutulmaz.
 - **Başlıklar:** `next.config.ts` müşteri yolları (`no-referrer`, `private, no-store`), `logging.incomingRequests.ignore` (`/b/`), `logging.serverFunctions: false` (D-093).
 - **Mimari kararlar:** D-087…D-095.
+
+## PHASE 08 Notları (uygulandı)
+- **Storage (OD-25, D-096, D-097):** `src/server/storage/{types,errors,config,b2,local-private,factory,quota}.ts`. Domain AWS SDK'yi bilmez; B2 adapter S3 API (path-style, `WHEN_REQUIRED` checksum, SSE-B2, sınırlı zaman aşımı/1 yeniden deneme, versiyona özgü silme); yerel private adapter yalnızca izole test/yerel geliştirme. Lazy yapılandırma: eksikse yalnızca dosya işlemleri 503.
+- **Yükleme (D-100, D-103):** `src/features/documents/{handlers,http,service,queries}.ts` + 4 Route Handler. Akış: köken → kimlik → Zod → başlık → rate limit → kilitsiz ön kontrol → eşzamanlılık slotu → sınırlı gövde okuma → izole PDF doğrulama → SHA-256 → TX1 rezervasyon (başvuru → evrak → dosyalar → `storage_quota_state` kilidi) → B2 PutObject (TX dışı) → TX2 aktivasyon (yeniden doğrulama, SUPERSEDED/ACTIVE, evrak statüsü, audit) → yanıt. Proxy matcher'ı `api/documents/`, `api/portal/`, `api/files/` yollarını dışlar (gövde tamponu/kesme).
+- **PDF doğrulama (D-099):** `src/server/pdf/{pdf-checks,validation-worker,validate}.ts`; worker `new Worker(...)` ile (Turbopack paketler), `pdfjs-dist` `serverExternalPackages`; worker env boş, bellek/süre sınırlı.
+- **Görüntüleme (D-104):** ayrı personel/müşteri route'ları; audit → `GetObject(key, versionId)` → akış; boyut kontrolü.
+- **UI:** `PdfUpload` (XHR gerçek ilerleme, hydration sonrası etkin), `StaffDocumentCard` (aktif dosya, v, yükleyen, tarih, görüntüle/indir, değiştir onayı, geçmiş), müşteri `DocumentCard` (aktif dosya + yükle/değiştir), dashboard `StorageCapacityCard` (yalnızca DB).
+- **Bakım (D-105):** `scripts/storage/{verify,reconcile,cleanup,maintenance,common}.ts`, `scripts/env/configure-b2.ts`. Ücretli cron yok.
+- **Kilit sırası:** applications → application_document_requirements → application_document_files → storage_quota_state.

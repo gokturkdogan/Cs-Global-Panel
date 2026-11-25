@@ -6,8 +6,12 @@ import { isTrustedRequestOrigin, resolveAppUrl } from "@/server/security/request
  * 1) Durum değiştiren sayfa isteklerinde (Server Action'lar) köken kontrolü → kontrollü 403 (D-069).
  * 2) İstek başına nonce'lu Content-Security-Policy (D-064; Next.js 16 CSP rehberi).
  * Proxy kimlik doğrulama yapmaz; kimlik kontrolü her sayfa/action/route içinde `requireStaff()` ile.
- * `/api/*` Route Handler'ları kendi köken/kimlik kontrollerini yapar (ör. storage callback'i Origin
- * göndermez — PHASE 08).
+ * `/api/*` Route Handler'ları kendi köken/kimlik kontrollerini yapar.
+ *
+ * Dosya yolları (`/api/documents/*`, `/api/portal/*`, `/api/files/*`) proxy kapsamı DIŞINDADIR (D-100):
+ * proxy istek gövdesini belleğe alır ve varsayılan 10 MB sınırının üstünü sessizce keser
+ * (`proxyClientMaxBodySize`) — PDF yüklemesi kesik dosyaya dönüşmemeli. Bu route'lar köken (Origin),
+ * kimlik, gövde sınırı ve kendi CSP/no-store başlıklarını içeride uygular.
  */
 function buildContentSecurityPolicy(nonce: string): string {
   const isDevelopment = process.env.NODE_ENV === "development";
@@ -61,7 +65,8 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|robots.txt).*)",
+      source:
+        "/((?!_next/static|_next/image|favicon.ico|robots.txt|api/documents/|api/portal/|api/files/).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

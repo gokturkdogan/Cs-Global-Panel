@@ -29,10 +29,17 @@ const CUSTOMER_PATHS = [
   "/portal/:path*",
   "/link-invalid",
   "/link-unavailable",
+  // Dosya route'ları (PHASE 08): route da aynı başlıkları kendisi ayarlar (proxy kapsamı dışında).
+  "/api/documents/:path*",
+  "/api/portal/:path*",
+  "/api/files/:path*",
 ];
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // PDF doğrulayıcı (D-099) worker thread'de çalışır; pdf.js paketlenmez, node_modules'tan yüklenir
+  // (kendi worker modülünü göreli yoldan çözer).
+  serverExternalPackages: ["pdfjs-dist"],
   logging: {
     // Geliştirme sunucusu istek logları müşteri bağlantı token'ını (`/b/<token>`) yazmasın.
     incomingRequests: { ignore: [/^\/b\//] },

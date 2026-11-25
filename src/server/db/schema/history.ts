@@ -35,11 +35,12 @@ export const applicationStatusHistory = pgTable(
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (t) => [
+    // Bkz. app_doc_files_access_token_fk: başvuru silmede zincirleme silme (migration 0005).
     foreignKey({
       name: "app_status_history_access_token_fk",
       columns: [t.actorAccessTokenId, t.applicationId],
       foreignColumns: [applicationAccessTokens.id, applicationAccessTokens.applicationId],
-    }),
+    }).onDelete("cascade"),
     index("app_status_history_application_created_idx").on(t.applicationId, t.createdAt),
     check("app_status_history_from_status_check", inList(t.fromStatus, APPLICATION_STATUSES)),
     check("app_status_history_to_status_check", inList(t.toStatus, APPLICATION_STATUSES)),

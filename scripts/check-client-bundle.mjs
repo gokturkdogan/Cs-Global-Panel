@@ -16,8 +16,11 @@ const SERVER_ENV_NAMES = [
   "ACCESS_TOKEN_ENCRYPTION_KEYS",
   "ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID",
   "CUSTOMER_SESSION_SECRET",
-  "BLOB_READ_WRITE_TOKEN",
-  "CRON_SECRET",
+  // PHASE 08: Backblaze B2 (bucket'a kısıtlı anahtar) — client'ta asla bulunmamalı.
+  "B2_KEY_ID",
+  "B2_APPLICATION_KEY",
+  "B2_ENDPOINT",
+  "STORAGE_LOCAL_ROOT",
 ];
 
 /** Sunucu modülü işaretleri (bu ifadeler yalnızca sunucu kodunda bulunur). */
@@ -30,6 +33,11 @@ const SERVER_MODULE_MARKERS = [
   // PHASE 07: müşteri oturumu imzası yalnızca sunucuda.
   "cs-portal",
   "cs-access-token:",
+  // PHASE 08: storage ve PDF doğrulama yalnızca sunucuda.
+  "StorageConfigError",
+  "storage_quota_state",
+  "PdfValidatorUnavailableError",
+  "backblazeb2.com",
 ];
 
 /**

@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Uygulama | Yerel `pnpm dev` | Vercel Hobby (geliştiricinin hesabı), sağlayıcı alt alan adı (ör. `cs-global-panel.vercel.app` — örnek) | **Açık (PB-01)** |
 | Veritabanı | Neon Free, non-prod projesi → `dev` branch | Neon Free, non-prod projesi → preview/demo branch'i | Ayrı proje/hesap — sağlayıcı açık |
-| Storage | Vercel Blob (Hobby) private store `dev` | Ayrı private store `demo` | Ayrı private store — sağlayıcı açık |
+| Storage | **Backblaze B2** private bucket `cs-global-documents` (EU Central, SSE-B2; OD-25) — otomatik testler: geçici yerel private depolama | Ayrı B2 bucket + ayrı anahtar (oluşturulmadı) | **Ayrı B2 bucket + bağımsız anahtar** (oluşturulmadı; `APP_ENV=production` geliştirme bucket'ını reddeder — D-098) |
 | Secret'lar | `.env.local` | Sağlayıcı Preview scope | Production scope (yalnızca yetkili kişi) |
 | Veri | Sahte seed | **Yalnızca sahte** | Gerçek |
 | Bölge | — | `fra1` / `aws-eu-central-1` | Veri konumu seçim kriteri |
@@ -25,7 +25,8 @@
 |---|---|---|
 | Vercel Functions | `fra1` | Varsayılan `iad1` → `vercel.json` `"regions": ["fra1"]` (Hobby tek bölge seçebilir) |
 | Neon | `aws-eu-central-1` | Proje oluştururken; sonradan değiştirilemez |
-| Vercel Blob | `fra1` | Store oluştururken; sonradan değiştirilemez |
+| Backblaze B2 | `eu-central-003` (EU Central) | Bucket oluştururken (kullanıcı oluşturdu). AB bölgesi tek başına KVKK uyumu sağlamaz (DATA_PRIVACY §12a) |
+| ~~Vercel Blob~~ | ~~`fra1`~~ | Kullanılmıyor (OD-25) |
 
 ## 3. Environment Değişkenleri (`.env.example` planı)
 
@@ -54,9 +55,15 @@ CUSTOMER_SESSION_SECRET=          # Portal cookie imzası, 32 bayt base64
 # --- Rate limiting ---
 RATE_LIMIT_KEY_SECRET=            # Kullanıcı adı anahtarlarının HMAC'i, >=32 kr., BETTER_AUTH_SECRET'tan farklı (PHASE 03)
 
-# --- Storage ---
-BLOB_READ_WRITE_TOKEN=            # handleUpload için (OIDC kabul etmiyor)
-# VERCEL_BLOB_CALLBACK_URL=       # yalnızca yerel tünelle callback testi
+# --- Storage (PHASE 08 — Backblaze B2, D-098) ---
+STORAGE_PROVIDER=b2               # b2 | local (local yalnızca APP_ENV=development + STORAGE_LOCAL_ROOT)
+B2_KEY_ID=                        # bucket'a kısıtlı Application Key ID (yerelde: pnpm env:b2)
+B2_APPLICATION_KEY=               # gizli; yerelde yalnızca pnpm env:b2 (yankısız girdi)
+B2_BUCKET_NAME=                   # production'da geliştirme bucket'ı (cs-global-documents) reddedilir
+B2_ENDPOINT=                      # https://s3.<B2_REGION>.backblazeb2.com (birebir)
+B2_REGION=                        # ör. eu-central-003
+STORAGE_MAX_TOTAL_BYTES=9000000000   # ≤ 9e9 (kod tavanı)
+STORAGE_WARNING_BYTES=8000000000
 
 # --- Zamanlanmış iş ---
 CRON_SECRET=
@@ -90,7 +97,7 @@ Kaldırılan değişkenler: `NEXT_PUBLIC_APP_URL` (→ `APP_URL`, sunucu tarafı
 | `ACCESS_TOKEN_HMAC_KEY` | **Tüm bağlantılar geçersiz** | Yalnızca sızıntıda; tüm bağlantılar yenilenip yeniden paylaşılır |
 | `CUSTOMER_SESSION_SECRET` | Tüm müşteri oturumları sonlanır (bağlantılar geçerli) | Doğrudan değiştir |
 | `RATE_LIMIT_KEY_SECRET` | Rate limit sayaçları sıfırlanır | Doğrudan değiştir |
-| `BLOB_READ_WRITE_TOKEN`, DB şifresi | Kısa kesinti | Konsol → env → redeploy |
+| `B2_APPLICATION_KEY` (B2 anahtarı), DB şifresi | Dosya işlemleri / kısa kesinti | B2 panelinde yeni bucket'a kısıtlı anahtar → env (yerelde `pnpm env:b2`, açık onayla) → eski anahtarı B2'de sil → `pnpm storage:verify` |
 
 ## 6. Ücretsiz Plan Değerlendirmesi
 
@@ -99,14 +106,15 @@ Kaldırılan değişkenler: `NEXT_PUBLIC_APP_URL` (→ `APP_URL`, sunucu tarafı
 | Servis / Plan | Ticari kullanım | Kapasite | Diğer | Kaynak |
 |---|---|---|---|---|
 | **Vercel Hobby** | ❌ Terms §4: *"You shall only use the Services under a Hobby plan for your personal or non-commercial use."* | 1M function çağrısı, 4 CPU-saat, 360 GB-saat bellek, 100 GB Fast Data Transfer; maks süre 300 sn; 2 GB / 1 vCPU; tek bölge; request body 4.5 MB | Cron: en sık **günde 1**, ±59 dk | vercel.com/legal/terms, vercel.com/docs/plans/hobby, /functions/limitations, /cron-jobs/usage-and-pricing |
-| **Vercel Blob (Hobby)** | Hobby koşullarına tabi | **1 GB** depolama, 10K basit / 2K gelişmiş işlem, 10 GB transfer/ay | Aşımda erişim 30 gün bloklanır, **ücret çıkmaz** | vercel.com/docs/vercel-blob/usage-and-pricing |
+| ~~Vercel Blob (Hobby)~~ | Kullanılmıyor (OD-25) | 1 GB | — | — |
+| **Backblaze B2** (2026-11-25) | Ticari kullanım koşulları ve DPA **doğrulanmadı** (gerçek müşteri verisinden önce) | İlk **10 GB** ücretsiz; aylık ortalama depolamanın 3 katı indirme ücretsiz ($0.01/GB sonrası); Class A ücretsiz; Class B/C ve cap'ler panelden | Cap = günlük harcama sınırı, 00:00 GMT sıfırlama, %75/%100 uyarı; cap yoksa kullanım sınırsız; kredi kartı girilmedi | backblaze.com/cloud-storage/pricing, docs/cloud-storage-data-caps-and-alerts |
 | **Neon Free** | Açık ifade bulunamadı ("Prototypes, side projects, and small teams") | 1 GB/proje (20 GB toplam), 100 CU-saat/proje/ay, 10 branch | Geri yükleme penceresi **6 saat**; SLA yok; aşımda compute askıya alınır / yazma bloklanır | neon.com/docs/introduction/plans |
 | Vercel Pro (referans, **satın alınmayacak**) | ✅ | — | $20/ay/koltuk | vercel.com/pricing |
 | Neon Launch (referans, **satın alınmayacak**) | ✅ | — | Kullandıkça öde, minimum yok | neon.com/pricing |
 
 ### 6.2 Kapasite değerlendirmesi
 - Ortalama PDF 2 MB, başvuru başına ~8 evrak ve versiyonlarla ~10 dosya → başvuru başına ~20 MB.
-- **Vercel Blob Hobby 1 GB ≈ 50 başvuru.** Otomatik silme olmadığından (OD-06) kapasite birikimlidir; dolduğunda yükleme/görüntüleme 30 gün bloklanır → **gerçek kullanım için yetersiz** (PB-02).
+- **Backblaze B2 uygulama kotası 9 GB ≈ 450 başvuru** (PHASE 08, D-101). Otomatik silme olmadığından (OD-06) kapasite birikimlidir; 8 GB'ta panel uyarısı, 9 GB'ta yeni yükleme durur (mevcut dosyalar erişilebilir kalır). Uzun vadeli büyüme için ücretli kapasite kullanıcı kararıdır (PB-02 açık). (Önceki değerlendirme: Vercel Blob Hobby 1 GB ≈ 50 başvuru.)
 - Neon Free 1 GB: metadata için uzun süre yeterli (binary yok). 100 CU-saat/ay, düşük trafikte scale-to-zero ile muhtemelen yeterli (ölçülmeli).
 - Vercel Hobby function/bandwidth: küçük operasyon için muhtemelen yeterli; ancak ticari kullanım izni yok (PB-01).
 
@@ -117,18 +125,18 @@ Aşağıdakiler **aday**dır; hiçbirinin ticari kullanım koşulu, kotası, gü
 |---|---|---|
 | Next.js full-stack hosting (ticari kullanıma açık ücretsiz katman) | Cloudflare Workers (OpenNext adaptörü), Netlify, Render, Google Cloud Run, Oracle Cloud Always Free (kendi sunucunda Node) | Next.js 16 özellik uyumu (Server Actions, `proxy.ts` Node runtime, streaming), Node 24 desteği, cold start, kredi kartı zorunluluğu |
 | PostgreSQL | Neon Free (ticari kullanım teyidi), Supabase Free, sağlayıcıların ücretsiz katmanları, Oracle VM üzerinde self-hosted Postgres | Pause/askıya alma politikası, yedek, bölge, bağlantı yöntemi (interactive transaction) |
-| Private object storage | Cloudflare R2 ücretsiz katmanı, diğer S3-uyumlu ücretsiz katmanlar, Oracle Object Storage, Supabase Storage | Private erişim, presigned upload, kapasite, egress, kredi kartı gereksinimi |
+| Private object storage | **Seçildi: Backblaze B2 (OD-25)** — production için ayrı bucket/anahtar ve ticari koşul/DPA değerlendirmesi kaldı. (Önceki adaylar: Cloudflare R2, Oracle Object Storage, Supabase Storage — değerlendirme dışı bırakıldı) | Private erişim, kapasite, egress, kredi kartı gereksinimi |
 
 **Değerlendirme kriterleri (her aday için):** ticari kullanım izni · depolama/DB kotası · bant genişliği · function limitleri · yedek/geri yükleme · veri konumu (KVKK) · güvenlik/uyumluluk belgeleri · DPA · erişilebilirlik/SLA · aşım ücretleri · **sert harcama limiti** (kredi kartı olmadan veya ücretlendirme kapatılabilir) · Next.js uyumu.
 
-Storage sağlayıcısı değişirse yalnızca `src/server/storage/storage.ts` ve `src/lib/upload-client.ts` değişir (D-040). Hosting değişirse cron, region ve env yapılandırması değişir; uygulama kodu Node.js standartlarında kalır.
+Storage sağlayıcısı değişirse yalnızca `src/server/storage/` altındaki adapter değişir (D-097; D-040 Superseded). **Hosting uyumluluk kriteri (PHASE 13, zorunlu):** 10 MiB ham PDF istek gövdesini kabul eden Node.js Route Handler (D-100) — ör. 4.5 MB gövde sınırlı Vercel Functions bu tasarımla uyumsuzdur; `worker_threads` + Node.js tip ayıklama (`.ts` worker) desteği; `pnpm storage:cleanup` için planlı bakım yolu. Hosting değişirse cron, region ve env yapılandırması değişir; uygulama kodu Node.js standartlarında kalır.
 
 ### 6.4 Beklenen maliyet
 
 | Ortam | Maliyet |
 |---|---|
-| Development | **0** (yerel + Neon Free + Vercel Blob Hobby) |
-| Demo | **0** (Vercel Hobby + Neon Free + Blob Hobby; yalnızca sahte veri) |
+| Development | **0** (yerel + Neon Free + Backblaze B2 ücretsiz 10 GB; kart yok, cap'ler $0) |
+| Demo | **0** (Vercel Hobby + Neon Free + ayrı B2 bucket — oluşturulmadı; yalnızca sahte veri) |
 | Production | **Hedef 0** — ticari kullanıma uygun ücretsiz altyapı bulunamazsa **production blocker** (PB-01). Ücretli plan yalnızca kullanıcı açıkça onaylarsa. Referans: Vercel Pro $20/ay + Neon Launch kullanım bazlı (~$5–10/ay tahmini, doğrulanmamış varsayımlarla). |
 
 Harici servis yok: e-posta, SMS, antivirüs, Redis, kuyruk, APM, analytics, alan adı, ücretli DNS.
@@ -136,7 +144,7 @@ Harici servis yok: e-posta, SMS, antivirüs, Redis, kuyruk, APM, analytics, alan
 ## 7. Yedekleme ve Geri Yükleme
 
 - Neon Free geri yükleme penceresi **6 saat** — veri kaybı/yanlış silme için çok kısa; production sağlayıcısında yedek yeteneği bir seçim kriteridir (PB-08).
-- Vercel Blob sürüm/yedek özelliği **doğrulanmadı**; silinen dosya geri getirilemeyebilir → silme yalnızca onaylı manuel silme akışıyla.
+- Backblaze B2: bucket lifecycle "tüm versiyonları sakla"; uygulama yalnızca versiyona özgü siler (geri getirilemez). Replikasyon/Object Lock/ayrı yedek **yok ve doğrulanmadı**; tek kopya riski (PB-08). Gerçek müşteri verisinden önce yedekleme ve kurtarma stratejisi belirlenmelidir.
 - Geri yükleme provası production öncesi zorunlu (PHASE 13).
 - Ek uzun süreli yedek alınmaz (DATA_PRIVACY §4).
 

@@ -9,6 +9,7 @@ import {
   LOGIN_RATE_LIMIT_UNKNOWN_USERNAMES,
 } from "@/config/constants";
 import type { Database } from "@/server/db/client";
+import { hitRateLimitCounter } from "@/server/security/rate-limit-counter";
 
 /**
  * Personel girişi rate limiting (D-063). Postgres `rate_limit_buckets` üzerinde atomik sayaçlar:
@@ -33,26 +34,6 @@ export function loginUsernameKey(secret: string, username: string): string {
   return `login:user:${createHmac("sha256", secret).update(username).digest("hex")}`;
 }
 
-/** Sabit pencereli sayaç: süresi dolmuşsa 1'den başlar. Satır kilidi eşzamanlı artışları sıralar. */
-async function hit(
-  executor: Pick<Database, "execute">,
-  key: string,
-  windowSeconds: number,
-): Promise<number> {
-  const result = await executor.execute<{ count: number }>(sql`
-    INSERT INTO rate_limit_buckets (key, window_started_at, count, expires_at)
-    VALUES (${key}, now(), 1, now() + make_interval(secs => ${windowSeconds}))
-    ON CONFLICT (key) DO UPDATE SET
-      count = CASE WHEN rate_limit_buckets.expires_at <= now() THEN 1 ELSE rate_limit_buckets.count + 1 END,
-      window_started_at = CASE WHEN rate_limit_buckets.expires_at <= now() THEN now() ELSE rate_limit_buckets.window_started_at END,
-      expires_at = CASE WHEN rate_limit_buckets.expires_at <= now()
-        THEN now() + make_interval(secs => ${windowSeconds}) ELSE rate_limit_buckets.expires_at END
-    RETURNING count`);
-  const count = result.rows[0]?.count;
-  if (typeof count !== "number") throw new Error("rate limit sayacı okunamadı");
-  return count;
-}
-
 /**
  * Bir giriş denemesini sayar ve karar verir (şifre henüz kontrol edilmemiştir).
  * Bilinmeyen kullanıcı adında önce ortak sayaç kontrol edilir; aşıldıysa kullanıcı adı başına
@@ -70,14 +51,14 @@ export async function consumeLoginAttempt(
         SELECT key FROM rate_limit_buckets WHERE expires_at < now() LIMIT 100)`);
     const known = await tx.execute(sql`SELECT 1 FROM users WHERE username = ${username}`);
     if (known.rows.length === 0) {
-      const unknownCount = await hit(
+      const unknownCount = await hitRateLimitCounter(
         tx,
         LOGIN_UNKNOWN_USERNAMES_KEY,
         LOGIN_RATE_LIMIT_UNKNOWN_USERNAMES.windowSeconds,
       );
       if (unknownCount > LOGIN_RATE_LIMIT_UNKNOWN_USERNAMES.max) return "unknown_usernames_limited";
     }
-    const perUsername = await hit(
+    const perUsername = await hitRateLimitCounter(
       tx,
       loginUsernameKey(secret, username),
       LOGIN_RATE_LIMIT_PER_USERNAME.windowSeconds,

@@ -11,7 +11,7 @@
 | **Customer** | Müşteri oturum cookie'si (bağlantıyla oluşturulur — PHASE 07) | **Yalnızca** oturumun bağlı olduğu tek başvuru; müşteri DTO'su |
 | **Unauthenticated** | — | Korumalı hiçbir veri ve işlem yok (yalnızca giriş ekranı, geçersiz bağlantı sayfası) |
 
-`SYSTEM` (cron, storage callback) secret/SDK doğrulamasıyla çalışan teknik işlerdir; kullanıcı kategorisi değildir.
+`SYSTEM` (yerel bakım komutları `pnpm storage:reconcile`/`storage:cleanup` — PHASE 08) teknik işlerdir; kullanıcı kategorisi değildir, HTTP uç noktası yoktur.
 
 ## 2. Authenticated Staff — eşit erişim
 
@@ -20,7 +20,7 @@ Her iki hesap aşağıdakilerin **tamamını** yapabilir. Hesap türüne göre f
 - Dashboard; tüm başvuruları görüntüleme, arama, filtreleme (atama yok — OD-03).
 - Başvuru oluşturma ve müşteri bilgilerini düzenleme (PHASE 06 — uygulandı; 8 action'ın tamamı `requireStaff()` ile başlar, aktör oturumdan; E2E'de bir hesabın oluşturduğu başvuruyu diğer hesabın düzenlediği/bağlantısını yenilediği doğrulandı).
 - Hizmet oluşturma/düzenleme/pasifleştirme/yeniden aktifleştirme; evrak şablonu ekleme/düzenleme/pasifleştirme/yeniden aktifleştirme/sıralama (PHASE 05 — uygulandı; her action `requireStaff()`, aktör oturumdan; E2E'de iki hesabın aynı form/aksiyonları gördüğü ve oluşturan/düzenleyen hesabın farklı olabildiği doğrulandı).
-- Müşteri adına PDF yükleme ve değiştirme (BR-44), evrak inceleme, onay, düzeltme talebi.
+- Müşteri adına PDF yükleme ve değiştirme (BR-44; `UNDER_REVIEW` dahil — OD-17), aktif ve önceki geçerli dosya versiyonlarını görüntüleme/indirme, dosya geçmişi (**PHASE 08 — uygulandı**: `POST /api/documents/[requirementId]/file`, `GET /api/files/[fileId]`; her istek `getCurrentStaff()`, aktör oturumdan; E2E'de ADMIN ve EMPLOYEE aynı sonucu alır); evrak inceleme, onay, düzeltme talebi (PHASE 09).
 - Statü geçişleri T1–T12 (iptal, iptal edilmişi/tamamlanmışı yeniden açma, izin verilen önceki statülere dönme dahil).
 - Müşteri bağlantısını görüntüleme, kopyalama, WhatsApp ile paylaşma, iptal etme, yenileme (PHASE 06 — uygulandı; açığa çıkarma ve paylaşım hazırlığı audit'lenir).
 - Şirket içi notlar; yorumlar; başvurunun işlem geçmişi; genel audit log görüntüleme.
@@ -39,7 +39,7 @@ Eşit ve tam yetki şu anlama **gelmez**:
 
 - Müşteri oturumu tam olarak **bir** `application_id`'ye bağlıdır. Tüm müşteri sorguları oturumdan gelen `applicationId` ile kapsanır; istemciden gelen `applicationId` **kabul edilmez**.
 - Her müşteri isteğinde: oturum imzası + süresi + **URL bağlamının cookie bağlamına eşitliği** + bağlı bağlantının iptal edilmemiş olması + başvurunun silinme sürecinde olmaması kontrol edilir (BR-104, D-089, D-090). Tek giriş noktası `requireCustomerAccess(context)` — **PHASE 07'de uygulandı** (yalnızca okuma: panel görüntüleme).
-- PHASE 07 kapsamındaki müşteri yetkisi: kendi başvurusunun bilgilerini, sürecini, evrak listesini ve düzeltme açıklamalarını **görüntüleme**. Yükleme, kaldırma, dosya görüntüleme ve gönderim PHASE 08/09'da (D-095 sözleşmesiyle).
+- PHASE 08 kapsamındaki müşteri yetkisi: görüntülemeye ek olarak kendi başvurusunda izinli statülerde PDF **yükleme/değiştirme** (`POST /api/portal/[context]/documents/[requirementId]/file`) ve yalnızca kendi `ACTIVE` dosyalarını **görüntüleme/indirme** (`GET /api/portal/[context]/files/[fileId]`). Kaldırma ve gönderim PHASE 09. (Önceki not: Yükleme, kaldırma, dosya görüntüleme ve gönderim PHASE 08/09'da (D-095 sözleşmesiyle).
 - Müşteri oturumu personel paneline, personel action'larına veya Better Auth oturumuna erişim sağlamaz; personel oturumu müşteri kapsamını belirlemez (E2E).
 - Müşteri yalnızca kendi başvurusunda: bilgileri ve statüyü görme, izinli durumlarda yükleme/değiştirme/kaldırma (BR-44), gönderme (BR-50), kendi `ACTIVE` dosyalarını görüntüleme/indirme, kendisine yazılan yorumları okuma.
 - Müşteri dosya isteği: dosyanın `application_id`'si oturumla eşleşmiyorsa veya dosya `ACTIVE` değilse **404**.

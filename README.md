@@ -10,14 +10,14 @@ CS Global Customer Panel
 
 ## Durum
 
-**PHASE 07 — Customer Portal** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi, başvuru yönetimi ve **salt okunur müşteri paneli** (`/b/<token>` → imzalı 7 günlük oturum → `/portal/<bağlam>`: başvuru özeti, süreç, evrak ilerlemesi, evrak kartları, iletişim) vardır. Dosya yükleme (PHASE 08) ve incelemeye gönderme (PHASE 09) **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
+**PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi, başvuru yönetimi, müşteri paneli (`/b/<token>` → imzalı 7 günlük oturum → `/portal/<bağlam>`) ve **PDF yükleme/değiştirme/görüntüleme** (müşteri ve personel — müşteri adına; yapısal PDF doğrulaması, versiyon geçmişi, depolama kotası) vardır. Dosyalar Backblaze B2 private bucket'ta (OD-25). İncelemeye gönderme ve evrak inceleme (PHASE 09) **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
 
-Sonraki faz: **PHASE 08 — Secure PDF Document Management** (kullanıcı onayı olmadan başlanmaz). Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Sonraki faz: **PHASE 09 — Document Review & Application Workflow** (kullanıcı onayı olmadan başlanmaz). Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 
 - **Kurulu:** Better Auth 1.7.27 · Next.js 16.4.6 (App Router, Turbopack) · React 19.3.1 · TypeScript 6.0.3 (strict) · Tailwind CSS 4.3.5 · shadcn/ui (Radix) · Lucide · Geist · Zod 4 · ESLint 10 + Prettier · Vitest 5 · Playwright 1.65 · Drizzle ORM 0.45.4 + Drizzle Kit 0.31.11 + pg 8.23.1 · Neon PostgreSQL.
-- **Sonraki fazlarda:** Vercel Private Blob (PHASE 08).
+- **Dosya depolama:** Backblaze B2 (S3 uyumlu API, `@aws-sdk/client-s3` 3.1176.0) · yapısal PDF doğrulaması `pdfjs-dist` 6.5.438 (izole worker; antivirüs değildir).
 
 Hedef aylık altyapı maliyeti: 0. Kurulu sürümler: [docs/TECH_STACK.md](docs/TECH_STACK.md) §0.
 
@@ -108,6 +108,15 @@ Yalnızca **iki** şirket hesabı vardır: bir ADMIN, bir EMPLOYEE — **eşit y
 
 Başvuru oluşturmak ve bağlantı göstermek için `.env.local`'da `ACCESS_TOKEN_*` anahtarları, müşteri panelinin açılması için `CUSTOMER_SESSION_SECRET` gerekir. `pnpm env:token-keys` yalnızca eksik olanları ekler (mevcutların üzerine yazmaz, değer göstermez). `CUSTOMER_SESSION_SECRET` değişirse yalnızca açık müşteri oturumları sonlanır (bağlantılar geçerli kalır). Anahtarları değiştirmeyin veya kaybetmeyin: mevcut müşteri bağlantıları çözülemez/geçersiz olur.
 
+## Dosya Depolama — Backblaze B2 (PHASE 08)
+
+1. Backblaze panelinde bucket'a kısıtlı bir **Application Key** oluşturun (Master Application Key değil).
+2. Kendi terminalinizde `pnpm env:b2` çalıştırın: keyID görünür, Application Key **gizli** girilir; değerler sohbete/komut satırına yazılmaz, `.env.local`'a eklenir (mevcut değerler korunur, izin 600). Bucket, uç nokta, bölge ve kota ayarlarını da ekler.
+3. `pnpm storage:verify` — tek ve kontrollü canlı test (≈10 API çağrısı): erişim, sentetik `_verification/` nesnesi yazma/okuma/SHA-256, imzasız erişimin reddi, yalnızca kendi nesnesinin tüm versiyonlarının silinmesi.
+4. Bakım (varsayılan **dry-run**): `pnpm storage:reconcile` (sağlayıcı ↔ DB mutabakatı; `--apply` yalnızca kota durumunu yazar) ve `pnpm storage:cleanup` (yarım/başarısız yüklemelerin nesneleri; `--apply` ile versiyona özgü silme). Aktif ve önceki geçerli versiyonlar asla silinmez.
+
+B2 yapılandırması yoksa yalnızca dosya işlemleri "şu anda işlenemiyor" der; panelin diğer bölümleri çalışır. Otomatik testler gerçek B2 kullanmaz (izole testler geçici yerel private depolama ile).
+
 ## Testler
 
 Testler projenin tek veritabanını kullanır (`.env.local`). Gerçek hesaplar varken testler hesaplara yalnızca okuma/etkisiz işlem yapar; kimliği doğrulanmış testler her test için 30 dakikalık geçici oturum oluşturup siler (D-067). Gerçek şifreler testlerde kullanılmaz.
@@ -120,7 +129,7 @@ E2E_SCREENSHOTS=1 pnpm test:e2e   # ayrıca screenshots/ (maskeli, commit edilme
 
 # İzole geçici veritabanı (Docker gerekir; gerçek veritabanına dokunmaz — D-077)
 pnpm test:integration:isolated   # eşzamanlılık + geçici hesaplarla tüm hesap testleri
-pnpm test:e2e:isolated           # tarayıcıdan mutasyonlar, müşteri bağlantısı/oturumu ve çoklu sekme dahil
+pnpm test:e2e:isolated           # tarayıcıdan mutasyonlar, müşteri bağlantısı/oturumu, çoklu sekme, PDF yükleme dahil
 ```
 
 Ortak veritabanında mutasyon testleri yalnızca geri alınan transaction'larda çalışır; commit eden testler yalnızca izole ortamda.

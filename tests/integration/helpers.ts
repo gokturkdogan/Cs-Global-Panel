@@ -163,8 +163,9 @@ export function insertFile(
   return client.query<{ id: string }>(
     `INSERT INTO application_document_files
        (id, application_id, requirement_id, status, version_number, blob_pathname, original_filename,
-        size_bytes, sha256, uploaded_by_actor_type, uploaded_by_user_id, upload_expires_at, activated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 'belge.pdf', $7, $8, 'USER', $9, now() + interval '15 minutes', $10)
+        size_bytes, sha256, uploaded_by_actor_type, uploaded_by_user_id, upload_expires_at, activated_at,
+        storage_version_id)
+     VALUES ($1, $2, $3, $4, $5, $6, 'belge.pdf', $7, $8, 'USER', $9, now() + interval '15 minutes', $10, $11)
      RETURNING id`,
     [
       id,
@@ -177,6 +178,8 @@ export function insertFile(
       validated ? randomHex(32) : null,
       input.userId,
       validated ? new Date() : null,
+      // Sentetik sağlayıcı versiyon kimliği (ACTIVE için zorunlu — migration 0005).
+      validated ? `test-version-${id}` : null,
     ],
   );
 }

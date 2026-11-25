@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { parseDatabaseUrl, RUNTIME_ROLE } from "@/server/db/settings";
+import { parseStorageConfig, StorageConfigError, type StorageEnv } from "@/server/storage/config";
 
 /**
  * Sunucu tarafı ortam değişkenleri (ARCHITECTURE §11.3, DEPLOYMENT §3).
@@ -289,4 +290,28 @@ let cachedCustomerSessionEnv: CustomerSessionEnv | undefined;
 export function getCustomerSessionEnv(): CustomerSessionEnv {
   cachedCustomerSessionEnv ??= parseCustomerSessionEnv(process.env);
   return cachedCustomerSessionEnv;
+}
+
+/**
+ * Dosya depolama (PHASE 08, D-096…D-098). Kurallar `src/server/storage/config.ts`'tedir (saf modül —
+ * bakım betikleri de aynı doğrulamayı kullanır). Yalnızca dosya işlemlerinde çağrılır (lazy): eksik/hatalı
+ * yapılandırma yalnızca yükleme/görüntülemeyi fail-closed reddeder; diğer modüller etkilenmez.
+ */
+export type { StorageEnv, StorageQuota } from "@/server/storage/config";
+
+export function parseStorageEnv(source: EnvSource): StorageEnv {
+  parseServerEnv(source);
+  try {
+    return parseStorageConfig(source);
+  } catch (error) {
+    if (error instanceof StorageConfigError) throw new EnvValidationError(error.variables);
+    throw error;
+  }
+}
+
+let cachedStorageEnv: StorageEnv | undefined;
+
+export function getStorageEnv(): StorageEnv {
+  cachedStorageEnv ??= parseStorageEnv(process.env);
+  return cachedStorageEnv;
 }

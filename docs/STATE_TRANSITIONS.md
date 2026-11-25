@@ -165,6 +165,8 @@ Kurallar:
 
 Ayrıntı: [FILE_STORAGE.md](FILE_STORAGE.md).
 
+**PHASE 08 uygulama notu (D-103):** Sunucu üzerinden yüklemede dosya kaydı, doğrulama geçtikten **sonra** rezervasyonla `UPLOAD_PENDING` olarak açılır ve storage yazımı + aktivasyonla doğrudan `ACTIVE` olur (`UPLOAD_PENDING → ACTIVE`); `VALIDATING` bu akışta kullanılmaz (enum'da kalır). `UPLOAD_PENDING → EXPIRED`: storage hatası/belirsiz yazma, aktivasyon hatası veya rezervasyon süresinin dolması (teknik temizlik). `UPLOAD_PENDING → REJECTED (STATE_CHANGED)`: aktivasyonda başvuru/evrak durumu, sürüm, müşteri bağlantısı veya silme talebi değişmiş. Yapısal doğrulamayı geçmeyen dosya için kayıt oluşturulmaz. Evrak geçişleri D1, D7, D9 ve değiştirme (`UPLOADED → UPLOADED`) uygulandı; D2/D8 (kaldırma) PHASE 09.
+
 ## 4. İzin verilen aksiyonlar
 
 Domain modülü `(actor, application, requirements)` için izin verilen aksiyon listesini döndüren saf bir fonksiyon sağlar (`getAllowedApplicationActions`, `getAllowedDocumentActions`). UI butonları bu listeye göre gösterilir; Server Action aynı fonksiyonu kilit altında **yeniden** çağırarak doğrular. Matrisin her hücresi unit test ile kapsanır.

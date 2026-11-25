@@ -66,6 +66,7 @@
 - **BR-46** Doğrulamayı geçmemiş dosya (`UPLOAD_PENDING`, `VALIDATING`, `REJECTED`, `EXPIRED`) görüntülenemez, indirilemez, tamamlanma oranına sayılmaz, gönderime uygun sayılmaz. Reddedilen dosya müşteriye anlaşılır Türkçe mesajla bildirilir; önceki aktif dosya (varsa) aktif kalır.
 - **BR-47** Teknik temizlik: `REJECTED` ve `EXPIRED` dosyaların blob'ları hemen/temizlik işinde silinir (metadata kalır). Geçerli dosya versiyonları (`ACTIVE`, `SUPERSEDED`, `REMOVED`) **otomatik silinmez**; yalnızca ADMIN'in başvuru silme işlemiyle silinir (BR-150, OD-06).
 - **BR-48** Personel bir evrağı `UNDER_REVIEW` sırasında değiştirdiğinde (OD-17): yeni versiyon oluşur → doğrulanır → aktif olur → **önceki onay yeni versiyona aktarılmaz** → evrak `PENDING_REVIEW` olur → önceki inceleme kayıtları korunur → audit kaydı oluşur.
+- *Uygulama notları (PHASE 08 — ürün kuralı eklemez; D-100, D-103):* Yükleme sunucu üzerinden tek istekte yapılır: doğrulama storage'a yazmadan **önce**; reddedilen dosya için kayıt/nesne oluşmaz (BR-46'daki `REJECTED` yalnızca aktivasyonda durum değişikliği — `STATE_CHANGED` — için kullanılır). BR-43: evrakta **süresi dolmamış** devam eden yükleme varsa yeni istek "Devam eden bir yükleme var" ile reddedilir (paralel iki istek eski aktif dosyayı bozmaz ve asla iki aktif dosya oluşturmaz); süresi dolmuş yarım yükleme iptal (`EXPIRED`) edilir. BR-47 teknik temizliği elle çalıştırılan `pnpm storage:cleanup` ile (ücretli cron yok). Onaylı evrak personel tarafından değiştirildiğinde ayrıca `DOCUMENT_APPROVAL_INVALIDATED` audit'i yazılır. BR-44'teki **"kaldır"** (ve D2/D8) bu fazda uygulanmadı — PHASE 09. Depolama kotası (9 GB) dolarsa yeni yükleme reddedilir; mevcut dosyalar silinmez (D-101).
 
 ## 6. Gönderim ve İnceleme
 
@@ -143,6 +144,7 @@ Gösterge vize onay olasılığı veya sonuç garantisi ifade etmez.
 - **BR-113** Metin: "3 / 5 zorunlu evrak yüklendi · %60". Yüzde aşağı yuvarlanır; %100 yalnızca tam tamamlanmada.
 - **BR-114** Zorunlu evrak yoksa "Zorunlu evrak bulunmuyor" gösterilir.
 - *Uygulama notu (PHASE 07, D-092):* Dosya yükleme PHASE 08'e kadar olmadığından pay, evrak statüsünden (`UPLOADED`/`PENDING_REVIEW`/`APPROVED`) hesaplanır; PHASE 08'de "Kontrol ediliyor" durumu BR-111'e göre eklenir.
+- *Uygulama notu (PHASE 08):* Doğrulama yükleme isteği içinde tamamlandığından kalıcı bir "Kontrol ediliyor" durumu yoktur; bu evre yalnızca yükleme bileşeninde ("Sunucuda doğrulanıyor ve kaydediliyor") gösterilir. Evrak statüsü ancak aktivasyon commit edilince değişir; bu nedenle statü tabanlı sayım BR-111 ile tutarlıdır (aktif dosyası olan, `REVISION_REQUIRED` olmayan zorunlu evraklar).
 
 ## 12. Yorumlar ve Notlar
 

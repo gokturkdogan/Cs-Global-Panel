@@ -9,12 +9,19 @@
  * 2. `db:init` + `db:migrate` uygular (aynı migration'lar).
  * 3. Komutu, bu veritabanını gösteren ortam değişkenleriyle çalıştırır (`.env.local` değerleri ezilir;
  *    gerçek `neondb`'ye bağlanılmaz). Auth secret'ları da rastgele ve geçicidir.
- * 4. Komut nasıl biterse bitsin container silinir (`--rm` + `docker rm -f`).
+ * 4. Dosya depolama (PHASE 08, D-106): her koşu için benzersiz, proje dışı geçici kök dizinde yerel
+ *    private adapter (`STORAGE_PROVIDER=local`). Gerçek Backblaze değişkenleri ortamdan SİLİNİR; ayrıca
+ *    `ISOLATED_TEST_DB=1` iken B2 yapılandırması reddedilir (fail-closed) → testler gerçek bucket'a bağlanamaz.
+ *    Test kotası küçük sentetik değerlerle değil gerçek sınırlarla başlar; kota testleri kendi değerlerini verir.
+ * 5. Komut nasıl biterse bitsin container ve depolama kökü silinir (`--rm` + `docker rm -f` + `rm -rf`).
  *
  * Gerçek hesaplar, gerçek oturumlar ve gerçek veriler bu ortamda yoktur. Hiçbir değer yazdırılmaz.
  */
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const IMAGE = "postgres:18-alpine";
 const DATABASE = "cs_isolated_test";
@@ -30,6 +37,7 @@ const secret = () => randomBytes(24).toString("hex");
 const container = `cs-global-isolated-${randomBytes(4).toString("hex")}`;
 const ownerPassword = secret();
 const runtimePassword = secret();
+const storageRoot = mkdtempSync(join(tmpdir(), "cs-global-isolated-storage-"));
 
 function docker(args: string[], options: { quiet?: boolean } = {}): string {
   return execFileSync("docker", args, {
@@ -44,6 +52,7 @@ function removeContainer(): void {
   } catch {
     // Container zaten silinmiş olabilir (--rm).
   }
+  rmSync(storageRoot, { recursive: true, force: true });
 }
 
 function run(cmd: string, args: string[], env: NodeJS.ProcessEnv): Promise<number> {
@@ -116,7 +125,20 @@ try {
     CUSTOMER_SESSION_SECRET: randomBytes(32).toString("base64"),
     // Testler bu işaretle mutasyon testlerini açar; işaret ayrıca veritabanının yerel olduğunu doğrular.
     ISOLATED_TEST_DB: "1",
+    // Dosya depolama: yalnızca geçici yerel private kök (gerçek B2 yok).
+    STORAGE_PROVIDER: "local",
+    STORAGE_LOCAL_ROOT: storageRoot,
   };
+  // Boş değer (silme değil): Next.js `.env.local`'ı yalnızca TANIMSIZ değişkenler için yükler.
+  for (const name of [
+    "B2_KEY_ID",
+    "B2_APPLICATION_KEY",
+    "B2_BUCKET_NAME",
+    "B2_ENDPOINT",
+    "B2_REGION",
+  ]) {
+    env[name] = "";
+  }
   console.log(
     `[isolated-db] geçici PostgreSQL hazır (${IMAGE}, 127.0.0.1, container ${container})`,
   );

@@ -99,6 +99,9 @@ export const applicationDocumentFiles = pgTable(
     originalFilename: text("original_filename").notNull(),
     sizeBytes: integer("size_bytes"),
     sha256: text("sha256"),
+    // Sağlayıcının fiziksel nesne versiyonu (B2 `x-amz-version-id`; PHASE 08, D-102). Görüntüleme tam bu
+    // versiyonu okur; temizlik/silme versiyona özgü fiziksel silme yapar. Yerel adapter da üretir.
+    storageVersionId: text("storage_version_id"),
     rejectionReason: text("rejection_reason", { enum: FILE_REJECTION_REASONS }),
     uploadedByActorType: text("uploaded_by_actor_type", { enum: ACTOR_TYPES }).notNull(),
     uploadedByUserId: text("uploaded_by_user_id").references(() => users.id, {
@@ -123,11 +126,13 @@ export const applicationDocumentFiles = pgTable(
         applicationDocumentRequirements.applicationId,
       ],
     }).onDelete("cascade"),
+    // Token satırları yalnızca başvuruyla birlikte silinir (runtime rolünün DELETE yetkisi yok);
+    // CASCADE, başvuru silmede zincirleme silmenin NO ACTION kontrolüne takılmasını önler (0005).
     foreignKey({
       name: "app_doc_files_access_token_fk",
       columns: [t.uploadedByAccessTokenId, t.applicationId],
       foreignColumns: [applicationAccessTokens.id, applicationAccessTokens.applicationId],
-    }),
+    }).onDelete("cascade"),
     // Tek aktif PDF (OD-16, INV-04).
     uniqueIndex("app_doc_files_one_active_per_requirement")
       .on(t.requirementId)
@@ -162,6 +167,14 @@ export const applicationDocumentFiles = pgTable(
     check(
       "app_doc_files_validated_metadata_check",
       sql`NOT (${inList(t.status, VERSIONED_FILE_STATUSES)}) OR (${t.sizeBytes} IS NOT NULL AND ${t.sha256} IS NOT NULL AND ${t.activatedAt} IS NOT NULL)`,
+    ),
+    check(
+      "app_doc_files_storage_version_check",
+      sql`${t.storageVersionId} IS NULL OR char_length(${t.storageVersionId}) BETWEEN 1 AND 255`,
+    ),
+    check(
+      "app_doc_files_active_storage_version_check",
+      sql`${t.status} <> 'ACTIVE' OR ${t.storageVersionId} IS NOT NULL`,
     ),
     check("app_doc_files_sha256_check", sql`${t.sha256} IS NULL OR ${t.sha256} ~ '^[0-9a-f]{64}$'`),
     check(

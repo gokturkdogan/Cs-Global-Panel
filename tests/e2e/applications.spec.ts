@@ -331,9 +331,7 @@ test.describe("başvurular — mutasyonlar (izole veritabanı)", () => {
     expect(link).toMatch(new RegExp(`^${new URL(baseURL!).origin}/b/[A-Za-z0-9_-]{43}$`));
     expect(page.url()).toMatch(/\/dashboard\/applications\/new$/); // bağlantı URL'de değil
     await expect(
-      page
-        .getByText("Müşteri paneli şu an yalnızca görüntüleme amaçlıdır", { exact: false })
-        .first(),
+      page.getByText("Müşteri paneli geliştirme aşamasındadır", { exact: false }).first(),
     ).toBeVisible();
     await screenshot(page, testInfo, "application-success-desktop", ["Desktop Chrome"]);
 
@@ -472,7 +470,8 @@ test.describe("başvurular — mutasyonlar (izole veritabanı)", () => {
     await expect(page.getByTestId("application-history")).toContainText(
       "Başvuru oluşturuldu → Evrak Bekleniyor",
     );
-    await expect(page.getByRole("button", { name: /yükle/i })).toHaveCount(0); // PHASE 08 öncesi yükleme yok
+    // PHASE 08: personel müşteri adına yükleyebilir (her evrak için bir buton).
+    await expect(page.getByRole("button", { name: "Müşteri Adına PDF Yükle" })).toHaveCount(2);
     await screenshot(page, testInfo, "application-detail-desktop", ["Desktop Chrome"]);
     await screenshot(page, testInfo, "application-detail-mobile", ["Mobile Chrome"]);
 
@@ -614,7 +613,13 @@ test.describe("başvurular — mutasyonlar (izole veritabanı)", () => {
       await expect(page.getByTestId("pagination-summary"), query).toHaveText(
         "1 kayıt · Sayfa 1 / 1",
       );
-      expect(page.url()).not.toContain("444");
+      // Arama metni URL'ye yazılmaz (D-085). Rastgele UUID'ler rakam içerebileceğinden yalnızca
+      // sorgu parametre değerleri (kimlik olmayanlar) ve parametre adları kontrol edilir.
+      const params = new URL(page.url()).searchParams;
+      expect([...params.keys()].sort()).not.toContain("q");
+      for (const [name, value] of params) {
+        if (name !== "serviceId") expect(value, name).not.toMatch(/444|şükrü|example\.invalid/i);
+      }
     }
     await page.locator("#filter-status").selectOption("COMPLETED");
     await expect(

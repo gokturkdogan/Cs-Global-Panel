@@ -6,6 +6,7 @@ import { ProcessStepper } from "@/features/customer-portal/components/process-st
 import { RevalidateOnReturn } from "@/features/customer-portal/components/revalidate-on-return";
 import { SubmitPlaceholder } from "@/features/customer-portal/components/submit-placeholder";
 import { WelcomeCard } from "@/features/customer-portal/components/welcome-card";
+import { canUploadDocument } from "@/features/documents/domain/upload-rules";
 import { isCustomerEditable } from "@/features/customer-portal/domain/progress";
 import { getCustomerPortalView, type CustomerPortalView } from "@/features/customer-portal/queries";
 import { requireCustomerAccess } from "@/server/customer-session/access";
@@ -59,10 +60,11 @@ export default async function PortalPage({ params }: PageProps) {
           <ol className="grid gap-3" data-testid="portal-documents">
             {view.documents.map((document, index) => (
               <DocumentCard
-                key={`${index}-${document.title}`}
+                key={document.requirementId}
                 document={document}
                 index={index}
-                editable={editable}
+                context={context}
+                canUpload={canUploadDocument("CUSTOMER", view.application.status, document.status)}
               />
             ))}
           </ol>

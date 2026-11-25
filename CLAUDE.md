@@ -16,12 +16,12 @@ CS Global (vize danışmanlığı) için evrak toplama, inceleme ve süreç taki
 
 ## Her fazdan önce
 - `CLAUDE.md`, `docs/PROJECT_STATE.md`, `docs/DECISION_LOG.md` ve fazla ilgili dokümanları oku.
-- Ürün kararları OD-01…OD-23 **kesindir** (Product Owner, 2026-11-24) — tekrar sorma, değiştirme, kapsamını kendiliğinden genişletme. Yalnızca gerçekten çözülmemiş teknik kararları (TD-xx) sor.
+- Ürün kararları OD-01…OD-25 **kesindir** (Product Owner, 2026-11-24) — tekrar sorma, değiştirme, kapsamını kendiliğinden genişletme. Yalnızca gerçekten çözülmemiş teknik kararları (TD-xx) sor.
 - Paket sürümlerini npm registry / resmî dokümandan yeniden doğrula; tahmin etme. Kurulu sürümler: `docs/TECH_STACK.md` §0. Next.js API'leri için kurulu sürümün dokümanı `node_modules/next/dist/docs/` altındadır.
 - Yeni bağımlılık exact sürümle eklenir; `shadcn add` sonrası `package.json` farkı incelenir (D-043).
 
 ## Stack (`docs/TECH_STACK.md`)
-Next.js 16 (App Router, `proxy.ts`) · React 19 · TypeScript **6.0.3** strict (D-002; TS 7 typescript-eslint ile uyumsuz) · **Node.js 24 LTS** · pnpm **10.34.9** (`packageManager`, D-004) · ESLint 10 + `eslint-config-next` (D-042) · Tailwind CSS 4 · shadcn/ui · Lucide · Geist · React Hook Form + Zod 4 · Neon Postgres + Drizzle ORM 0.45 (`node-postgres`) · Better Auth 1.7 (username + admin) · Vercel Private Blob (tek storage modülü arkasında) · Vitest · Playwright · ESLint + Prettier.
+Next.js 16 (App Router, `proxy.ts`) · React 19 · TypeScript **6.0.3** strict (D-002; TS 7 typescript-eslint ile uyumsuz) · **Node.js 24 LTS** · pnpm **10.34.9** (`packageManager`, D-004) · ESLint 10 + `eslint-config-next` (D-042) · Tailwind CSS 4 · shadcn/ui · Lucide · Geist · React Hook Form + Zod 4 · Neon Postgres + Drizzle ORM 0.45 (`node-postgres`) · Better Auth 1.7 (username + admin) · Backblaze B2 private bucket (OD-25; `src/server/storage/*` arayüzü arkasında, `@aws-sdk/client-s3`) · pdfjs-dist (yapısal PDF doğrulaması, izole worker) · Vitest · Playwright · ESLint + Prettier.
 Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık için gerekçe sun. **Ücretli servis, ücretli plan, kredi kartı gerektiren hizmet, otomatik ücretlendirme yok** (kullanıcı onayı olmadan).
 
 ## Mimari ilkeler (`docs/ARCHITECTURE.md`)
@@ -30,7 +30,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - Mutasyon = Server Action; binary / storage callback / auth / `/b/<token>` / cron = Route Handler.
 - Akış: **Zod → oturumu sunucuda çöz (`requireStaff()` / müşteri oturumu) → kaynak kontrolü → domain guard (kilit altında) → transaction → audit → DTO**.
 - Statü geçişleri yalnızca merkezi state machine ile (`docs/STATE_TRANSITIONS.md`); personel de yalnızca matristeki geçişleri yapar.
-- Transaction içinde ağ çağrısı yok; kilit sırası (services → service_document_requirements →) applications → requirements → files; güncellemeler `expectedVersion` ile (D-074).
+- Transaction içinde ağ çağrısı yok; kilit sırası (services → service_document_requirements →) applications → requirements → files → storage_quota_state; güncellemeler `expectedVersion` ile (D-074).
 - Veritabanı: uygulama yalnızca `getDb()` (`cs_app_runtime`, en az yetki) ile; şema değişikliği = `pnpm db:generate` + SQL incelemesi + yeni migration (uygulanmış migration değiştirilmez, `push` yok); yeni tablo GRANT'ı aynı migration'da; statü değerleri `src/config/statuses.ts`; ayrıntı `docs/DATABASE_SCHEMA.md` §9.
 - `cacheComponents` kapalı; hassas veride `use cache` / `force-static` / `revalidate` yasak; korumalı yanıtlar `no-store`.
 - Sabit yapılandırma: dosya limitleri (PDF, `MAX_PDF_SIZE_BYTES = 10 485 760`, evrak başına 1 aktif PDF), şifre min 8, oturumlar 7 gün sabit, rate limitler, şirket iletişim bilgileri. Ayarlar sayfası/tablosu yok.
@@ -44,7 +44,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - İç notlar müşteri yolunda hiçbir şekilde sorgulanmaz/serileştirilmez.
 - IP, hash'lenmiş IP, user-agent, cihaz bilgisi uygulama DB'sinde saklanmaz (yalnızca kısa ömürlü HMAC'li rate limit anahtarları).
 - Better Auth mekanizmalarını yeniden yazma; kapalı uç noktalar (`sign-up`, `change-password`, `update-user`, reset, `admin/*` HTTP) testle doğrulanır.
-- Dosyalar: private storage, yalnızca `/api/files/[id]`, yalnızca doğrulanmış (`ACTIVE` vb.) dosyalar. Yapısal doğrulama antivirüs değildir — "virüssüz/güvenli" etiketi kullanma.
+- Dosyalar: private B2 bucket (CORS kapalı, public URL yok), yalnızca `/api/files/[id]` (personel) ve `/api/portal/[context]/files/[id]` (müşteri, yalnızca ACTIVE), yalnızca doğrulanmış dosyalar. Yükleme yalnızca sunucu üzerinden (ham PDF → doğrulama → rezervasyon → B2 → aktivasyon; proxy bu yolları kapsamaz — D-100, D-103); storage çağrısı transaction içinde yok; silme yalnızca versiyona özgü; kayıtlı geçerli versiyonlar otomatik silinmez. Kota 9 GB (D-101). Otomatik testler gerçek B2 kullanmaz; canlı test yalnızca `pnpm storage:verify`. B2 anahtarı yalnızca `pnpm env:b2` ile (sohbette istenmez). Yapısal doğrulama antivirüs değildir — "virüssüz/güvenli" etiketi kullanma.
 - Silme personel tarafından (iki hesap eşit), onaylı, iki aşamalı ve gerçek (storage + DB); soft delete'i gerçek silme sayma.
 - `dangerouslySetInnerHTML`, ham SQL birleştirme, `.env*` commit yasak.
 
