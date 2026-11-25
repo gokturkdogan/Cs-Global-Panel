@@ -51,6 +51,7 @@ jobs:
           ACCESS_TOKEN_HMAC_KEY: Q0FOQVJZLWNpLWhtYWMta2V5LTAwMDAwMDAwMDAwMDA=
           ACCESS_TOKEN_ENCRYPTION_KEYS: '{"k1":"Q0FOQVJZLWNpLWVuYy1rZXktMDAwMDAwMDAwMDAwMDA="}'
           ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: k1
+          CUSTOMER_SESSION_SECRET: Q0FOQVJZLWNpLXBvcnRhbC1zZXNzaW9uLTAwMDAwMDA=
       - run: pnpm check:bundle
         env:
           DATABASE_URL: postgresql://cs_app_runtime:CANARY-ci-runtime-5d1f@ci-canary-pooler.example.invalid/cs_global_dev?sslmode=verify-full
@@ -60,6 +61,7 @@ jobs:
           ACCESS_TOKEN_HMAC_KEY: Q0FOQVJZLWNpLWhtYWMta2V5LTAwMDAwMDAwMDAwMDA=
           ACCESS_TOKEN_ENCRYPTION_KEYS: '{"k1":"Q0FOQVJZLWNpLWVuYy1rZXktMDAwMDAwMDAwMDAwMDA="}'
           ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: k1
+          CUSTOMER_SESSION_SECRET: Q0FOQVJZLWNpLXBvcnRhbC1zZXNzaW9uLTAwMDAwMDA=
       - run: pnpm audit --audit-level=high
 
   e2e:

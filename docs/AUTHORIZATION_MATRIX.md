@@ -38,7 +38,9 @@ Eşit ve tam yetki şu anlama **gelmez**:
 ## 3. Customer (PHASE 07)
 
 - Müşteri oturumu tam olarak **bir** `application_id`'ye bağlıdır. Tüm müşteri sorguları oturumdan gelen `applicationId` ile kapsanır; istemciden gelen `applicationId` **kabul edilmez**.
-- Her müşteri isteğinde: oturum imzası + süresi + bağlı bağlantının iptal edilmemiş olması + başvurunun silinme sürecinde olmaması kontrol edilir (BR-104).
+- Her müşteri isteğinde: oturum imzası + süresi + **URL bağlamının cookie bağlamına eşitliği** + bağlı bağlantının iptal edilmemiş olması + başvurunun silinme sürecinde olmaması kontrol edilir (BR-104, D-089, D-090). Tek giriş noktası `requireCustomerAccess(context)` — **PHASE 07'de uygulandı** (yalnızca okuma: panel görüntüleme).
+- PHASE 07 kapsamındaki müşteri yetkisi: kendi başvurusunun bilgilerini, sürecini, evrak listesini ve düzeltme açıklamalarını **görüntüleme**. Yükleme, kaldırma, dosya görüntüleme ve gönderim PHASE 08/09'da (D-095 sözleşmesiyle).
+- Müşteri oturumu personel paneline, personel action'larına veya Better Auth oturumuna erişim sağlamaz; personel oturumu müşteri kapsamını belirlemez (E2E).
 - Müşteri yalnızca kendi başvurusunda: bilgileri ve statüyü görme, izinli durumlarda yükleme/değiştirme/kaldırma (BR-44), gönderme (BR-50), kendi `ACTIVE` dosyalarını görüntüleme/indirme, kendisine yazılan yorumları okuma.
 - Müşteri dosya isteği: dosyanın `application_id`'si oturumla eşleşmiyorsa veya dosya `ACTIVE` değilse **404**.
 - Müşteri DTO'ları whitelist alanlardan oluşur; iç notlar, personel adları, aktörler, gerekçeler, `rejection_reason` kodu, eski versiyonlar, audit verisi **hiçbir zaman** dahil edilmez (BR-121).

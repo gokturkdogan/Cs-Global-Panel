@@ -139,7 +139,7 @@ export function AccessLinkCard({
         <LinkStatusBadge active={activeLink !== null} />
       </div>
       <Alert variant="destructive" role="note">
-        <AlertDescription>{messages.applications.portalNotReady}</AlertDescription>
+        <AlertDescription>{messages.applications.portalLimitedNotice}</AlertDescription>
       </Alert>
       <p className="text-sm text-muted-foreground">
         Bağlantı bir erişim anahtarıdır: bağlantıya sahip olan herkes başvuruya erişebilir. Yalnızca

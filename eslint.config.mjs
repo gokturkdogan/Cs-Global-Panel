@@ -61,6 +61,50 @@ export default defineConfig([
       ],
     },
   },
+  {
+    // Müşteri portalı (PHASE 07, D-091, TM-19): iç not, audit, personel ve token tabloları ile
+    // personel kimlik doğrulama/aksiyon/servis modülleri müşteri yolunda içe aktarılamaz.
+    files: ["src/features/customer-portal/**/*.{ts,tsx}", "src/app/(customer)/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            nextCacheImportRestriction,
+            {
+              name: "@/server/db/schema",
+              importNames: [
+                "applicationInternalNotes",
+                "auditLogs",
+                "users",
+                "accounts",
+                "sessions",
+                "verifications",
+                "applicationAccessTokens",
+              ],
+              message: "Müşteri yolunda iç not, audit, personel veya token tablosu kullanılamaz.",
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                "@/server/auth",
+                "@/server/auth/*",
+                "@/server/audit/*",
+                "@/server/access-tokens/*",
+                "@/features/*/actions",
+                "@/features/*/service",
+                "@/features/applications/queries",
+                "@/features/services/queries",
+                "@/features/dashboard/*",
+              ],
+              message: "Müşteri portalı personel modüllerini kullanamaz (ayrı güvenlik bağlamı).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   globalIgnores([
     ".next/**",
     "out/**",

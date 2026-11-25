@@ -12,6 +12,28 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara
 ### Not Changed
 - PB-01…PB-11 açık. Kod değişikliği yok. Commit/push yapılmadı.
 
+## [PHASE 07 — Customer Portal] — 2026-11-25
+
+PHASE 06 kapatıldı (D-078…D-080, D-082…D-086 Accepted; D-081 koşullu Accepted). Salt okunur müşteri paneli uygulandı.
+
+### Added
+- `GET /b/[token]` (biçim kontrolü, HMAC arama, imzalı oturum cookie'si, 303 → token'sız `/portal/<bağlam>`; geçersiz → `/link-invalid`, geçici hata → `/link-unavailable`).
+- `src/server/customer-session/{session,access}.ts`: imzalı cookie (`__Host-cs_portal` / yerel `cs_portal`), 7 gün sabit süre, bağlam kimliği, `requireCustomerAccess(context)` (her istekte token aktifliği + başvuru silinme kontrolü); aynı bağlantı yeniden açılınca bağlam korunur.
+- `CUSTOMER_SESSION_SECRET` + `getCustomerSessionEnv()` (diğer anahtarlardan farklı olması doğrulanır); `pnpm env:token-keys` eksikse ekler; izole test betiği ve CI canary build'i.
+- `src/features/customer-portal/{queries.ts, domain/progress.ts, components/*}`; `src/app/(customer)/` (layout, `portal/[context]/{page,loading,error}`, `portal`, `link-invalid`, `link-unavailable`); `messages.portal`.
+- Müşteri yolu başlıkları (`no-referrer`, `private, no-store`), dev log redaksiyonu (`/b/` yolları, Server Function argümanları); müşteri modülü ESLint sınırı; bundle kontrolüne `cs-portal` işaretleyicisi.
+- D-087…D-095 (Proposed); THREAT_MODEL TM-49; SECURITY §15; DATA_PRIVACY §12; FILE_STORAGE §8; DEPLOYMENT §3.2; TESTING_STRATEGY §16; DESIGN_SYSTEM §13; DATABASE_SCHEMA §9.7; API_CONTRACTS §4.4a.
+- Testler: `tests/unit/customer-portal.test.ts`, `tests/integration/customer-portal.test.ts`, `tests/e2e/portal.spec.ts`, `tests/support/portal-seed.ts`.
+
+### Changed
+- SECURITY §3.4 / API_CONTRACTS §4.4: yönlendirme hedefi `/portal/<bağlam>`; `/b` için IP rate limit TD-04 ile PHASE 13'e ertelendi (429 yok).
+- THREAT_MODEL TM-40: görüntüleme kapsamı E2E ile doğrulandı; mutasyon kapsamı PHASE 08/09 (D-095).
+- Personel bağlantı uyarısı: "Müşteri paneli şu an yalnızca görüntüleme amaçlıdır…" (gerçek müşterilerle paylaşmama uyarısı sürüyor).
+- Unit testteki rastgele kimliğe bağlı kararsız assertion düzeltildi.
+
+### Not Changed
+- OD-01…OD-24; şema/migration (5 migration, 17 tablo); bağımlılıklar; PHASE 06 token anahtarları; gerçek hesaplar. Dosya yükleme, inceleme/gönderim, statü geçişleri, silme, deployment yok. PB-01…PB-11 açık. Commit/push yapılmadı.
+
 ## [PHASE 06 — Customer & Application Management] — 2026-11-24
 
 PHASE 05 kapatıldı (D-072…D-077 Accepted; P4-01 yerel test izolasyonu açısından RESOLVED). Başvuru yönetimi ve müşteri bağlantısı uygulandı.

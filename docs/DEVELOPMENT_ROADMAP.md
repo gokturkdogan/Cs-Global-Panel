@@ -64,7 +64,7 @@
 - **DoD:** Ortak DoD.
 - **Sonuç (2026-11-24):** Hizmet CRUD (silme yok), aktif/pasif, evrak şablonu CRUD + sıralama, Türkçe arama/filtre, optimistic lock (migration 0004), audit, snapshot sözleşmesi (D-074). Hizmet sıralaması uygulanmadı (ada göre — D-072). Mutasyon E2E'si izole Docker veritabanında (D-077).
 
-## PHASE 06 — Customer & Application Management (tamamlandı — kullanıcı onayı bekliyor)
+## PHASE 06 — Customer & Application Management (tamamlandı — onaylandı 2026-11-25)
 - **Scope:** Başvuru formu (müşteri bilgileri her başvuruda yeniden girilir; eşleştirme yok), atomik oluşturma (numara, snapshot, token), sonuç ekranı (Kopyala, **kişiselleştirilmiş WhatsApp paylaşımı** + onay penceresi, Detaya git), tek başvuru listesi (arama, statü/hizmet/tarih filtresi, sayfalama), detay (müşteri bilgisi düzenleme, statü geçmişi, iç notlar, bağlantı göster/kopyala/paylaş/yenile/iptal/yeni oluştur), manuel silme (her iki hesap) (iki aşamalı; storage silme PHASE 08 storage modülü hazır olduğunda tamamlanır — bu fazda dosyasız başvurular için).
 - **Deliverables:** `/dashboard/applications*`.
 - **Dependencies:** PHASE 05; D-011, D-033, D-036.
@@ -74,7 +74,7 @@
 - **DoD:** Ortak DoD.
 - **Sonuç (2026-11-24):** Oluşturma (atomik, idempotent, önizleme parmak izi), liste (URL dışı arama, filtre, sayfalama), detay, müşteri düzenleme, bağlantı göster/kopyala/yenile/iptal/yeniden oluştur, WhatsApp hazırlığı, dashboard bağlantıları; D-078…D-086. **Bu fazda yapılmayan (PHASE 06 talimatı dışında):** iç notlar, başvuru silme, tarih aralığı filtresi — sonraki ilgili fazlara.
 
-## PHASE 07 — Customer Portal
+## PHASE 07 — Customer Portal (tamamlandı — kullanıcı onayı bekliyor)
 - **Scope:** `GET /b/[token]` (rate limit, doğrulama, imzalı portal cookie'si, 303), `/portal` (bilgiler, süreç göstergesi, tamamlanma göstergesi, evrak kartları — yükleme hariç, yorumlar, düzeltme açıklamaları, sabit iletişim kartı/placeholder, salt okunur modlar), `/link-invalid`.
 - **Deliverables:** Bağlantıyla doğrudan erişim ve mobile-first panel.
 - **Dependencies:** PHASE 06; D-032.
@@ -82,6 +82,7 @@
 - **Test requirements:** Unit: cookie imzası, ilerleme hesapları. Integration: bağlantı GET'in yan etkisizliği; iptal sonrası cookie reddi. E2E (mobil projeler): S01–S04, S16, S20, S21; aynı tarayıcıda iki bağlantı/iki sekme (TM-40); 9 genişlik.
 - **Acceptance:** Geçerli bağlantı ek adımsız panele götürür; adres çubuğunda token kalmaz; geçersiz bağlantıda hiçbir kişisel veri dönmez.
 - **DoD:** Ortak DoD + gerçek cihaz (iOS Safari, Android Chrome, WhatsApp in-app — cookie davranışı dahil) manuel test sonuçları raporlandı.
+- **Sonuç (2026-11-25):** `/b/[token]` (biçim kontrolü, HMAC arama, imzalı oturum, 303 token'sız `/portal/<bağlam>`), 7 gün sabit oturum, her istekte iptal/yenileme/silme kontrolü, çoklu sekme bağlam izolasyonu, `/link-invalid`, `/link-unavailable`, mobile-first salt okunur panel (hoş geldiniz, süreç, evrak ilerlemesi, evrak kartları + düzeltme açıklaması, yükleme/gönderim yer tutucuları, iletişim kartı), başlıklar ve log redaksiyonu; D-087…D-095. **Yapılmayan / ertelenen:** IP rate limit (TD-04 → PHASE 13, D-093); müşteri yorumları (PHASE 09 — yorum modeli henüz yok); gerçek cihaz/WhatsApp in-app manuel testi (**yapılmadı** — cihaz erişimi yok; PHASE 12/13 öncesi gerekli). Testler izole Docker ortamında (Chrome, WebKit, mobil emülasyon).
 
 ## PHASE 08 — Secure PDF Document Management
 - **Scope:** Dev/demo private Blob store'ları (ücretsiz), storage modülü (`storage.ts`, `upload-client.ts`), `/api/uploads` (token + callback), client confirm, upload bileşeni (ilerleme, hata, tekrar dene, çift gönderim engeli, değiştir/kaldır), PDF yapısal doğrulama (parser seçimi TD-06), tek aktif PDF + versiyonlama, `/api/files/[fileId]` (inline/attachment — TD-12), personelin müşteri adına (UNDER_REVIEW dahil) yüklemesi, günlük teknik temizlik (cron), başvuru silmenin storage aşaması.

@@ -18,12 +18,35 @@ const securityHeaders = [
   { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
 ];
 
+/** Müşteri yolları (PHASE 07, D-093): referrer gönderilmez, paylaşılan önbellek yok. */
+const customerHeaders = [
+  { key: "Referrer-Policy", value: "no-referrer" },
+  { key: "Cache-Control", value: "private, no-store, max-age=0" },
+];
+const CUSTOMER_PATHS = [
+  "/b/:path*",
+  "/portal",
+  "/portal/:path*",
+  "/link-invalid",
+  "/link-unavailable",
+];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  logging: {
+    // Geliştirme sunucusu istek logları müşteri bağlantı token'ını (`/b/<token>`) yazmasın.
+    incomingRequests: { ignore: [/^\/b\//] },
+    // Geliştirmede Server Function argümanları (müşteri telefonu/e-postası vb.) terminale yazılmasın.
+    serverFunctions: false,
+  },
   // `next dev` kök dizine AGENTS.md yazmasın; ajan talimatlarının tek kaynağı CLAUDE.md'dir.
   agentRules: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Aynı anahtar için sonraki kayıt öncekini geçersiz kılar.
+      ...CUSTOMER_PATHS.map((source) => ({ source, headers: customerHeaders })),
+    ];
   },
 };
 

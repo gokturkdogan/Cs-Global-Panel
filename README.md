@@ -10,9 +10,9 @@ CS Global Customer Panel
 
 ## Durum
 
-**PHASE 06 — Customer & Application Management** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi ve başvuru yönetimi (oluşturma, liste, detay, müşteri bağlantısı, WhatsApp mesajı hazırlığı) vardır. Müşteri paneli (`/b/…`) ve dosya yükleme **henüz yoktur**; oluşturulan bağlantılar müşteri sayfası açmaz. Platform gerçek müşteri kullanımına hazır değildir.
+**PHASE 07 — Customer Portal** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi, başvuru yönetimi ve **salt okunur müşteri paneli** (`/b/<token>` → imzalı 7 günlük oturum → `/portal/<bağlam>`: başvuru özeti, süreç, evrak ilerlemesi, evrak kartları, iletişim) vardır. Dosya yükleme (PHASE 08) ve incelemeye gönderme (PHASE 09) **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
 
-Sonraki faz: **PHASE 07 — Customer Portal**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Sonraki faz: **PHASE 08 — Secure PDF Document Management** (kullanıcı onayı olmadan başlanmaz). Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 
@@ -104,9 +104,9 @@ Yalnızca **iki** şirket hesabı vardır: bir ADMIN, bir EMPLOYEE — **eşit y
 
 Şifre unutulursa: `pnpm auth:reset-password`.
 
-## Müşteri Bağlantı Anahtarları (PHASE 06)
+## Müşteri Bağlantı ve Oturum Anahtarları (PHASE 06–07)
 
-Başvuru oluşturmak ve bağlantı göstermek için `.env.local`'da `ACCESS_TOKEN_*` anahtarları gerekir. `pnpm env:token-keys` yalnızca eksik olanları ekler (mevcutların üzerine yazmaz, değer göstermez). Anahtarları değiştirmeyin veya kaybetmeyin: mevcut müşteri bağlantıları çözülemez/geçersiz olur.
+Başvuru oluşturmak ve bağlantı göstermek için `.env.local`'da `ACCESS_TOKEN_*` anahtarları, müşteri panelinin açılması için `CUSTOMER_SESSION_SECRET` gerekir. `pnpm env:token-keys` yalnızca eksik olanları ekler (mevcutların üzerine yazmaz, değer göstermez). `CUSTOMER_SESSION_SECRET` değişirse yalnızca açık müşteri oturumları sonlanır (bağlantılar geçerli kalır). Anahtarları değiştirmeyin veya kaybetmeyin: mevcut müşteri bağlantıları çözülemez/geçersiz olur.
 
 ## Testler
 
@@ -120,7 +120,7 @@ E2E_SCREENSHOTS=1 pnpm test:e2e   # ayrıca screenshots/ (maskeli, commit edilme
 
 # İzole geçici veritabanı (Docker gerekir; gerçek veritabanına dokunmaz — D-077)
 pnpm test:integration:isolated   # eşzamanlılık + geçici hesaplarla tüm hesap testleri
-pnpm test:e2e:isolated           # tarayıcıdan hizmet/evrak mutasyonları dahil
+pnpm test:e2e:isolated           # tarayıcıdan mutasyonlar, müşteri bağlantısı/oturumu ve çoklu sekme dahil
 ```
 
 Ortak veritabanında mutasyon testleri yalnızca geri alınan transaction'larda çalışır; commit eden testler yalnızca izole ortamda.

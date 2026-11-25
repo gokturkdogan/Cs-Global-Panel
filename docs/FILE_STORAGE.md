@@ -162,3 +162,9 @@ DB kayıtları, storage nesneleri silindiği doğrulanmadan silinmez — böylec
 ## 7. Kapasite ve Maliyet Notları
 
 Vercel Blob Hobby: 1 GB depolama, 10K basit / 2K gelişmiş işlem, 10 GB transfer/ay; aşımda erişim 30 gün bloklanır, ücret çıkmaz. 1 GB ≈ ortalama 2 MB'lık ~500 PDF; başvuru başına versiyonlarla ~20 MB varsayımıyla **≈ 50 başvuru**. Otomatik silme olmadığından kapasite birikimlidir (PB-02). Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md) §6.
+
+## 8. PHASE 07 → PHASE 08 Müşteri Sözleşmesi (D-095)
+- Müşteri yükleme token isteği, onay, kaldırma ve `/api/files/[fileId]` istekleri `contextId` taşır; sunucu `requireCustomerAccess(contextId)` ile imza, süre, bağlam eşitliği, token aktifliği ve başvurunun silinmediğini **her istekte** doğrular. `applicationId` istemciden alınmaz; evrak/dosya oturumdaki başvuruya ait değilse 404.
+- Yükleme yalnızca `AWAITING_DOCUMENTS`/`REVISION_REQUIRED` statüsünde ve onaylanmamış evrakta (PHASE 07'deki yer tutucuyla aynı kural — `isCustomerEditable`).
+- Bağlam uyuşmazlığında (aynı tarayıcıda başka başvuru açıldı) yükleme reddedilir; istemci "Bu sayfa artık güncel değil" gösterir → yanlış başvuruya yükleme engellenir (TM-40 mutasyon kısmı — PHASE 08'de E2E ile doğrulanacak).
+- Müşteri dosya yanıtları `no-store`, `no-referrer`; müşteri yolu iç notları, eski versiyonları ve personel bilgisini döndürmez.

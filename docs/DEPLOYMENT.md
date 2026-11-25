@@ -78,6 +78,9 @@ Kaldırılan değişkenler: `NEXT_PUBLIC_APP_URL` (→ `APP_URL`, sunucu tarafı
 ### 3.1 PHASE 06 notu — token anahtarları
 `ACCESS_TOKEN_*` değişkenleri uygulamada doğrulanır (D-081): base64 32 bayt, JSON anahtar haritası, aktif kimlik haritada, anahtarlar birbirinden ve auth secret'larından farklı. Yerel geliştirmede `pnpm env:token-keys` eksik anahtarları `.env.local`'a ekler (üzerine yazmaz). Production'da anahtarlar yetkili kişi tarafından üretilir ve **güvenli şekilde yedeklenir** (kaybı tüm bağlantıları çözülemez/geçersiz yapar). Şifreleme anahtarı rotasyonu için yeniden şifreleme betiği henüz yoktur — PHASE 13 öncesi yazılmalıdır.
 
+### 3.2 PHASE 07 notu — müşteri oturumu anahtarı
+`CUSTOMER_SESSION_SECRET` (base64, 32 bayt) uygulamada doğrulanır: token anahtarlarından, `BETTER_AUTH_SECRET` ve `RATE_LIMIT_KEY_SECRET`'tan farklı olmalı (D-088). Yalnızca müşteri erişiminde okunur; eksik/hatalıysa müşteri paneli "şu anda erişilemiyor" gösterir, personel paneli etkilenmez. Yerelde `pnpm env:token-keys` eksikse ekler (üzerine yazmaz). Production'da ortam başına ayrı üretilir (`openssl rand -base64 32`), hosting env'inde saklanır ve yedeklenir. **Rotasyon:** değeri değiştirmek tüm müşteri oturumlarını sonlandırır; bağlantılar geçerli kalır, müşteri bağlantıyı yeniden açınca yeni oturum alır (kesinti yok, veri kaybı yok). Sızıntı şüphesinde derhal değiştirilir. HTTPS `APP_URL`'de cookie `__Host-cs_portal` + `Secure` olur — gerçek HTTPS doğrulaması PHASE 13 (P4-04 ile birlikte).
+
 ## 5. Secret Rotasyonu
 
 | Secret | Etkisi | Prosedür |

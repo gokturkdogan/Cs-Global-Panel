@@ -77,16 +77,16 @@ export async function requireStaff() { const s = await getCurrentStaff(); if (!s
 Tek aktif bağlantı: DB partial unique index + `applications FOR UPDATE` (OD-18).
 
 ### 3.4 Bağlantının açılması ve müşteri oturumu
-1. `GET /b/[token]`: rate limit (IP başına 10 dk'da 30 istek; HMAC'li kısa ömürlü anahtar) → token biçim kontrolü → `HMAC(token)` ile arama → `revoked_at IS NULL` ve başvuru silinme sürecinde değil.
-2. Geçerliyse: **müşteri oturum cookie'si** set edilir ve `303 → /portal`. Token adres çubuğunda kalmaz (ilk URL tarayıcı geçmişinde kalabilir).
+1. `GET /b/[token]`: token biçim kontrolü (uzunluk veritabanından önce) → `HMAC(token)` ile arama → `revoked_at IS NULL` ve başvuru silinme sürecinde değil. *IP bazlı rate limit (IP başına 10 dk'da 30) TD-04 çözülene kadar uygulanmaz — PHASE 13 / hosting edge koruması (D-093).*
+2. Geçerliyse: **müşteri oturum cookie'si** set edilir ve `303 → APP_URL/portal/<bağlam>` (D-087, D-090). Token adres çubuğunda kalmaz (ilk URL tarayıcı geçmişinde kalabilir). Geçici yapılandırma/veritabanı hatası → `303 /link-unavailable`.
 3. Geçersizse: `303 → /link-invalid` — "Bu bağlantı geçerli değil. Lütfen CS Global ile iletişime geçin." Geçersiz/iptal/silinmiş arasında ayrım yapılmaz; token hata mesajında yer almaz.
 4. GET hiçbir başvuru verisini değiştirmez ve audit kaydı oluşturmaz (BR-105) — link önizleme botları için güvenli.
 
-**Müşteri oturumu (D-032):** `__Host-cs_portal` cookie'si; değer = `base64url(payload).HMAC-SHA256(CUSTOMER_SESSION_SECRET)`; `payload = { v:1, tid: accessTokenId, aid: applicationId, iat, exp: iat + 7 gün }`. `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`. **Uzatılmaz.**
-- Her müşteri isteğinde (`requireCustomer()`): imza (timing-safe) → `exp` → DB'den `tid` ile token: `revoked_at IS NULL`, `application_id = aid`, başvurunun `deletion_requested_at IS NULL`. Bu sunucu tarafı doğrulama, iptal/yenileme/silmenin **anında** etkili olmasını sağlar (BR-104).
+**Müşteri oturumu (D-032, D-088 — PHASE 07'de uygulandı):** `__Host-cs_portal` cookie'si (yerel http'de `cs_portal`, `Secure` yok); değer = `base64url(payload).base64url(HMAC-SHA256(CUSTOMER_SESSION_SECRET, payloadPart))`; `payload = { v:1, typ:"cs-portal", aid: applicationId, tid: accessTokenId, ctx: bağlamKimliği, iat, exp: iat + 7 gün }`. `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`. **Uzatılmaz.**
+- Her müşteri isteğinde (`requireCustomerAccess(context)`): imza (timing-safe) → şema + `exp` (sunucuda) → URL bağlamı = `ctx` → DB'den `tid` ile token: `revoked_at IS NULL`, `application_id = aid`, başvurunun `deletion_requested_at IS NULL`. Bu sunucu tarafı doğrulama, iptal/yenileme/silmenin **anında** etkili olmasını sağlar (BR-104).
 - Oturum tablosu yoktur: tek tek oturum iptali gereksinimi bulunmadığından (iptal bağlantı seviyesinde) satır tutmak gereksizdir.
 - Süre dolunca aynı bağlantıyla yeniden erişilir (OD-22).
-- Aynı tarayıcıda başka başvurunun bağlantısı açılırsa cookie yeni başvuruya geçer.
+- Aynı tarayıcıda başka başvurunun bağlantısı açılırsa cookie yeni başvuruya ve yeni bağlama geçer; eski sekme bir sonraki istekte "Bu sayfa artık güncel değil" gösterir, diğer başvurunun verisini göstermez (D-090, TM-40). Aynı bağlantı yeniden açılırsa bağlam korunur.
 - `CUSTOMER_SESSION_SECRET` rotasyonu tüm müşteri oturumlarını sonlandırır (bağlantılar geçerli kalır).
 - Oturum sabitleme yok: cookie yalnızca geçerli token doğrulandıktan sonra sunucuda üretilir.
 
@@ -117,7 +117,7 @@ Tek aktif bağlantı: DB partial unique index + `applications FOR UPDATE` (OD-18
 | `Content-Security-Policy` (PDF yanıtı) | `default-src 'none'; sandbox; frame-ancestors 'self'` | `/api/files/*` (tarayıcı PDF görüntüleyici uyumu PHASE 08'de test) |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` | Tümü (sağlayıcı alt alan adında `preload` kullanılmaz) |
 | `X-Content-Type-Options` | `nosniff` | Tümü |
-| `Referrer-Policy` | `no-referrer` (`/b`, `/portal`, `/link-invalid`, `/api/files`), `strict-origin-when-cross-origin` (diğer) | |
+| `Referrer-Policy` | `no-referrer` (`/b`, `/portal`, `/link-invalid`, `/link-unavailable`, `/api/files`), `strict-origin-when-cross-origin` (diğer) | PHASE 07'de müşteri yollarında uygulandı |
 | `X-Frame-Options` | `DENY` (`/api/files` için `SAMEORIGIN`, iframe görüntüleme kullanılırsa) | |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=(), usb=()` | Tümü |
 | `Cross-Origin-Opener-Policy` | `same-origin` | Tümü |
@@ -253,3 +253,14 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 - **WhatsApp:** sabit `https://wa.me/` alan adı, rakam-only E.164, `encodeURIComponent`; yalnızca kullanıcı tıklamasıyla, `noopener noreferrer`; testlerde istek yakalanır.
 - **Arama gizliliği:** PII içerebilen arama metni URL'ye yazılmaz (POST gövdesi); log'a kişisel veri yazılmaz.
 - **Açık:** müşteri tarafı token doğrulaması ve oturum invalidation'ı PHASE 07; şifreleme anahtarı rotasyon betiği yok (PHASE 13 öncesi); bearer link riskleri (TM-13…TM-15, PB-04) aynen açık.
+
+## 15. PHASE 07 Güvenlik Notları (müşteri paneli)
+- **Giriş:** `GET /b/[token]` (D-087) — biçim kontrolü veritabanından önce; HMAC ile tek sorgu; yan etkisiz (veri/audit değişmez — integration + E2E); geçersiz/iptal/yenilenmiş/silinmekte ayrımsız `/link-invalid`; geçici hata `/link-unavailable`; yönlendirme `APP_URL`'den; token log/hata/yönlendirme hedefinde yok.
+- **Oturum:** D-088/D-089 — imzalı, 7 gün sabit, kayan süre yok; ayrı `CUSTOMER_SESSION_SECRET` (diğer anahtarlardan farklı olması doğrulanır); her istekte token aktifliği ve başvuru silinme durumu veritabanından → iptal/yenileme/silme tüm oturumları bir sonraki istekte kapatır (farklı tarayıcıdaki oturum dahil — E2E).
+- **Çoklu sekme (TM-40):** D-090 — URL bağlamı = cookie bağlamı; başka başvuru açıldığında eski sekme veri göstermez (yenileme, geri/ileri, sekmeye dönüş, eşzamanlı açılış — E2E). Mutasyon tarafı D-095 sözleşmesiyle PHASE 08/09'da.
+- **Personel/müşteri ayrımı:** müşteri yolları personel oturumunu okumaz; müşteri cookie'si personel paneline erişim vermez (E2E); ESLint sınırı (D-091) iç not/audit/token/auth modüllerini engeller.
+- **Veri:** müşteri DTO'su açık kolon listesi; telefon, e-posta, teknik kimlikler, iç notlar, audit, aktörler, token yok (integration + E2E HTML/RSC kontrolü). Snapshot metinleri düz metin (XSS yükleri inert — E2E).
+- **Başlıklar:** müşteri yollarında `no-referrer`, `private, no-store, max-age=0`, `X-Robots-Tag: noindex, nofollow, noarchive`, meta `robots noindex`, nonce'lu CSP (satır içi stil yok — ilerleme çubuğu SVG); üçüncü taraf kaynak yok (E2E: harici istek yok, konsol/CSP hatası yok).
+- **Log:** geliştirme sunucusu istek log'u `/b/` yollarını yazmaz, Server Function argümanlarını loglamaz (D-093; dev smoke: log'da token ve `/b/` yolu yok). Production altyapı logları (TM-15) kontrolümüz dışında.
+- **Kötüye kullanım:** 256 bit token tahmini pratikte imkânsız; uygulama içi IP limiti TD-04'e bağlı olarak yok (D-093). OTP veya yeni kimlik doğrulama eklenmedi (OD-01).
+- **Açık:** gerçek cihaz testleri (iOS Safari, Android Chrome, WhatsApp uygulama içi tarayıcı — cookie davranışı dahil) yapılmadı; HTTPS'te `__Host-` + `Secure` cookie'nin gerçek tarayıcıda doğrulanması (P4-04 ile birlikte PHASE 13); `CUSTOMER_SESSION_SECRET` production yedekleme/rotasyon prosedürü (DEPLOYMENT); bearer link riskleri (TM-13…TM-15, PB-04) aynen açık.

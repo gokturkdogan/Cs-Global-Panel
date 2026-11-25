@@ -101,16 +101,17 @@ sequenceDiagram
     participant DB as Postgres
 
     M->>B: WhatsApp'taki bağlantıyı açar
-    B->>B: IP rate limit (HMAC'li kısa ömürlü anahtar)
+    Note over B: IP rate limit — TD-04 çözülene kadar yok (D-093)
+    B->>B: Biçim kontrolü (uzunluk/kanonik) — DB'den önce
     B->>DB: HMAC(token) ile ara · iptal değil · başvuru silinmiyor
     alt geçersiz
         B-->>M: 303 → /link-invalid (genel mesaj, token yok)
     else geçerli
-        B-->>M: Set-Cookie __Host-cs_portal (imzalı, 7 gün) + 303 → /portal
+        B-->>M: Set-Cookie __Host-cs_portal (imzalı, 7 gün, ctx) + 303 → /portal/<ctx>
     end
-    M->>P: /portal (token'sız URL)
-    P->>DB: cookie imzası + süre + token durumu kontrolü
-    P-->>M: Başvuru, evraklar, yükleme
+    M->>P: /portal/<ctx> (token'sız URL)
+    P->>DB: cookie imzası + süre + ctx eşitliği + token durumu kontrolü
+    P-->>M: Başvuru, süreç, evraklar (yükleme PHASE 08)
 ```
 
 Ek doğrulama adımı yoktur (OD-01). GET hiçbir veriyi değiştirmez (BR-105). Ayrıntı: [SECURITY.md](SECURITY.md) §3.
@@ -231,9 +232,10 @@ Server Actions public endpoint kabul edilir; her action kendi kontrolünü yapar
 | `/dashboard/applications/[id]` | Detay: müşteri bilgisi, evraklar, inceleme, yorum, not, geçmiş, bağlantı, geri alma/yeniden açma/silme | Personel | ✅ | `requireStaff` + kaynak kontrolü | RSC + client adalar | no-store | **Çok yüksek** |
 | `/dashboard/services` · `/new` · `/[serviceId]` | Hizmet listesi (arama, durum filtresi) · yeni hizmet · genel bilgiler + durum + evrak şablonları (PHASE 05 — uygulandı) | Personel | ✅ | `requireStaff` | RSC + client form | no-store | Düşük |
 | `/dashboard/audit-logs` | Genel işlem geçmişi | Personel | ✅ | `requireStaff` | RSC | no-store | Orta |
-| `GET /b/[token]` | Token doğrula → cookie → 303 `/portal` | Anonim | Token | Token geçerliliği | Route Handler | no-store | Token |
-| `/portal` | Müşteri paneli | CUSTOMER | Portal cookie | Tek başvuru | RSC + client adalar | no-store | **Çok yüksek** |
-| `/link-invalid` | Genel geçersiz bağlantı mesajı | Herkes | — | — | RSC (statik içerik, no-store) | no-store | Yok |
+| `GET /b/[token]` | Token doğrula → cookie → 303 `/portal/<ctx>` (PHASE 07 — uygulandı) | Anonim | Token | Token geçerliliği | Route Handler | no-store | Token |
+| `/portal/[context]` | Müşteri paneli (PHASE 07 — uygulandı, salt okunur) | CUSTOMER | Portal cookie + URL bağlamı | Tek başvuru, `requireCustomerAccess` | RSC + küçük client adalar | no-store | **Çok yüksek** |
+| `/portal` | Bağlamsız eski adres: bilgi ekranı, oturum açmaz | Herkes | — | — | RSC | no-store | Yok |
+| `/link-invalid` · `/link-unavailable` | Genel geçersiz bağlantı / geçici erişim sorunu mesajı | Herkes | — | — | RSC (no-store) | no-store | Yok |
 | `POST /api/uploads` | Upload token / storage callback | Staff, CUSTOMER, storage | Session / callback doğrulaması | `file:upload` + BR-44 | Route Handler | no-store | Metadata |
 | `GET /api/files/[fileId]` | PDF stream | Staff, CUSTOMER | Session | `file:view_download` | Route Handler | no-store | **Belge** |
 | `GET /api/cron/cleanup` | Teknik temizlik | SYSTEM | `CRON_SECRET` | — | Route Handler | no-store | — |
@@ -328,3 +330,11 @@ Kurallar (D-016):
 - **Kilit sırası:** services (FOR SHARE) → şablonlar → sayaç → başvuru kayıtları; bağlantı işlemleri applications (FOR UPDATE) → access_tokens (FOR UPDATE).
 - **Gizlilik:** arama metni Server Action gövdesinde (URL'de değil); bağlantı yalnızca açık aksiyonla çözülür.
 - **Ortak yardımcılar:** `src/lib/{field-errors,clipboard}.ts`; `ActionErrorCode` + `STALE_PREVIEW`.
+
+## PHASE 07 Notları (uygulandı)
+- **Müşteri erişimi:** `src/server/customer-session/{session,access}.ts` (server-only) — imzalı cookie, bağlam kimliği, `requireCustomerAccess(context)` (tek giriş noktası; sayfalar ve PHASE 08/09 mutasyonları). Anahtar `getCustomerSessionEnv()` (`CUSTOMER_SESSION_SECRET`).
+- **Rotalar:** `src/app/b/[token]/route.ts`; `src/app/(customer)/` route group: `layout.tsx` (metadata `noindex`, `no-referrer`, `PortalShell`), `portal/[context]/{page,loading,error}.tsx`, `portal/page.tsx`, `link-invalid/page.tsx`, `link-unavailable/page.tsx`. Personel paneliyle ortak layout/oturum yok.
+- **Modül:** `src/features/customer-portal/{queries.ts, domain/progress.ts, components/*}` — yalnızca okuma; personel modüllerinden yalnızca sunum bileşenleri (`DocumentStatusBadge`, `RequiredBadge`) ve ortak UI kullanılır. ESLint sınırı D-091.
+- **İstemci adaları:** `RevalidateOnReturn` (sekmeye/bfcache'ten dönüşte sunucuda yeniden doğrulama), `ReloadButton`, `error.tsx`. Müşteri verisi istemci durumunda/depolamada tutulmaz.
+- **Başlıklar:** `next.config.ts` müşteri yolları (`no-referrer`, `private, no-store`), `logging.incomingRequests.ignore` (`/b/`), `logging.serverFunctions: false` (D-093).
+- **Mimari kararlar:** D-087…D-095.

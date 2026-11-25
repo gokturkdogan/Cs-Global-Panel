@@ -27,6 +27,8 @@ const SERVER_MODULE_MARKERS = [
   "cs_app_runtime",
   // PHASE 06: token kriptografisi yalnızca sunucuda.
   "AccessTokenCryptoError",
+  // PHASE 07: müşteri oturumu imzası yalnızca sunucuda.
+  "cs-portal",
   "cs-access-token:",
 ];
 

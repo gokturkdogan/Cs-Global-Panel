@@ -164,7 +164,7 @@ Tek sütun, maks genişlik `max-w-2xl`, sidebar/tablo/grafik **yok**.
 6. **Evrak kartları** (sıralı):
    - Başlık + "Zorunlu"/"İsteğe bağlı" etiketi + durum rozeti.
    - Açıklama, talimat (açılır-kapanır "Nasıl yüklemeliyim?").
-   - Düzeltme gerekçesi (varsa) — uyarı kutusu, kartın üstünde, `role="status"`.
+   - Düzeltme gerekçesi (varsa) — uyarı kutusu, başlık ve rozetlerin hemen altında (önce hangi evrak olduğu okunur), `role="status"`.
    - Aktif dosya (en fazla bir): ad (`truncate` + tam ad `title`), boyut ("2,4 MB"), tarih ("24.11.2026 14:05"), "Görüntüle", (izinliyse) "Değiştir" ve "Kaldır".
    - Yükleme alanı (aktif dosya yoksa): tam genişlik büyük buton "PDF Yükle" (native `<input type="file" accept="application/pdf,.pdf">` — mobilde dosya/iCloud/Drive seçici), sürükle-bırak yalnızca desktop'ta ek olarak. Yardım metni: "Yalnızca PDF · en fazla 10 MB".
    - Yükleme sırasında: gerçek % ilerleme + "Yükleniyor… %45"; sonrasında "Kontrol ediliyor…" → "Yüklendi". Değiştirme sırasında mevcut dosya, yenisi kabul edilene kadar görünür kalır.
@@ -174,7 +174,7 @@ Tek sütun, maks genişlik `max-w-2xl`, sidebar/tablo/grafik **yok**.
 9. Footer: aydınlatma metni linki (hukuki metin sağlandığında), "Bu bağlantı size özeldir, başkalarıyla paylaşmayınız."
 10. Salt okunur statülerde (`UNDER_REVIEW`, `DOCUMENTS_APPROVED`, `IN_PROCESS`, `COMPLETED`, `CANCELLED`) yükleme/değiştirme/kaldırma/gönderim öğeleri gösterilmez; statüye uygun bilgi kutusu gösterilir.
 
-Uzun içerik kuralları: `min-w-0`, `break-words`, `overflow-wrap:anywhere` dosya adlarında; sayfada **yatay overflow yok** (E2E'de `document.scrollingElement.scrollWidth <= innerWidth` kontrolü).
+Uzun içerik kuralları: `min-w-0`, kullanıcı/şablon metinlerinde `wrap-anywhere` (`overflow-wrap:anywhere` — flex/grid içinde `break-words` yetmedi, PHASE 07 E2E'de 807px taşma yakalandı), dosya adlarında `truncate` + `title`; sayfada **yatay overflow yok** (E2E'de `document.scrollingElement.scrollWidth <= innerWidth` kontrolü).
 
 ## 8. Metin ve Ton
 
@@ -236,3 +236,19 @@ Hizmet detay düzeni: konum yolu + başlık → (oluşturulduysa) başarı bildi
 | CopyLinkButton, LinkStatusBadge, DocumentStatusBadge | aynı klasör | Kopyalama sonucu `role=status/alert`; başarısızsa seçilebilir alan; evrak statüsü etiketleri STATE_TRANSITIONS §2 (metin + ikon) |
 
 Hassas alanlar `data-sensitive` ile işaretlidir (ekran görüntüsü maskesi). Dashboard: Yeni Başvuru aktif; Son Başvurular ve İnceleme Bekleyenler satırları detaya, başlıkta "Tümünü Gör"; Toplam/İncelemede/Tamamlanan kartlarında "Listele" (Evrak Bekleyen iki statüyü kapsadığı için bağlantısız). Ekran görüntüleri: `screenshots/phase-06/` (yerel, commit edilmez).
+
+## 13. PHASE 07 Uygulanan Bileşenler (müşteri paneli)
+
+| Bileşen | Dosya (`src/features/customer-portal/components/`) | Kurallar |
+|---|---|---|
+| PortalShell | `portal-shell.tsx` | Header metin logo (giriş/çıkış öğesi yok), `main` `max-w-2xl`, safe-area dolgusu; footer "Bu bağlantı size özeldir, başkalarıyla paylaşmayınız." |
+| WelcomeCard | `welcome-card.tsx` | "Merhaba, {Ad Soyad}" (h1), `dl`: Başvuru No, Durum rozeti, Hizmet (snapshot), Oluşturulma tarihi (`Europe/Istanbul`); statü mesajı bilgi kutusu; COMPLETED'a "(Resmî vize sonucu değildir.)" |
+| ProcessStepper | `process-stepper.tsx` | `ol`; `<sm` dikey, `sm+` yatay; tamamlandı/aktif/sırada + düzeltmede uyarı ikonu; `aria-current="step"`; CANCELLED'da nötr bilgi kartı; "vize sonucu veya süre hakkında bilgi vermez" notu |
+| DocumentProgress | `document-progress.tsx` | "X / Y zorunlu evrak yüklendi · %Z", `role="progressbar"` + `aria-valuenow`; çubuk SVG (CSP — satır içi stil yok); toplam/eksik/onaylanan/düzeltme bekleyen satırları; zorunlu evrak yoksa "Zorunlu evrak bulunmuyor" |
+| DocumentCard | `document-card.tsx` | Sıra numaralı başlık, Zorunlu/İsteğe bağlı + durum rozeti, düzeltme açıklaması (`role="status"`), açıklama, "Nasıl yüklemeliyim?" (`details` varsayılan açık, klavyeyle aç/kapa), sabit dosya kuralı satırı; düzenlenebilir statüde onaylanmamış evrakta "PDF yükleme yakında kullanıma açılacak." kutusu (dosya seçici yok, sahte başarı yok) |
+| SubmitPlaceholder | `submit-placeholder.tsx` | Devre dışı "İncelemeye Gönder" + "yakında" açıklaması (PHASE 09) |
+| ContactCard | `contact-card.tsx` | `company.ts`; değer `null` → devre dışı Telefon/WhatsApp + "İletişim bilgisi yakında eklenecek." (uydurma numara yok) |
+| AccessMessage | `access-message.tsx` | Geçersiz bağlantı / oturum sona erdi / sayfa güncel değil / şu anda erişilemiyor; ikon + başlık (h1) + tek cümle; geçici hatada "Yeniden dene"; kişisel veri yok |
+| RevalidateOnReturn, ReloadButton | aynı klasör | Görünmez yeniden doğrulama; erişilebilir buton |
+
+Doğrulama: 320, 360, 375, 390, 414, 430, 768, 1024, 1440 px'te uzun boşluksuz metinlerle yatay taşma yok ve 44px'ten alçak buton/`summary` yok (Chrome + WebKit); klavye odak görünür. Ekran görüntüleri: `screenshots/phase-07/` (yerel, sentetik, commit edilmez).

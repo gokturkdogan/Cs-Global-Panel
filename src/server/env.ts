@@ -240,3 +240,53 @@ export function getAccessTokenEnv(): AccessTokenEnv {
   cachedAccessTokenEnv ??= parseAccessTokenEnv(process.env);
   return cachedAccessTokenEnv;
 }
+
+/**
+ * Müşteri portal oturumu imzalama anahtarı (PHASE 07, SECURITY §3.4, D-088). Yalnızca müşteri
+ * erişiminde çağrılır: eksik/hatalı → müşteri erişimi fail-closed; personel girişi ve diğer modüller
+ * etkilenmez. `CUSTOMER_SESSION_SECRET`: base64, çözülmüş 32 bayt; auth secret'larından ve token
+ * anahtarlarından farklı olmalıdır.
+ */
+export type CustomerSessionEnv = {
+  readonly appUrl: string;
+  readonly secret: Buffer;
+  /** https APP_URL'de `__Host-` önekli ve Secure cookie. */
+  readonly secureCookies: boolean;
+};
+
+export function parseCustomerSessionEnv(source: EnvSource): CustomerSessionEnv {
+  const { appUrl } = parseServerEnv(source);
+  const secret = decodeKey(source.CUSTOMER_SESSION_SECRET);
+  if (secret === null) throw new EnvValidationError(["CUSTOMER_SESSION_SECRET"]);
+  const others: Buffer[] = [];
+  for (const name of ["ACCESS_TOKEN_HMAC_KEY"] as const) {
+    const key = decodeKey(source[name]);
+    if (key) others.push(key);
+  }
+  try {
+    const parsed: unknown = JSON.parse(source.ACCESS_TOKEN_ENCRYPTION_KEYS ?? "{}");
+    if (parsed && typeof parsed === "object") {
+      for (const value of Object.values(parsed)) {
+        const key = decodeKey(value);
+        if (key) others.push(key);
+      }
+    }
+  } catch {
+    // Token anahtarları kendi doğrulamalarında ele alınır.
+  }
+  const authSecrets = [source.BETTER_AUTH_SECRET, source.RATE_LIMIT_KEY_SECRET].filter(Boolean);
+  const reused =
+    others.some((key) => key.equals(secret)) ||
+    authSecrets.some(
+      (value) => value === secret.toString("base64") || value === secret.toString("hex"),
+    );
+  if (reused) throw new EnvValidationError(["CUSTOMER_SESSION_SECRET"]);
+  return { appUrl, secret, secureCookies: appUrl.startsWith("https://") };
+}
+
+let cachedCustomerSessionEnv: CustomerSessionEnv | undefined;
+
+export function getCustomerSessionEnv(): CustomerSessionEnv {
+  cachedCustomerSessionEnv ??= parseCustomerSessionEnv(process.env);
+  return cachedCustomerSessionEnv;
+}

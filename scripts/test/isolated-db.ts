@@ -113,6 +113,7 @@ try {
     ACCESS_TOKEN_HMAC_KEY: randomBytes(32).toString("base64"),
     ACCESS_TOKEN_ENCRYPTION_KEYS: JSON.stringify({ t1: randomBytes(32).toString("base64") }),
     ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: "t1",
+    CUSTOMER_SESSION_SECRET: randomBytes(32).toString("base64"),
     // Testler bu işaretle mutasyon testlerini açar; işaret ayrıca veritabanının yerel olduğunu doğrular.
     ISOLATED_TEST_DB: "1",
   };

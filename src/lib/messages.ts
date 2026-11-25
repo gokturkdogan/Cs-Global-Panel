@@ -60,8 +60,8 @@ export const messages = {
     linkCopied: "Bağlantı panoya kopyalandı.",
     messageCopied: "Mesaj panoya kopyalandı.",
     copyFailed: "Panoya kopyalanamadı. Metni seçip elle kopyalayın.",
-    portalNotReady:
-      "Müşteri paneli henüz kullanıma açılmadı (PHASE 07). Bu bağlantı şu an müşteri sayfası açmaz; gerçek müşterilerle paylaşmayın.",
+    portalLimitedNotice:
+      "Müşteri paneli şu an yalnızca görüntüleme amaçlıdır; evrak yükleme ve gönderim henüz yok. Platform gerçek müşteri kullanımına hazır değildir; gerçek müşterilerle paylaşmayın.",
     contactChangedWarning:
       "İletişim bilgisi değişti. Mevcut bağlantı önceki alıcıda kalmış olabilir ve hâlâ geçerlidir; gerekirse bağlantıyı yenileyin.",
     emptyTitle: "Henüz başvuru bulunmuyor.",
@@ -80,6 +80,26 @@ export const messages = {
       emailInvalid: "Geçerli bir e-posta adresi girin.",
       serviceRequired: "Hizmet seçin.",
     },
+  },
+  portal: {
+    invalidTitle: "Bağlantınız kullanılamıyor",
+    invalidDescription:
+      "Bu bağlantı geçersiz veya kullanım dışı olabilir. Lütfen CS Global ile iletişime geçiniz.",
+    expiredTitle: "Oturumunuz sona erdi",
+    expiredDescription: "Devam etmek için size gönderilen başvuru bağlantısını yeniden açınız.",
+    contextTitle: "Bu sayfa artık güncel değil",
+    contextDescription:
+      "Bu tarayıcıda başka bir başvuru bağlantısı açıldı. Bu başvuruyu görüntülemek için size gönderilen bağlantıyı yeniden açınız.",
+    unavailableTitle: "Şu anda erişilemiyor",
+    unavailableDescription:
+      "Başvuru paneliniz geçici olarak görüntülenemiyor. Lütfen biraz sonra tekrar deneyiniz veya size gönderilen bağlantıyı yeniden açınız.",
+    uploadSoon: "PDF yükleme yakında kullanıma açılacak.",
+    submitSoon: "İncelemeye gönderme yakında kullanıma açılacak.",
+    contactSoon: "İletişim bilgisi yakında eklenecek.",
+    privateLink: "Bu bağlantı size özeldir, başkalarıyla paylaşmayınız.",
+    progressDisclaimer:
+      "Bu gösterge danışmanlık sürecinin aşamasını gösterir; vize sonucu veya süre hakkında bilgi vermez.",
+    completedNote: "Resmî vize sonucu değildir.",
   },
   validation: {
     nameRequired: "Hizmet adı zorunludur.",

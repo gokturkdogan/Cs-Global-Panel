@@ -71,7 +71,7 @@ export function WhatsAppShareDialog({ applicationId, applicationNumber, trigger 
             yaparsınız.
           </Dialog.Description>
           <Alert variant="destructive" role="note">
-            <AlertDescription>{messages.applications.portalNotReady}</AlertDescription>
+            <AlertDescription>{messages.applications.portalLimitedNotice}</AlertDescription>
           </Alert>
 
           {share === null ? (

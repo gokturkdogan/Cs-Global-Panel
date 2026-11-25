@@ -92,7 +92,7 @@ Uygulamada hesap yönetimi action'ı yoktur. Personel kimlik doğrulaması: `sig
 
 ## 3. Server Actions — Müşteri (`features/portal/actions.ts`)
 
-Kapsam her zaman `requireCustomer()` oturumundan; input'ta `applicationId` **yoktur**.
+Kapsam her zaman müşteri oturumundan (`requireCustomerAccess(contextId)` — PHASE 07'de uygulandı); input'ta `applicationId` **yoktur**. **PHASE 08/09 sözleşmesi (D-095):** her müşteri action'ı ve dosya isteği `contextId` (URL bağlamı) alır; sunucu cookie bağlamıyla eşitliği, token aktifliğini ve başvurunun silinmediğini her istekte doğrular; uyuşmazlık → reddedilir, sayfa uyarı gösterir.
 
 | Action | Input | Çıktı | Audit |
 |---|---|---|---|
@@ -102,7 +102,9 @@ Kapsam her zaman `requireCustomer()` oturumundan; input'ta `applicationId` **yok
 
 Kaldırılan: `requestOtpAction`, `verifyOtpAction`, `exchangeFragmentTokenAction`, `customerLogoutAction`.
 
-Okuma: `getCustomerPortalView(portalSession)` → `CustomerPortalDTO`:
+> **PHASE 07'de uygulanan okuma (D-091):** `getCustomerPortalView(db, access)` → `{ customer: { firstName, lastName }, application: { number, serviceName, createdAt, status }, documents: [{ title, description, instructions, isRequired, status, revisionMessage }] }`. İlerleme/tamamlanma sunucu bileşeninde saf fonksiyonlarla hesaplanır (D-092). Telefon/e-posta, kimlikler, dosya, yorum, `canSubmit` alanları **henüz yok** — aşağıdaki hedef DTO PHASE 08/09'da tamamlanır.
+
+Hedef okuma: `getCustomerPortalView(portalSession)` → `CustomerPortalDTO`:
 ```ts
 type CustomerPortalDTO = {
   customer: { firstName: string; lastName: string; phone: string; email: string };
@@ -141,10 +143,18 @@ Better Auth HTTP route'u yoktur; tüm `/api/auth/*` istekleri 404 döner. Person
 ### 4.4 `GET /b/[token]`
 | Durum | Yanıt |
 |---|---|
-| Geçerli | `303 → /portal` + `Set-Cookie: __Host-cs_portal` |
-| Geçersiz / iptal / silinmekte | `303 → /link-invalid` (ayrım yok) |
-| Rate limit | `429` genel sayfa |
-Her yanıt: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`. Hiçbir veri değiştirilmez, audit yazılmaz (BR-105).
+| Geçerli | `303 → APP_URL/portal/<bağlam>` + `Set-Cookie: __Host-cs_portal` (yerel http: `cs_portal`) |
+| Geçersiz biçim / bilinmeyen / iptal / yenilenmiş / silinmekte | `303 → /link-invalid` (ayrım yok; mevcut oturuma dokunulmaz) |
+| Yapılandırma / veritabanı hatası | `303 → /link-unavailable` |
+| Rate limit | **Uygulanmadı** — TD-04 (PHASE 13); `429` yok (D-093) |
+Her yanıt: `Cache-Control: private, no-store, max-age=0`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow, noarchive`. Hiçbir veri değiştirilmez, audit yazılmaz (BR-105). **PHASE 07'de uygulandı (D-087).**
+
+### 4.4a Müşteri sayfaları (PHASE 07)
+| Yol | Davranış |
+|---|---|
+| `/portal/<bağlam>` | `requireCustomerAccess`: geçerli → panel; cookie yok/geçersiz/iptal → "Bağlantınız kullanılamıyor"; süre doldu → "Oturumunuz sona erdi"; bağlam uyuşmazlığı → "Bu sayfa artık güncel değil"; geçici hata → "Şu anda erişilemiyor". Hiçbiri başka oturuma yönlendirmez; hatalı durumlarda kişisel veri dönmez. |
+| `/portal` | Bağlamsız eski adres: oturum açmaz, "Oturumunuz sona erdi / bağlantıyı yeniden açın" bilgisi |
+| `/link-invalid`, `/link-unavailable` | Genel bilgi + iletişim kartı; kişisel veri yok |
 
 ### 4.5 `GET /api/cron/cleanup`
 `Authorization: Bearer ${CRON_SECRET}`. Görevler (teknik): süresi dolan `UPLOAD_PENDING` → `EXPIRED` + blob sil; takılı `VALIDATING` → `REJECTED`; reddedilmiş blob kalıntıları; orphan blob mutabakatı; yarım kalan başvuru silmelerini tamamlama; süresi dolmuş personel oturumları; süresi dolmuş rate limit anahtarları. Batch sınırlı; yanıt `{ tasks: { name, processed }[] }`; audit `TECHNICAL_CLEANUP_EXECUTED`. **Müşteri verisi saklama süresi işlemi içermez.**

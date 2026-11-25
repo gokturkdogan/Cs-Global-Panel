@@ -18,7 +18,7 @@
 
 \* "Terminal": normal akışta çıkışı olmayan, müşteri paneli salt okunur statü. Personel yalnızca gerekçeli yeniden açma geçişleriyle (T8, T9) çıkarabilir.
 
-Başlangıç statüsü: `AWAITING_DOCUMENTS` (`application_status_history`'ye `from_status = NULL`). **PHASE 06'da uygulandı:** başvuru oluşturma transaction'ında `NULL → AWAITING_DOCUMENTS` (`CREATE`, aktör personel) yazılır; snapshot evrakları `NOT_UPLOADED` başlar. T1–T12 geçişleri PHASE 09. Arşiv statüsü **yoktur** (OD-23).
+Başlangıç statüsü: `AWAITING_DOCUMENTS` (`application_status_history`'ye `from_status = NULL`). **PHASE 06'da uygulandı:** başvuru oluşturma transaction'ında `NULL → AWAITING_DOCUMENTS` (`CREATE`, aktör personel) yazılır; snapshot evrakları `NOT_UPLOADED` başlar. T1–T12 geçişleri PHASE 09. Arşiv statüsü **yoktur** (OD-23). **PHASE 07:** müşteri paneli yukarıdaki müşteri açıklamalarını birebir gösterir (`CUSTOMER_STATUS_MESSAGE`, unit testli); hiçbir statü geçişi yapmaz; yükleme yer tutucusu yalnızca `AWAITING_DOCUMENTS`/`REVISION_REQUIRED`'da görünür, diğer statüler salt okunurdur (D-092).
 
 ### 1.1 Diyagram
 

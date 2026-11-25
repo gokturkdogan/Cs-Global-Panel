@@ -331,7 +331,9 @@ test.describe("başvurular — mutasyonlar (izole veritabanı)", () => {
     expect(link).toMatch(new RegExp(`^${new URL(baseURL!).origin}/b/[A-Za-z0-9_-]{43}$`));
     expect(page.url()).toMatch(/\/dashboard\/applications\/new$/); // bağlantı URL'de değil
     await expect(
-      page.getByText("Müşteri paneli henüz kullanıma açılmadı", { exact: false }).first(),
+      page
+        .getByText("Müşteri paneli şu an yalnızca görüntüleme amaçlıdır", { exact: false })
+        .first(),
     ).toBeVisible();
     await screenshot(page, testInfo, "application-success-desktop", ["Desktop Chrome"]);
 

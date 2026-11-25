@@ -111,11 +111,12 @@
 - **BR-100** Her başvurunun aynı anda **en fazla bir aktif** bağlantısı vardır (DB partial unique index + transaction). Bağlantı birden çok cihazdan kullanılabilir.
 - **BR-101** Bağlantı **süresizdir**. Yalnızca şu durumlarda geçersiz olur: yetkili personel iptal ettiğinde, yeni bağlantı oluşturulduğunda (yenileme), başvuru silindiğinde. Zamana veya statüye bağlı otomatik iptal **yoktur**; `COMPLETED`/`CANCELLED` başvurularda bağlantı açık kalır, panel salt okunurdur.
 - **BR-102** Geçerli bağlantıyı açan müşteri **ek bir adım olmadan** kendi başvuru paneline erişir: hesap, şifre, OTP, onay yoktur. Bağlantı bir **bearer credential**'dır: bağlantıyı ele geçiren herkes başvuruya erişebilir ([SECURITY.md](SECURITY.md) §3).
-- **BR-103** Bağlantı açıldığında sunucu, başvuruya bağlı 7 günlük bir müşteri oturumu oluşturur ve kullanıcıyı token içermeyen `/portal` adresine yönlendirir. Oturum süresi dolduğunda aynı geçerli bağlantıyla yeniden erişilir. Oturum süresi ile bağlantı geçerliliği bağımsızdır.
+- **BR-103** Bağlantı açıldığında sunucu, başvuruya bağlı 7 günlük bir müşteri oturumu oluşturur ve kullanıcıyı token içermeyen `/portal/<bağlam>` adresine yönlendirir (bağlam kimliği teknik bir sekme ayırıcıdır, gizli değildir — D-090). Oturum süresi dolduğunda aynı geçerli bağlantıyla yeniden erişilir. Oturum süresi ile bağlantı geçerliliği bağımsızdır.
 - **BR-104** Bağlantı iptali/yenilenmesi veya başvuru silinmesi, o bağlantıyla açılmış **tüm müşteri oturumlarını anında** geçersiz kılar (her istekte bağlantı durumu kontrol edilir).
 - **BR-105** Link önizleme botları ve crawler'lar başvuru durumunu **değiştiremez**: bağlantıyı açmak (GET) hiçbir veriyi değiştirmez ve audit kaydı oluşturmaz.
 - **BR-106** İki şirket hesabı bağlantı yönetiminde eşit yetkilidir (OD-19, OD-24): görüntüle, kopyala, WhatsApp ile paylaş, iptal et, yenile, iptal edilmişin yerine yeni oluştur. İptal ve yenileme onay penceresi gerektirir ve audit'lenir (token audit'e yazılmaz).
 - **BR-107** Bağlantı URL'si yalnızca sunucu yapılandırmasındaki `APP_URL` ile üretilir; request `Host` header'ı kullanılmaz (OD-20).
+- *Uygulama notları (PHASE 07 — ürün kuralı eklemez):* Aynı tarayıcıda yalnızca bir başvuru paneli etkin olabilir: başka başvurunun bağlantısı açılınca önceki sekme "Bu sayfa artık güncel değil" gösterir ve kendi bağlantısı yeniden açılarak devam edilir; aynı bağlantıyı tekrar açmak önceki sekmeyi etkilemez (D-090). Oturum süresi kullanımla uzamaz (D-089).
 - *Uygulama notları (PHASE 06 — ürün kuralı eklemez):* Bağlantı personele yalnızca açık aksiyonla (Göster/Kopyala/Paylaş) sunucuda çözülerek gösterilir ve audit'lenir; iptal/yenileme istemcinin gördüğü aktif bağlantı kimliğiyle yapılır. Müşteri telefon/e-posta düzeltmesi bağlantıyı kendiliğinden yenilemez; personele uyarı gösterilir (D-083, D-084).
 
 ## 11. İlerleme Göstergeleri
@@ -141,6 +142,7 @@ Gösterge vize onay olasılığı veya sonuç garantisi ifade etmez.
 - **BR-112** Ayrı "onaylanan" göstergesi: `APPROVED` zorunlu evrak / zorunlu evrak toplamı.
 - **BR-113** Metin: "3 / 5 zorunlu evrak yüklendi · %60". Yüzde aşağı yuvarlanır; %100 yalnızca tam tamamlanmada.
 - **BR-114** Zorunlu evrak yoksa "Zorunlu evrak bulunmuyor" gösterilir.
+- *Uygulama notu (PHASE 07, D-092):* Dosya yükleme PHASE 08'e kadar olmadığından pay, evrak statüsünden (`UPLOADED`/`PENDING_REVIEW`/`APPROVED`) hesaplanır; PHASE 08'de "Kontrol ediliyor" durumu BR-111'e göre eklenir.
 
 ## 12. Yorumlar ve Notlar
 

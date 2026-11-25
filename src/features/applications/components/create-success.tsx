@@ -73,7 +73,7 @@ export function CreateSuccess({
             data-sensitive="access-link"
           />
           <Alert variant="destructive" role="note">
-            <AlertDescription>{messages.applications.portalNotReady}</AlertDescription>
+            <AlertDescription>{messages.applications.portalLimitedNotice}</AlertDescription>
           </Alert>
         </div>
       ) : null}

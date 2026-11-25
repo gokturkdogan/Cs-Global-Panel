@@ -112,3 +112,11 @@ Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md). ⚠️ D-059 (tek veritabanı) nedeni
 - Personel arama metni URL'ye, tarayıcı geçmişine ve erişim loglarına yazılmaz.
 - WhatsApp mesajı (ad, soyad, hizmet adı, bağlantı) personelin açık eylemiyle WhatsApp/Meta'ya aktarılır (§1, §9 madde 10 — değerlendirme açık). Sistem mesajı göndermez; testlerde `wa.me` istekleri yakalanır.
 - Testler yalnızca sentetik veriyle ve izole geçici veritabanında başvuru oluşturur; gerçek müşteri verisi kullanılmadı.
+
+## 12. PHASE 07 Uygulama Notları (müşteri paneli)
+- Müşteri oturum cookie'si yalnızca teknik kimlikler (başvuru ve token kimliği, bağlam kimliği, zaman damgaları) ve imza içerir; ad, telefon, e-posta, token **yoktur**. Kesinlikle gerekli (oturum) cookie'sidir; analytics/üçüncü taraf cookie yoktur. Aydınlatma metninde belirtilmesi PB-03 kapsamında.
+- Panel müşteriye yalnızca adını/soyadını, başvuru numarasını, hizmet adını, tarihi, statüyü, evrak listesini ve düzeltme açıklamalarını gösterir; telefon ve e-posta panelde ve sayfa yükünde yoktur (veri minimizasyonu).
+- Bağlantı açılışı ve panel görüntüleme veritabanına yazmaz (son kullanım, IP, user-agent, cihaz kaydı yok — OD-09, BR-105).
+- Geçersiz/iptal/süresi dolmuş/bağlam uyuşmazlığı ekranları kişisel veri içermez.
+- Bağlantı bearer credential olduğundan bağlantıya sahip herkes bu verileri görebilir (TM-13, PB-04 — açık).
+- Testler yalnızca sentetik veriyle ve izole geçici veritabanında; gerçek müşteriye bağlantı gönderilmedi.
