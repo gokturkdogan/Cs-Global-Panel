@@ -1,10 +1,10 @@
 # Proje Durumu
 
-> Her faz sonunda güncellenir. Son güncelleme: **2026-11-24** (PHASE 05 sonu)
+> Her faz sonunda güncellenir. Son güncelleme: **2026-11-24** (PHASE 06 sonu)
 
 ## Current Phase
-**PHASE 05 — Service & Document Template Management**
-Phase Status: **COMPLETED — kullanıcı onayı bekleniyor**. PHASE 06'ya onaysız geçilmez.
+**PHASE 06 — Customer & Application Management**
+Phase Status: **COMPLETED — kullanıcı onayı bekleniyor**. PHASE 07'ye onaysız geçilmez.
 
 ## Completed Phases
 - PHASE 00 — Project Foundation & Architecture (+ revizyon) — Product Owner onayı 2026-11-24.
@@ -13,10 +13,12 @@ Phase Status: **COMPLETED — kullanıcı onayı bekleniyor**. PHASE 06'ya onays
 - PHASE 03 — Authentication & Equal Staff Access — Product Owner onayı 2026-11-24 (D-060…D-064, D-066 Accepted; D-065 koşullu). Gerçek ADMIN ve EMPLOYEE hesapları oluşturuldu.
 - PHASE 04 — Dashboard Foundation — Product Owner onayı 2026-11-24 (D-069…D-071 Accepted; D-067, D-068 koşullu Accepted; D-063, D-065 Partially Superseded). P4-01 PARTIAL, P4-03 MITIGATED, P4-04 DEFERRED.
 
+- PHASE 05 — Service & Document Template Management — Product Owner onayı 2026-11-24 (D-072…D-077 Accepted; P4-01 yerel test izolasyonu açısından RESOLVED).
+
 > Faz onayları production güvenliği veya KVKK uyumluluğu onayı değildir; PB-01…PB-11 açıktır.
 
 ## Project Status
-Hizmet ve evrak şablonu yönetimi uygulandı (PHASE 05): veritabanı destekli hizmet listesi (Türkçe karakter duyarsız arama, Tümü/Aktif/Pasif), hizmet oluşturma/düzenleme/pasifleştirme/yeniden aktifleştirme, evrak gereksinimi ekleme/düzenleme/zorunluluk/pasifleştirme/sıralama, müşteri talimatları (düz metin), optimistic lock + kilit sözleşmesi, aynı transaction'da audit. İki hesap eşit. Mutasyon testleri Docker'da izole geçici PostgreSQL'de (D-077). Başvuru oluşturma, müşteri paneli, storage, deployment **yok**. Commit/push bu fazda yapılmadı.
+Başvuru yönetimi uygulandı (PHASE 06): atomik başvuru oluşturma (müşteri bilgileri, aktif hizmet, sunucu doğrulamalı evrak önizlemesi, yıllık sayaçla benzersiz numara, snapshot, ilk statü geçmişi, müşteri bağlantı token'ı, audit — tek transaction), liste (URL dışı arama, durum/hizmet filtresi, sayfalama), detay, müşteri bilgisi düzenleme (optimistic lock), bağlantı göster/kopyala/yenile/iptal/yeniden oluştur, kişiselleştirilmiş WhatsApp mesajı hazırlığı (otomatik gönderim yok), dashboard bağlantıları. Token: 256 bit CSPRNG, HMAC-SHA256 hash, AES-256-GCM kopya. Müşteri paneli (`/b/TOKEN`), müşteri oturumu, PDF/storage, statü geçişleri, deployment **yok**. Commit/push bu fazda yapılmadı.
 
 ## Implemented Features
 Altyapı:
@@ -25,7 +27,8 @@ Altyapı:
 - PHASE 03: Better Auth 1.7.27 (username plugin; HTTP route'u yok — D-060); iki hesap modeli (migration 0003 — D-061); `pnpm auth:bootstrap` / `pnpm auth:reset-password` (D-062); ortak `requireStaff()`; giriş rate limiting (D-063); nonce'lu CSP + dinamik render (D-064); ortak giriş ekranı `/login`; korumalı `/dashboard` placeholder; çıkış; auth audit event'leri.
 - PHASE 04: `/dashboard` düzeni ve Genel Bakış (D-070); `/dashboard/applications`, `/services`, `/audit-logs` bilgilendirme sayfaları; panel içi 404; proxy köken kontrolü (D-069); bilinmeyen kullanıcı adı rate limiti (D-068); test oturumu altyapısı (D-067); CSP nonce'lu kaydırma kilidi (D-071).
 - PHASE 05: `/dashboard/services` (liste, arama, filtre), `/new`, `/[serviceId]` (genel bilgiler, durum, sabit dosya kuralları, evrak gereksinimleri); 7 Server Action; migration 0004 (`version` kolonları — D-074); ConfirmDialog, FormField, Textarea; izole test ortamı (`pnpm test:integration:isolated`, `pnpm test:e2e:isolated` — D-077).
-- Veritabanı: Neon Free, Frankfurt, PostgreSQL 18.7, tek veritabanı `neondb` (D-059); 5 migration.
+- PHASE 06: `/dashboard/applications` (liste), `/new` (oluşturma + başarı ekranı), `/[applicationId]` (özet, müşteri bilgileri, bağlantı yönetimi, evrak snapshot'ı, geçmiş); 8 Server Action; `src/server/access-tokens/crypto.ts`; `getAccessTokenEnv()`; `pnpm env:token-keys`; `libphonenumber-js` 1.13.17.
+- Veritabanı: Neon Free, Frankfurt, PostgreSQL 18.7, tek veritabanı `neondb` (D-059); 5 migration (PHASE 06'da şema değişikliği yok).
 
 ## Pending Features
 Tüm ürün özellikleri — [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) PHASE 02–13.
@@ -36,7 +39,7 @@ OD-01…OD-23: **23/23 ACCEPTED** (Product Owner, 2026-11-24) — [DECISION_LOG.
 
 ## Technical Decisions
 
-D-042…D-058, D-060…D-064, D-066, D-069…D-071 **Accepted**; D-067 ve D-068 **Conditionally Accepted**; D-063 ve D-065 **Partially Superseded**. PHASE 05 kararları **D-072…D-077 Proposed** (kullanıcı onayı bekliyor). Ürün kararı OD-24 ACCEPTED.
+D-042…D-058, D-060…D-064, D-066, D-069…D-077 **Accepted**; D-067 ve D-068 **Conditionally Accepted**; D-063 ve D-065 **Partially Superseded**. PHASE 06 kararları **D-078…D-086 Proposed** (kullanıcı onayı bekliyor). Ürün kararı OD-24 ACCEPTED.
 
 | ID | Konu | Öneri | Gerekli faz |
 |---|---|---|---|
@@ -61,29 +64,30 @@ D-042…D-058, D-060…D-064, D-066, D-069…D-071 **Accepted**; D-067 ve D-068 
 5. Production hosting kararı için değerlendirme sonuçlarına onay (TD-07).
 
 ## Known Issues
-1. **P4-01 (PARTIAL):** Gerçek hesaplar varken (`neondb`) doğru şifreyle giriş, bootstrap ve şifre sıfırlama doğrulanamaz; bu senaryolar artık **izole geçici veritabanında** geçici hesaplarla sürekli doğrulanıyor (D-077). D-067 koşulları geçerli; gerçek müşteri verisinden önce izolasyon (PB-06) gerekli.
-2. **Hesap başına kilitleme DoS'u ve kullanıcı adı tespiti (D-068 — açık):** IP bazlı limit yok (TD-04, PHASE 13).
-3. **Ani yük:** Pool en fazla 5 bağlantı; yüksek ağ gecikmesinde (ölçülen ~290 ms) eşzamanlı giriş denemeleri 10 sn bağlantı beklemesini aşıp fail-closed reddedilebilir. Yük testi PHASE 12. (Rate limit testleri bu yüzden kendi uzun beklemeli havuzunu kullanır.)
-4. **`Secure` cookie (P4-04 — DEFERRED):** gerçek HTTPS tarayıcı doğrulaması PHASE 13 öncesi.
-5. **Köken kontrolü hosting'e bağlı** (`X-Forwarded-Host` davranışı — D-069).
-6. **Kaydedilmemiş değişiklik uyarısı** yalnızca sayfa yenileme/kapatmada (`beforeunload`); uygulama içi bağlantı gezinmesinde yalnızca görünür gösterge var (D-073).
-7. **İzole testler Docker gerektirir;** CI'da izole hedef yok (PHASE 12). CI'da veritabanı yok → integration ve oturum gerektiren E2E çalışmaz. Gerçek GitHub CI çalışması gözlemlenmedi.
-8. **Ortak `neondb`'de test yan etkileri:** PHASE 02 testlerinin sentetik `SYSTEM` audit kayıtları (`TEST_EVENT`, `APPLICATION_DELETED`) birikir (değiştirilemez); gerçek personel adına audit artık oluşmaz (çıkış E2E'si izole ortama taşındı). Önceki fazlardan kalan gerçek hesap adına `USER_LOGOUT` test kayıtları silinemez.
-9. **Tam sayfa ekran görüntülerinde** sabit header/sidebar sayfa ortasında görünür (Playwright `fullPage` davranışı; arayüz hatası değil).
-10. **axe taraması** yapılmadı (PHASE 12). Gerçek cihaz/ekran okuyucu testi yok.
-11. **ESLint 10 peer uyarıları (D-042)**, **1 moderate bağımlılık bulgusu** (drizzle-kit → esbuild), **Node 24.22.3 yaması kurulmadı**.
-12. **Repo herkese açık** — private yapılması önerilir.
+1. **Müşteri tarafı doğrulanmadı:** bağlantılar oluşturuluyor ama `/b/TOKEN` ve müşteri oturumu PHASE 07'de; iptal/yenilemenin müşteri erişimini HTTP üzerinden kapattığı PHASE 07 E2E'siyle doğrulanacak. Ekranlarda "gerçek müşterilerle paylaşmayın" uyarısı var.
+2. **Token anahtarı yedekleme ve şifreleme anahtarı rotasyon betiği yok** (TM-48) — PHASE 13 öncesi zorunlu. Yerel `.env.local`'da token anahtarları `pnpm env:token-keys` ile oluşturuldu; silinir/değişirse yerel bağlantılar çözülemez.
+3. **Arama sayfa yenilenince sıfırlanır** (arama metni bilinçli olarak URL'de değil — D-085). Tarih aralığı filtresi ve `sort` parametresi bu fazda yok.
+4. **İç notlar ve başvuru silme** PHASE 06 talimatı dışında bırakıldı (roadmap'teki ilgili maddeler sonraki faza).
+5. **Hesap başına kilitleme DoS'u ve kullanıcı adı tespiti (D-068 — açık):** IP bazlı limit yok (TD-04).
+6. **`Secure` cookie (P4-04 — DEFERRED)**, **köken kontrolü hosting'e bağlı** (D-069).
+7. **İzole testler Docker gerektirir;** CI'da izole hedef ve veritabanı yok → integration ve oturum/mutasyon E2E'si CI'da çalışmaz. Gerçek GitHub CI çalışması gözlemlenmedi. Neon'a özgü test kapsamı ayrı gereksinim.
+8. **Ortak `neondb`'de test yan etkisi kalmadı:** PHASE 06'dan itibaren `pnpm test:integration` ve `pnpm test:e2e` ortak veritabanına kalıcı yazmaz (parmak izi + audit sayısı test öncesi/sonrası aynı). Önceki fazlardan kalan sentetik `SYSTEM` audit kayıtları ve gerçek hesap adına `USER_LOGOUT` test kayıtları silinemez.
+9. **Kaydedilmemiş değişiklik uyarısı** uygulama içi gezinmede yalnızca görünür gösterge (D-073).
+10. **axe taraması, gerçek cihaz ve ekran okuyucu testi yapılmadı** (PHASE 12).
+11. **ESLint 10 peer uyarıları**, **1 moderate bağımlılık bulgusu** (drizzle-kit → esbuild), **Node 24.22.3 yaması kurulmadı**, **repo herkese açık**.
 
 ## PHASE 04 Teknik Konuları — Sonuç
 
 | ID | Konu | Sonuç |
 |---|---|---|
-| **P4-01** | Kalıcı kimliği doğrulanmış test stratejisi | **PARTIAL (D-067, koşullu Accepted)** — tam kimlik doğrulama test kapsamı açısından: tek veritabanı + test başına kısa ömürlü oturum; gerçek hesaplara yalnızca okuma/etkisiz işlem; bypass/endpoint yok. Doğru şifreyle giriş gerçek hesaplar varken NOT VERIFIED. |
+| **P4-01** | Kalıcı kimliği doğrulanmış test stratejisi | **RESOLVED (yerel otomatik test izolasyonu — D-077, PHASE 05 onayı)**. Neon'a özgü kapsam, GitHub CI ve production veri izolasyonu ayrı açık gereksinimler. Önceki durum: tek veritabanı + test başına kısa ömürlü oturum; gerçek hesaplara yalnızca okuma/etkisiz işlem; bypass/endpoint yok. Doğru şifreyle giriş gerçek hesaplar varken NOT VERIFIED. |
 | **P4-02** | CSRF reddinin hata biçimi | **RESOLVED (D-069, Accepted):** proxy'de 403 "İstek reddedildi."; Next.js kontrolü ikinci katman olarak açık. |
 | **P4-03** | Global login rate limit DoS riski | **MITIGATED (D-068, koşullu Accepted):** genel limit kaldırıldı, yalnızca bilinmeyen adlara ortak limit. **Açık:** hesap başına kilitleme DoS'u (TD-04, PHASE 13). |
 | **P4-04** | HTTPS'te `Secure` cookie | **DEFERRED:** yapılandırma düzeyinde integration testli. Gerçek HTTPS tarayıcı doğrulaması sistem sertifika deposu değişikliği veya deployment gerektirdiği için yapılmadı → **PHASE 13 öncesi zorunlu** (PB-07 kapsamında). |
 
 ## Technical Debt
+- Şifreleme anahtarı yeniden şifreleme (rotasyon) betiği (D-081).
+- Başvuru listesinde tarih aralığı filtresi ve sıralama seçenekleri (API_CONTRACTS planı).
 - `reorderServicesAction` uygulanmadı (hizmetler ada göre; D-072). İhtiyaç olursa hizmet sırası için ayrı karar.
 - Hizmet listesi en fazla 100 kayıt (sayfalama yok — küçük katalog).
 - Rota bazlı `no-referrer` header'ı müşteri yollarıyla birlikte (PHASE 07/08).
@@ -109,14 +113,14 @@ Ayrıntı: [SECURITY.md](SECURITY.md) §11.
 
 **Geliştirmeyi engelleyen:** yok (yalnızca faz onayları). PB-01…PB-11 açık; hiçbiri çözülmüş sayılmaz. PHASE 00/01 onayları production güvenliği veya KVKK uyumluluğu onayı değildir.
 
-## Latest Verification Results (2026-11-24, PHASE 05)
-- `pnpm install --frozen-lockfile`, lint, typecheck, format:check, `db:check` → exit 0. `db:verify` → 17 tablo, 5 migration, TLS doğrulandı.
-- Unit 148/148.
-- Integration (`neondb`): 100 geçti / 17 atlandı (12 geçici hesap yaşam döngüsü + 5 eşzamanlılık — izole ortama özgü). Integration (izole): 107 geçti / 10 atlandı (gerçek hesaba özgü testler).
-- Canary build + client bundle kontrolü (22 dosya) temiz.
-- E2E (`neondb`): 213 geçti / 107 atlandı. E2E (izole): 257 geçti / 63 atlandı (yalnızca proje/genişlik kapsamı ve 1 boş-veri koşulu).
-- `pnpm run audit` (high): temiz (1 moderate).
-- `neondb` gerçek veri parmak izleri (hesap+credential md5, hizmet, evrak, başvuru sayısı, şablon audit sayısı) test öncesi/sonrası **aynı**; `test-session-*` 0; gerçek oturum etkilenmedi.
+## Latest Verification Results (2026-11-24, PHASE 06)
+- `install --frozen-lockfile`, lint, typecheck, format:check, `db:check` → exit 0; `db:verify` → 17 tablo, 5 migration, TLS doğrulandı.
+- Unit 203/203.
+- Integration (`neondb`, yalnızca salt okunur/geri alınan dosyalar): 58 geçti / 17 atlandı. Integration (izole): 124 geçti / 10 atlandı (gerçek hesaba özgü).
+- Canary build (5 canary secret dahil token anahtarları) + client bundle kontrolü (25 dosya) temiz.
+- E2E (`neondb`, salt okunur): 243 geçti / 153 atlandı (53 izole-mutasyon, 24 şifreyle giriş, kalanı proje/genişlik kapsamı). E2E (izole): 315 geçti / 81 atlandı (yalnızca proje/genişlik kapsamı). İki koşuda kararlı.
+- `pnpm run audit` (high) temiz (1 moderate).
+- `neondb` parmak izleri (hesap+credential, hizmet, evrak, başvuru 0, token 0, sayaç 0, şablon audit 0, toplam audit 154) tüm testler öncesi/sonrası **aynı**.
 
 ## Next Phase
-**PHASE 06 — Customer & Application Management** — kullanıcı açıkça onaylamadan başlanmaz.
+**PHASE 07 — Customer Portal** — kullanıcı açıkça onaylamadan başlanmaz.

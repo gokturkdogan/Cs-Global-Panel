@@ -36,7 +36,7 @@ async function openMenu(page: Page) {
 }
 
 test.describe("panel iskeleti", () => {
-  test("Genel Bakış: başlık, açıklama, konum yolu, pasif Yeni Başvuru, 4 sayaç; hata yok; no-store", async ({
+  test("Genel Bakış: başlık, açıklama, konum yolu, Yeni Başvuru bağlantısı, 4 sayaç; hata yok; no-store", async ({
     page,
     signInAs,
   }) => {
@@ -54,11 +54,11 @@ test.describe("panel iskeleti", () => {
     await expect(breadcrumb).toHaveText(/Panel\s*Genel Bakış/);
     await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText("Genel Bakış");
 
-    const newApplication = page.getByRole("button", { name: "Yeni Başvuru" });
-    await expect(newApplication).toBeDisabled();
-    await expect(
-      page.getByText("Başvuru oluşturma sonraki aşamada kullanıma açılacak."),
-    ).toBeVisible();
+    // PHASE 06: Yeni Başvuru gerçek forma gider.
+    await expect(page.getByRole("link", { name: "Yeni Başvuru" })).toHaveAttribute(
+      "href",
+      "/dashboard/applications/new",
+    );
 
     const stats = page.getByTestId("dashboard-stats");
     for (const label of ["Toplam Başvuru", "Evrak Bekleyen", "İncelemede", "Tamamlanan"]) {
@@ -95,7 +95,10 @@ test.describe("panel iskeleti", () => {
           );
         return {
           buttons: strip(await page.getByRole("button").allTextContents()),
-          links: strip(await page.getByRole("link").allTextContents()),
+          // Başvuru numarası bağlantıları veridir (izole ortamda paralel testler ekleyebilir); arayüz karşılaştırılır.
+          links: strip(await page.getByRole("link").allTextContents()).filter(
+            (text) => !/^CS-\d{4}-\d+$/.test(text),
+          ),
           headings: strip(await page.getByRole("heading").allTextContents()),
         };
       } finally {
@@ -132,7 +135,7 @@ test.describe("panel iskeleti", () => {
       if (path !== "/dashboard") {
         // Hizmetler PHASE 05'te gerçek modül; diğerleri bilgilendirme sayfası.
         await expect(page.getByText("Henüz kullanıma hazır değil")).toHaveCount(
-          path === "/dashboard/services" ? 0 : 1,
+          path === "/dashboard/audit-logs" ? 1 : 0, // Hizmetler (PHASE 05) ve Başvurular (PHASE 06) gerçek modül
         );
         await expect(page.getByRole("navigation", { name: "Konum" })).toHaveText(
           new RegExp(`Panel\\s*${label}`),
@@ -374,6 +377,8 @@ test.describe("veri (Desktop Chrome, sıralı)", () => {
     signInAs,
     runtimeDb,
   }) => {
+    // Kalıcı sentetik başvuru commit eder → yalnızca izole veritabanında (D-077, PHASE 06).
+    test.skip(!isIsolatedTestDatabase(), ISOLATION_SKIP_REASON);
     const user = (
       await runtimeDb.query<{ id: string }>("SELECT id FROM users ORDER BY role LIMIT 1")
     ).rows[0]!;
@@ -401,14 +406,17 @@ test.describe("veri (Desktop Chrome, sıralı)", () => {
       await expect(firstRow).toContainText("Sentetik Kişi");
       await expect(firstRow).toContainText(`E2E Test Hizmeti ${suffix}`);
       await expect(firstRow).toContainText("İncelemede");
-      await expect(firstRow.locator("a")).toHaveCount(0);
+      // PHASE 06: başvuru numarası detaya bağlantı.
+      await expect(firstRow.getByRole("link", { name: number })).toHaveAttribute(
+        "href",
+        `/dashboard/applications/${application.rows[0]!.id}`,
+      );
       await expect(page.getByTestId("review-queue-list").locator("li").first()).toContainText(
         number,
       );
       const html = await page.content();
       expect(html).not.toContain("+905550000098");
       expect(html).not.toContain("e2e+dash@example.invalid");
-      expect(html).not.toContain(application.rows[0]!.id);
     } finally {
       await runtimeDb.query("DELETE FROM applications WHERE id = $1", [application.rows[0]!.id]);
       // Hizmet silme yetkisi runtime rolünde yok (OD-12: hizmet silinmez) → sahip bağlantısıyla.

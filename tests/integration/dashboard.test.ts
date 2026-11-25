@@ -100,6 +100,7 @@ describe("dashboard genel bakış sorguları", () => {
       numbers.review,
     ]);
     expect(after.recentApplications[0]).toEqual({
+      id: expect.any(String),
       applicationNumber: numbers.cancelled,
       customerName: "Test Kisicancelled",
       serviceName: "Test Hizmeti",
@@ -114,7 +115,7 @@ describe("dashboard genel bakış sorguları", () => {
     expect(serialized).not.toContain("example.invalid");
     for (const row of after.recentApplications) {
       expect(Object.keys(row).sort()).toEqual(
-        ["applicationNumber", "createdAt", "customerName", "serviceName", "status"].sort(),
+        ["applicationNumber", "createdAt", "customerName", "id", "serviceName", "status"].sort(),
       );
     }
   });

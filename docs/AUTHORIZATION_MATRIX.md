@@ -18,11 +18,11 @@
 Her iki hesap aşağıdakilerin **tamamını** yapabilir. Hesap türüne göre fark yoktur:
 
 - Dashboard; tüm başvuruları görüntüleme, arama, filtreleme (atama yok — OD-03).
-- Başvuru oluşturma ve müşteri bilgilerini düzenleme.
+- Başvuru oluşturma ve müşteri bilgilerini düzenleme (PHASE 06 — uygulandı; 8 action'ın tamamı `requireStaff()` ile başlar, aktör oturumdan; E2E'de bir hesabın oluşturduğu başvuruyu diğer hesabın düzenlediği/bağlantısını yenilediği doğrulandı).
 - Hizmet oluşturma/düzenleme/pasifleştirme/yeniden aktifleştirme; evrak şablonu ekleme/düzenleme/pasifleştirme/yeniden aktifleştirme/sıralama (PHASE 05 — uygulandı; her action `requireStaff()`, aktör oturumdan; E2E'de iki hesabın aynı form/aksiyonları gördüğü ve oluşturan/düzenleyen hesabın farklı olabildiği doğrulandı).
 - Müşteri adına PDF yükleme ve değiştirme (BR-44), evrak inceleme, onay, düzeltme talebi.
 - Statü geçişleri T1–T12 (iptal, iptal edilmişi/tamamlanmışı yeniden açma, izin verilen önceki statülere dönme dahil).
-- Müşteri bağlantısını görüntüleme, kopyalama, WhatsApp ile paylaşma, iptal etme, yenileme.
+- Müşteri bağlantısını görüntüleme, kopyalama, WhatsApp ile paylaşma, iptal etme, yenileme (PHASE 06 — uygulandı; açığa çıkarma ve paylaşım hazırlığı audit'lenir).
 - Şirket içi notlar; yorumlar; başvurunun işlem geçmişi; genel audit log görüntüleme.
 - Başvurunun ve ilgili müşteri verilerinin/PDF'lerinin manuel kalıcı silinmesi (BR-150…BR-155).
 

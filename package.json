@@ -33,7 +33,8 @@
     "db:seed": "node scripts/db/seed.ts",
     "db:studio": "node scripts/db/studio.ts",
     "auth:bootstrap": "node scripts/auth/bootstrap.ts",
-    "auth:reset-password": "node scripts/auth/reset-password.ts"
+    "auth:reset-password": "node scripts/auth/reset-password.ts",
+    "env:token-keys": "node scripts/env/ensure-token-keys.ts"
   },
   "dependencies": {
     "better-auth": "1.7.27",
@@ -42,6 +43,7 @@
     "drizzle-orm": "0.45.4",
     "geist": "1.9.2",
     "get-nonce": "1.0.1",
+    "libphonenumber-js": "1.13.17",
     "lucide-react": "1.78.0",
     "next": "16.4.6",
     "pg": "8.23.1",

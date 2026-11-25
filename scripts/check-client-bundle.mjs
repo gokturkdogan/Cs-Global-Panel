@@ -14,13 +14,21 @@ const SERVER_ENV_NAMES = [
   "RATE_LIMIT_KEY_SECRET",
   "ACCESS_TOKEN_HMAC_KEY",
   "ACCESS_TOKEN_ENCRYPTION_KEYS",
+  "ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID",
   "CUSTOMER_SESSION_SECRET",
   "BLOB_READ_WRITE_TOKEN",
   "CRON_SECRET",
 ];
 
 /** Sunucu modülü işaretleri (bu ifadeler yalnızca sunucu kodunda bulunur). */
-const SERVER_MODULE_MARKERS = ["EnvValidationError", "DatabaseConfigError", "cs_app_runtime"];
+const SERVER_MODULE_MARKERS = [
+  "EnvValidationError",
+  "DatabaseConfigError",
+  "cs_app_runtime",
+  // PHASE 06: token kriptografisi yalnızca sunucuda.
+  "AccessTokenCryptoError",
+  "cs-access-token:",
+];
 
 /**
  * Build sırasında ortamda bulunan secret değerleri de aranır (canary sızıntı testi):
@@ -36,6 +44,16 @@ const secretValues = SERVER_ENV_NAMES.map((name) => [name, process.env[name]])
       if (url.password) candidates.push(decodeURIComponent(url.password));
     } catch {
       // URL değil
+    }
+    try {
+      // JSON anahtar haritası (ACCESS_TOKEN_ENCRYPTION_KEYS): her anahtar değeri ayrıca aranır.
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object") {
+        for (const item of Object.values(parsed))
+          if (typeof item === "string" && item.length >= 8) candidates.push(item);
+      }
+    } catch {
+      // JSON değil
     }
     return candidates.map((candidate) => ({ label: `${name} değeri`, value: candidate }));
   });

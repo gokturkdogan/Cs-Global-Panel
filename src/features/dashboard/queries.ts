@@ -35,6 +35,7 @@ export async function queryDashboardOverview(db: Executor): Promise<DashboardOve
     .where(visible);
 
   const row = {
+    id: applications.id,
     applicationNumber: applications.applicationNumber,
     firstName: applications.customerFirstName,
     lastName: applications.customerLastName,
@@ -63,6 +64,7 @@ export async function queryDashboardOverview(db: Executor): Promise<DashboardOve
   return {
     stats: stats ?? { total: 0, awaitingDocuments: 0, underReview: 0, completed: 0 },
     recentApplications: recent.map((item) => ({
+      id: item.id,
       applicationNumber: item.applicationNumber,
       customerName: customerName(item),
       serviceName: item.serviceName,
@@ -70,6 +72,7 @@ export async function queryDashboardOverview(db: Executor): Promise<DashboardOve
       createdAt: item.createdAt.toISOString(),
     })),
     reviewQueue: queue.map((item) => ({
+      id: item.id,
       applicationNumber: item.applicationNumber,
       customerName: customerName(item),
       serviceName: item.serviceName,

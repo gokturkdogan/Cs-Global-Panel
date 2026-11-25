@@ -10,9 +10,9 @@ CS Global Customer Panel
 
 ## Durum
 
-**PHASE 05 — Service & Document Template Management** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi, şirket paneli temeli ve hizmet / evrak şablonu yönetimi vardır. Başvuru oluşturma, müşteri paneli ve dosya yükleme **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
+**PHASE 06 — Customer & Application Management** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi ve başvuru yönetimi (oluşturma, liste, detay, müşteri bağlantısı, WhatsApp mesajı hazırlığı) vardır. Müşteri paneli (`/b/…`) ve dosya yükleme **henüz yoktur**; oluşturulan bağlantılar müşteri sayfası açmaz. Platform gerçek müşteri kullanımına hazır değildir.
 
-Sonraki faz: **PHASE 06 — Customer & Application Management**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Sonraki faz: **PHASE 07 — Customer Portal**. Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 
@@ -103,6 +103,10 @@ Yalnızca **iki** şirket hesabı vardır: bir ADMIN, bir EMPLOYEE — **eşit y
 3. `pnpm dev` → `http://localhost:3000/login`.
 
 Şifre unutulursa: `pnpm auth:reset-password`.
+
+## Müşteri Bağlantı Anahtarları (PHASE 06)
+
+Başvuru oluşturmak ve bağlantı göstermek için `.env.local`'da `ACCESS_TOKEN_*` anahtarları gerekir. `pnpm env:token-keys` yalnızca eksik olanları ekler (mevcutların üzerine yazmaz, değer göstermez). Anahtarları değiştirmeyin veya kaybetmeyin: mevcut müşteri bağlantıları çözülemez/geçersiz olur.
 
 ## Testler
 

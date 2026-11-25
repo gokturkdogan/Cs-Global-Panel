@@ -21,8 +21,9 @@ export type DashboardStats = {
   readonly completed: number;
 };
 
-/** İstemciye giden satır DTO'su: telefon, e-posta, token, iç not, kimlik YOK. */
+/** İstemciye giden satır DTO'su: telefon, e-posta, token, iç not YOK. Kimlik yalnızca detay bağlantısı için (PHASE 06). */
 export type DashboardApplicationRow = {
+  readonly id: string;
   readonly applicationNumber: string;
   readonly customerName: string;
   readonly serviceName: string;

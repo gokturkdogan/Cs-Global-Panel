@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -9,10 +10,19 @@ type StatCardProps = {
   readonly description: string;
   readonly icon: LucideIcon;
   readonly iconClassName?: string;
+  /** İlgili filtreli listeye bağlantı (isteğe bağlı). */
+  readonly href?: string;
 };
 
 /** Sayaç kartı: etiket + sayı + açıklama metin olarak; ikon dekoratif. */
-export function StatCard({ label, value, description, icon: Icon, iconClassName }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  description,
+  icon: Icon,
+  iconClassName,
+  href,
+}: StatCardProps) {
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
       <div className="flex items-start justify-between gap-3">
@@ -31,6 +41,15 @@ export function StatCard({ label, value, description, icon: Icon, iconClassName 
         {formatCount(value)}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      {href ? (
+        <Link
+          href={href}
+          className="mt-2 inline-block rounded-sm text-xs font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          aria-label={`${label}: başvuruları listele`}
+        >
+          Listele
+        </Link>
+      ) : null}
     </div>
   );
 }

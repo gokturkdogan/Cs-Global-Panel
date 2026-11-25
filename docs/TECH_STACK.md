@@ -29,6 +29,7 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 | `drizzle-orm` | 0.45.4 (PHASE 02) | ORM, `node-postgres` sürücüsü, migrator | ✅ pg >=8 |
 | `pg` | 8.23.1 (PHASE 02) | PostgreSQL sürücüsü (Pool, interaktif transaction) | ✅ |
 | `better-auth` | 1.7.27 (PHASE 03) | Personel kimlik doğrulama (username plugin, scrypt, oturum) | ✅ next ^16, drizzle-orm ^0.45.2, drizzle-kit >=0.31.4, pg ^8 |
+| `libphonenumber-js` | 1.13.17 (PHASE 06, D-085) | Telefon → E.164 normalizasyonu (BR-07); `libphonenumber-js/max` yalnızca sunucuda (istemci bundle'ına girmez). npm registry: MIT, 2026-11-19, deprecated değil, bağımlılıksız; `pnpm audit` yeni bulgu yok | — |
 
 **Test altyapısı (npm bağımlılığı değil — PHASE 05, D-077):** Docker Engine 28.4.0 (Docker Desktop, yerel) + resmî `postgres:18-alpine` imajı (PostgreSQL 18.7, `builtin` C.UTF-8). Yalnızca `pnpm test:*:isolated` için; ücretsiz, geçici, 127.0.0.1. PHASE 05'te yeni npm bağımlılığı eklenmedi (Radix AlertDialog mevcut `radix-ui` paketinden; React Hook Form gereksiz bulundu).
 
@@ -53,7 +54,7 @@ Tümü exact sürüm. Peer durumu `pnpm install` çıktısından; kaynak: npm re
 
 **Araçlar (bağımlılık değil):** `pnpm@10.34.9` (`packageManager`, D-004), Node.js 24 LTS (`engines.node: 24.x`, `.nvmrc`: `24`), `shadcn@4.23.0` CLI (`pnpm dlx`), create-next-app@16.4.6 (yalnızca geçici dizinde şablon incelemesi için).
 
-**Sonraki fazlara bırakılanlar (kurulmadı):** `react-hook-form`, `@hookform/resolvers` (ilk form fazı); `libphonenumber-js` (PHASE 06); `@vercel/blob` 2.9.0 (PHASE 08); `tw-animate-css` (animasyonlu bileşen gerekirse). Sürümler kurulum anında yeniden doğrulanır.
+**Sonraki fazlara bırakılanlar (kurulmadı):** `react-hook-form`, `@hookform/resolvers` (ilk form fazı); `@vercel/blob` 2.9.0 (PHASE 08); `tw-animate-css` (animasyonlu bileşen gerekirse). Sürümler kurulum anında yeniden doğrulanır.
 
 **PHASE 02'de kurulmayanlar:** `tsx` (Node 24 TypeScript'i doğrudan çalıştırır — D-057), `@neondatabase/serverless` (HTTP sürücüsü interaktif transaction/`FOR UPDATE` için uygun değil — D-006/D-055), `dotenv` (`process.loadEnvFile`).
 

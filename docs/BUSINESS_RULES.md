@@ -23,6 +23,7 @@
 - **BR-11** Numara yıllık sayaç tablosundan, başvuru oluşturma transaction'ı içinde atomik olarak alınır (D-008). Eşzamanlı oluşturmada çakışma olmaz; `application_number` unique'tir.
 - **BR-12** Numara **erişim anahtarı değildir**, değiştirilemez, silinen başvurunun numarası yeniden kullanılmaz.
 - **BR-13** 999 999 aşılırsa hane sayısı genişler (`CS-2026-1000000`).
+- *Uygulama notu (PHASE 06):* Sayaç artışı başvuru transaction'ıyla birlikte geri alınır; başarısız oluşturma numara tüketmez. Ayrıntı: D-078.
 
 ## 3. Hizmetler ve Evrak Şablonları
 
@@ -115,6 +116,7 @@
 - **BR-105** Link önizleme botları ve crawler'lar başvuru durumunu **değiştiremez**: bağlantıyı açmak (GET) hiçbir veriyi değiştirmez ve audit kaydı oluşturmaz.
 - **BR-106** İki şirket hesabı bağlantı yönetiminde eşit yetkilidir (OD-19, OD-24): görüntüle, kopyala, WhatsApp ile paylaş, iptal et, yenile, iptal edilmişin yerine yeni oluştur. İptal ve yenileme onay penceresi gerektirir ve audit'lenir (token audit'e yazılmaz).
 - **BR-107** Bağlantı URL'si yalnızca sunucu yapılandırmasındaki `APP_URL` ile üretilir; request `Host` header'ı kullanılmaz (OD-20).
+- *Uygulama notları (PHASE 06 — ürün kuralı eklemez):* Bağlantı personele yalnızca açık aksiyonla (Göster/Kopyala/Paylaş) sunucuda çözülerek gösterilir ve audit'lenir; iptal/yenileme istemcinin gördüğü aktif bağlantı kimliğiyle yapılır. Müşteri telefon/e-posta düzeltmesi bağlantıyı kendiliğinden yenilemez; personele uyarı gösterilir (D-083, D-084).
 
 ## 11. İlerleme Göstergeleri
 

@@ -454,3 +454,6 @@ Migration `0003_fixed_two_account_model`: hesap türü başına tek hesap, `emai
 
 ### 9.4 PHASE 05 — migration 0004 (D-074)
 `0004_template_optimistic_lock.sql`: `services.version`, `service_document_requirements.version` (`integer DEFAULT 1 NOT NULL` + CHECK `>= 1`). Yalnızca ekleme; mevcut 3 demo hizmet ve 12 şablon `version = 1` aldı; yeni tablo yok, GRANT değişmedi. `db:check` temiz; neondb'de toplam 5 migration. Tablo sayısı 17.
+
+### 9.5 PHASE 06 — başvuru yönetimi (şema değişikliği yok)
+Mevcut tablolar yeterli; migration eklenmedi (5 migration, 17 tablo). Kullanılanlar: `application_number_counters` (yıllık sayaç), `applications` (müşteri alanları, `search_text`, `service_name_snapshot`, `idempotency_key`, `version`), `application_document_requirements` (snapshot, `NOT_UPLOADED`), `application_status_history` (`CREATE`), `application_access_tokens` (HMAC hash UNIQUE, `v1:` şifreli kopya, `encryption_key_id`, `revoke_reason` `ROTATED`/`REVOKED`, tek aktif partial unique). Oluşturma ve bağlantı işlemlerinin kilit sırası §6 + D-078/D-084. Liste sorgusundaki aktif token alt sorgusu dış tabloyu açıkça niteler (D-085 notu).

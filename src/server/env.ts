@@ -166,3 +166,77 @@ export function getAuthEnv(): AuthEnv {
   cachedAuthEnv ??= parseAuthEnv(process.env);
   return cachedAuthEnv;
 }
+
+/**
+ * Müşteri bağlantı token'ı anahtarları (PHASE 06, SECURITY §3.2, D-080). Yalnızca token işlemlerinde
+ * (oluşturma, görüntüleme, yenileme) çağrılır: eksik/hatalı anahtar bu işlemleri fail-closed reddeder;
+ * giriş ve diğer modüller etkilenmez. Hata mesajı değer içermez.
+ *
+ * - ACCESS_TOKEN_HMAC_KEY: base64, çözülmüş 32 bayt — token doğrulama hash'i.
+ * - ACCESS_TOKEN_ENCRYPTION_KEYS: JSON `{"k1":"<base64 32 bayt>"}` — AES-256-GCM anahtarları (rotasyon).
+ * - ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: yeni şifrelemede kullanılan anahtar kimliği.
+ * Tüm anahtarlar birbirinden ve auth secret'larından farklı olmalıdır.
+ */
+export type AccessTokenEnv = {
+  readonly appUrl: string;
+  readonly hmacKey: Buffer;
+  readonly encryptionKeys: ReadonlyMap<string, Buffer>;
+  readonly activeKeyId: string;
+};
+
+const KEY_ID_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
+const TOKEN_KEY_BYTES = 32;
+
+function decodeKey(value: unknown): Buffer | null {
+  if (typeof value !== "string" || !/^[A-Za-z0-9+/_-]+={0,2}$/.test(value.trim())) return null;
+  const buffer = Buffer.from(value.trim(), "base64");
+  return buffer.length === TOKEN_KEY_BYTES ? buffer : null;
+}
+
+export function parseAccessTokenEnv(source: EnvSource): AccessTokenEnv {
+  const { appUrl } = parseServerEnv(source);
+  const invalid: string[] = [];
+
+  const hmacKey = decodeKey(source.ACCESS_TOKEN_HMAC_KEY);
+  if (hmacKey === null) invalid.push("ACCESS_TOKEN_HMAC_KEY");
+
+  const encryptionKeys = new Map<string, Buffer>();
+  try {
+    const parsed: unknown = JSON.parse(source.ACCESS_TOKEN_ENCRYPTION_KEYS ?? "");
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    for (const [id, value] of Object.entries(parsed)) {
+      const key = decodeKey(value);
+      if (!KEY_ID_PATTERN.test(id) || key === null) throw new Error();
+      encryptionKeys.set(id, key);
+    }
+    if (encryptionKeys.size === 0) throw new Error();
+  } catch {
+    invalid.push("ACCESS_TOKEN_ENCRYPTION_KEYS");
+  }
+
+  const activeKeyId = source.ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID?.trim() ?? "";
+  if (!encryptionKeys.has(activeKeyId)) invalid.push("ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID");
+  if (invalid.length > 0) throw new EnvValidationError(invalid);
+
+  // Anahtar ayrımı: HMAC anahtarı, şifreleme anahtarları ve auth secret'ları birbirinden farklı.
+  const all = [hmacKey!, ...encryptionKeys.values()].map((key) => key.toString("hex"));
+  const authSecrets = [source.BETTER_AUTH_SECRET, source.RATE_LIMIT_KEY_SECRET].filter(Boolean);
+  const reused =
+    new Set(all).size !== all.length ||
+    authSecrets.some((value) =>
+      [hmacKey!, ...encryptionKeys.values()].some(
+        (key) => value === key.toString("base64") || value === key.toString("hex"),
+      ),
+    );
+  if (reused)
+    throw new EnvValidationError(["ACCESS_TOKEN_HMAC_KEY", "ACCESS_TOKEN_ENCRYPTION_KEYS"]);
+
+  return { appUrl, hmacKey: hmacKey!, encryptionKeys, activeKeyId };
+}
+
+let cachedAccessTokenEnv: AccessTokenEnv | undefined;
+
+export function getAccessTokenEnv(): AccessTokenEnv {
+  cachedAccessTokenEnv ??= parseAccessTokenEnv(process.env);
+  return cachedAccessTokenEnv;
+}

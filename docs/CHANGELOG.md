@@ -12,6 +12,33 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara
 ### Not Changed
 - PB-01…PB-11 açık. Kod değişikliği yok. Commit/push yapılmadı.
 
+## [PHASE 06 — Customer & Application Management] — 2026-11-24
+
+PHASE 05 kapatıldı (D-072…D-077 Accepted; P4-01 yerel test izolasyonu açısından RESOLVED). Başvuru yönetimi ve müşteri bağlantısı uygulandı.
+
+### Added
+- D-078…D-086 (Proposed); THREAT_MODEL TM-47, TM-48; SECURITY §14; DATA_PRIVACY §11; DEPLOYMENT §3.1; TESTING_STRATEGY §15; DATABASE_SCHEMA §9.5; API_CONTRACTS §2.1 uygulanan sözleşme.
+- `src/features/applications/{schemas,queries,service,actions}.ts`, `domain/{phone,search-text,whatsapp,template-fingerprint,document-status-labels}.ts`, `components/{applications-browser,application-table,application-create-form,create-success,customer-info-card,access-link-card,whatsapp-share-dialog,copy-link-button,link-status-badge,document-status-badge}.tsx`.
+- Rotalar: `/dashboard/applications` (gerçek modül), `/new`, `/[applicationId]`.
+- `src/server/access-tokens/crypto.ts`; `getAccessTokenEnv()`; `src/lib/{field-errors,clipboard}.ts`; `ActionErrorCode` `STALE_PREVIEW`; `messages.applications`.
+- `libphonenumber-js` 1.13.17 (exact); `pnpm env:token-keys`; `.env.example` token anahtarı açıklamaları.
+- Audit olayı `ACCESS_LINK_SHARE_PREPARED`.
+- Testler: `tests/unit/applications.test.ts`, `tests/integration/applications.test.ts`, `tests/e2e/applications.spec.ts`.
+
+### Changed
+- Dashboard: Yeni Başvuru aktif; son başvurular ve inceleme kuyruğu satırları detaya bağlantı; "Tümünü Gör"; Toplam/İncelemede/Tamamlanan "Listele" bağlantıları; dashboard DTO'suna `id`.
+- Tablolar (hizmet, son başvurular, başvurular) kart içinde yatay kaydırılabilir; başvuru tablosu ≥1280px.
+- `fieldErrorsOf` ortak modüle taşındı (`src/lib/field-errors.ts`).
+- İzole test betiği rastgele token anahtarları üretir; canary bundle kontrolü token anahtarlarını (JSON içindekiler dahil) ve kriptografi işaretlerini arar; CI canary build'ine token anahtarları eklendi.
+- `pnpm test:integration` (ortak `neondb`) yalnızca salt okunur/geri alınan dosyalar; commit eden PHASE 02 dosyaları izole ortamda; `privileges` audit ekleme testi geri alınan transaction'da; dashboard E2E'deki sentetik başvuru testi izole ortamda (D-086).
+- Eşitlik (iki hesap) E2E'leri veri bağlantılarını hariç tutar (paralel testler).
+
+### Fixed
+- Liste "aktif bağlantı" alt sorgusu (Drizzle niteliksiz kolon → yanlış bağlanma) — E2E ile yakalandı, integration testi eklendi.
+
+### Not Changed
+- OD-01…OD-24; iki hesap eşit; şema/migration değişmedi; müşteri portalı, oturumu, PDF/storage, statü geçişleri, silme, deployment yok. PB-01…PB-11 açık. Commit/push yapılmadı.
+
 ## [PHASE 05 — Service & Document Template Management] — 2026-11-24
 
 PHASE 04 kapatıldı (D-069…D-071 Accepted; D-067, D-068 koşullu; D-063, D-065 Partially Superseded). Hizmet ve evrak şablonu yönetimi uygulandı.

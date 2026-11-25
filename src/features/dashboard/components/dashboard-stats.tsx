@@ -14,6 +14,7 @@ export function DashboardStats({ stats }: { readonly stats: Stats }) {
           value={stats.total}
           description="Tüm başvurular"
           icon={FileText}
+          href="/dashboard/applications"
         />
         <StatCard
           label="Evrak Bekleyen"
@@ -27,12 +28,14 @@ export function DashboardStats({ stats }: { readonly stats: Stats }) {
           value={stats.underReview}
           description="Ekip incelemesinde"
           icon={Search}
+          href="/dashboard/applications?status=UNDER_REVIEW"
         />
         <StatCard
           label="Tamamlanan"
           value={stats.completed}
           description="Süreci tamamlanan"
           icon={CircleCheck}
+          href="/dashboard/applications?status=COMPLETED"
           iconClassName="bg-success-soft text-success-strong"
         />
       </div>

@@ -223,3 +223,16 @@ Son başvurular: ≥768px tablo (`caption` sr-only, `th scope="col"`), altında 
 | RequirementList | `requirement-list.tsx` | Sıra numarası + başlık + rozetler; talimat `whitespace-pre-line` düz metin; 44px "Yukarı/Aşağı taşı" ikon butonları (erişilebilir ad: "<evrak> evrakını yukarı taşı"), uçta pasif; taşıma sonrası odak taşınan evrakta kalır; işlem sonucu `role="status"` |
 
 Hizmet detay düzeni: konum yolu + başlık → (oluşturulduysa) başarı bildirimi → snapshot bilgi notu → [Genel bilgiler | Durum + Dosya kuralları (sabit)] → Evrak gereksinimleri. Ekran görüntüleri (yerel, commit edilmez): `screenshots/phase-05/`.
+
+## 12. PHASE 06 Uygulanan Bileşenler (başvuru yönetimi)
+
+| Bileşen | Dosya (`src/features/applications/components/`) | Kurallar |
+|---|---|---|
+| ApplicationsBrowser / ApplicationTable | `applications-browser.tsx`, `application-table.tsx` | Arama (URL'ye yazılmaz, "Temizle"), Durum/Hizmet/Sayfa başına seçimleri (`label`'lı native select), sayfalama "N kayıt · Sayfa X / Y" + Önceki/Sonraki; ≥1280px tablo (kart içinde yatay kaydırma — sayfa taşmaz), altında kart; telefon/e-posta listede yok; satırda Detay, Bağlantıyı kopyala, WhatsApp (yalnızca aktif bağlantıda); boş katalog ≠ sonuç yok ≠ hata |
+| ApplicationCreateForm / CreateSuccess | `application-create-form.tsx`, `create-success.tsx` | İki bölüm (Müşteri Bilgileri, Hizmet Bilgileri); hizmet seçilince evrak önizlemesi (sıra, Zorunlu/İsteğe bağlı rozeti, talimat, sabit PDF kuralı, "Evrak listesini yenile"); ilk hatalı alana odak; "Oluşturuluyor…" + çift gönderim kilidi; başarıda "Başvuru başarıyla oluşturuldu!" + numara/müşteri/hizmet/durum + bağlantı + Kopyala / WhatsApp ile Paylaş / Başvuru Detayına Git / Yeni başvuru |
+| CustomerInfoCard | `customer-info-card.tsx` | Görüntüleme `dl`; satır içi düzenleme formu; çakışmada "Sayfayı yenile"; iletişim değişince uyarı + bağlantı kartına bağlantı |
+| AccessLinkCard | `access-link-card.tsx` | Durum rozeti (Bağlantı aktif / Bağlantı yok — başvuru statüsünden bağımsız); PHASE 07 uyarısı; bağlantı varsayılan gizli (Göster/Gizle); Kopyala; WhatsApp; Yenile ve İptal Et onay pencereleri (başvuru numarası + müşteri adı, sonuç açıklaması); bağlantı yoksa "Yeni bağlantı oluştur" |
+| WhatsAppShareDialog | `whatsapp-share-dialog.tsx` | Radix Dialog; "Mesajı hazırla" → alıcı adı + telefon (BR-162) + mesaj önizlemesi; "WhatsApp'ta aç" yalnızca bağlantı (`target=_blank`, `noopener noreferrer`); "Mesajı kopyala"; kapanınca mesaj bellekten silinir |
+| CopyLinkButton, LinkStatusBadge, DocumentStatusBadge | aynı klasör | Kopyalama sonucu `role=status/alert`; başarısızsa seçilebilir alan; evrak statüsü etiketleri STATE_TRANSITIONS §2 (metin + ikon) |
+
+Hassas alanlar `data-sensitive` ile işaretlidir (ekran görüntüsü maskesi). Dashboard: Yeni Başvuru aktif; Son Başvurular ve İnceleme Bekleyenler satırları detaya, başlıkta "Tümünü Gör"; Toplam/İncelemede/Tamamlanan kartlarında "Listele" (Evrak Bekleyen iki statüyü kapsadığı için bağlantısız). Ekran görüntüleri: `screenshots/phase-06/` (yerel, commit edilmez).

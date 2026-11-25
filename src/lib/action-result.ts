@@ -3,7 +3,13 @@
  * SQL, bağlantı veya iç ayrıntı içermez.
  */
 export type ActionErrorCode =
-  "VALIDATION" | "NOT_FOUND" | "CONFLICT" | "DUPLICATE" | "UNAUTHENTICATED" | "INTERNAL";
+  | "VALIDATION"
+  | "NOT_FOUND"
+  | "CONFLICT"
+  | "DUPLICATE"
+  | "UNAUTHENTICATED"
+  | "STALE_PREVIEW"
+  | "INTERNAL";
 
 export type ActionError = {
   readonly code: ActionErrorCode;

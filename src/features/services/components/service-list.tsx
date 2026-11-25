@@ -31,7 +31,7 @@ export function ServiceList({ data }: { readonly data: ServiceListData }) {
 
   return (
     <>
-      <div className="hidden md:block">
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-left text-sm" data-testid="services-table">
           <caption className="sr-only">Hizmetler</caption>
           <thead className="bg-muted/60 text-xs text-muted-foreground">

@@ -321,3 +321,10 @@ Kurallar (D-016):
 - **Ortak yardımcılar:** `src/lib/action-result.ts` (`ActionResult`), `src/lib/search.ts` (BR-80 katlaması, LIKE kaçışı), `src/server/db/errors.ts` (yalnızca PG hata kodu), `src/components/dashboard/{confirm-dialog,form-field,use-unsaved-changes}.tsx`, `src/components/ui/textarea.tsx`.
 - **Kilit sözleşmesi:** services → service_document_requirements → (başvuru zinciri). Ayrıntı ve PHASE 06 snapshot sözleşmesi: DATABASE_SCHEMA §6, D-074.
 - **Test altyapısı:** `scripts/test/isolated-db.ts` (Docker, geçici PostgreSQL 18.7 — D-077).
+
+## PHASE 06 Notları (uygulandı)
+- **Başvuru modülü:** `src/features/applications/{schemas,queries,service,actions}.ts` + `domain/{phone,search-text,whatsapp,template-fingerprint,document-status-labels}.ts` + `components/`. Rotalar `/dashboard/applications` (liste), `/new`, `/[applicationId]`.
+- **Token:** `src/server/access-tokens/crypto.ts` (server-only); anahtarlar `getAccessTokenEnv()` (`src/server/env.ts`).
+- **Kilit sırası:** services (FOR SHARE) → şablonlar → sayaç → başvuru kayıtları; bağlantı işlemleri applications (FOR UPDATE) → access_tokens (FOR UPDATE).
+- **Gizlilik:** arama metni Server Action gövdesinde (URL'de değil); bağlantı yalnızca açık aksiyonla çözülür.
+- **Ortak yardımcılar:** `src/lib/{field-errors,clipboard}.ts`; `ActionErrorCode` + `STALE_PREVIEW`.

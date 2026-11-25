@@ -109,6 +109,10 @@ try {
     DATABASE_URL: `postgresql://cs_app_runtime:${runtimePassword}@127.0.0.1:${port}/${DATABASE}`,
     BETTER_AUTH_SECRET: secret(),
     RATE_LIMIT_KEY_SECRET: secret(),
+    // Müşteri bağlantı token anahtarları: geçici, rastgele (gerçek anahtarlar kullanılmaz).
+    ACCESS_TOKEN_HMAC_KEY: randomBytes(32).toString("base64"),
+    ACCESS_TOKEN_ENCRYPTION_KEYS: JSON.stringify({ t1: randomBytes(32).toString("base64") }),
+    ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: "t1",
     // Testler bu işaretle mutasyon testlerini açar; işaret ayrıca veritabanının yerel olduğunu doğrular.
     ISOLATED_TEST_DB: "1",
   };

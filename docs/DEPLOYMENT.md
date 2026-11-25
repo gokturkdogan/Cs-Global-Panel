@@ -75,6 +75,9 @@ Kaldırılan değişkenler: `NEXT_PUBLIC_APP_URL` (→ `APP_URL`, sunucu tarafı
 
 `package.json`: `"engines": { "node": "24.x" }` (OD-13), `"packageManager": "pnpm@<sürüm>"` (D-004).
 
+### 3.1 PHASE 06 notu — token anahtarları
+`ACCESS_TOKEN_*` değişkenleri uygulamada doğrulanır (D-081): base64 32 bayt, JSON anahtar haritası, aktif kimlik haritada, anahtarlar birbirinden ve auth secret'larından farklı. Yerel geliştirmede `pnpm env:token-keys` eksik anahtarları `.env.local`'a ekler (üzerine yazmaz). Production'da anahtarlar yetkili kişi tarafından üretilir ve **güvenli şekilde yedeklenir** (kaybı tüm bağlantıları çözülemez/geçersiz yapar). Şifreleme anahtarı rotasyonu için yeniden şifreleme betiği henüz yoktur — PHASE 13 öncesi yazılmalıdır.
+
 ## 5. Secret Rotasyonu
 
 | Secret | Etkisi | Prosedür |

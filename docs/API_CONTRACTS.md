@@ -1,6 +1,6 @@
 # API Sözleşmeleri
 
-> **Plan**dır; uygulananlar işaretlidir (PHASE 03: giriş/çıkış; PHASE 05: §2.3 hizmetler). Değişiklikler CHANGELOG'a yazılır.
+> **Plan**dır; uygulananlar işaretlidir (PHASE 03: giriş/çıkış; PHASE 05: §2.3 hizmetler; PHASE 06: §2.1 başvuru oluşturma, müşteri bilgisi, bağlantı ve arama). Değişiklikler CHANGELOG'a yazılır.
 > Mimari: [ARCHITECTURE.md](ARCHITECTURE.md) §6 · Yetkiler: [AUTHORIZATION_MATRIX.md](AUTHORIZATION_MATRIX.md) · Kurallar: [BUSINESS_RULES.md](BUSINESS_RULES.md) · Şema: [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)
 
 ## 1. Ortak Sözleşme
@@ -21,6 +21,24 @@ type ActionResult<T> =
 Tümü `requireStaff()` ile başlar — iki hesap için aynı kontrol, rol/izin farkı yok (OD-24). "Erişim" kolonu yalnızca kimin çağırabileceğini gösterir.
 
 ### 2.1 Başvurular (`features/applications/actions.ts`)
+
+**PHASE 06'da uygulanan sözleşme (D-078…D-085)** — planlanan tablodan farkları kalın:
+
+| Action | Input | Çıktı | Audit |
+|---|---|---|---|
+| `getServicePreviewAction` (okuma) | `{ serviceId }` | `{ service: { id, name, description }, requirements: [{ id, title, description, instructions, isRequired }], fingerprint }` | — |
+| `createApplicationAction` | `{ idempotencyKey, firstName, lastName, phone, email, serviceId, **templateFingerprint** }` (**`internalNote` yok**) | `{ applicationId, applicationNumber, customerFullName, serviceName, status, accessLink, accessTokenId, replayed }` (**`whatsappUrl` yok** — paylaşım ayrı action) | `APPLICATION_CREATED {serviceId}`, `ACCESS_LINK_CREATED {accessTokenId}` |
+| `searchApplicationsAction` (okuma; arama metni URL'de değil) | `{ q, status, serviceId, page, pageSize }` | `{ items, total, page, pageSize, pageCount }` | — |
+| `updateCustomerInfoAction` | `{ applicationId, expectedVersion, firstName, lastName, phone, email }` | `{ version, changed, contactChanged }` | `APPLICATION_UPDATED {changedFields}` |
+| `revealAccessLinkAction` | `{ applicationId }` | `{ accessLink, accessTokenId } \| { accessLink: null, accessTokenId: null }` | `ACCESS_LINK_VIEWED {accessTokenId}` |
+| `prepareWhatsAppShareAction` (**yeni**) | `{ applicationId }` | `{ whatsappUrl, message, accessTokenId, recipientName, recipientPhone }` | **`ACCESS_LINK_SHARE_PREPARED`** `{accessTokenId}` |
+| `rotateAccessLinkAction` | `{ applicationId, **expectedActiveTokenId: uuid \| null** }` | `{ accessLink, accessTokenId, previousTokenId }` | `ACCESS_LINK_ROTATED` / `ACCESS_LINK_CREATED` |
+| `revokeAccessLinkAction` | `{ applicationId, **expectedActiveTokenId** }` | `{ revokedTokenId }` | `ACCESS_LINK_REVOKED {accessTokenId}` |
+
+Hata kodları: `VALIDATION` (+`fieldErrors`; telefon sunucuda `libphonenumber-js` ile), `NOT_FOUND` (yok/silme talepli), `CONFLICT` (eski version veya eski aktif token kimliği), **`STALE_PREVIEW`** (şablon önizlemeden sonra değişti), `INTERNAL` (token anahtarı yapılandırması dahil; ayrıntı yok). Liste filtreleri (`status`, `serviceId`, `page`, `pageSize`) URL'de; `createdFrom/createdTo` ve `sort` bu fazda uygulanmadı.
+
+Aşağıdaki tablo ilk plandır (kalan satırlar sonraki fazlarda):
+
 | Action | Input | Çıktı | Erişim | Audit |
 |---|---|---|---|---|
 | `createApplicationAction` | `{ idempotencyKey, firstName, lastName, phone, email, serviceId, internalNote? }` | `{ applicationId, applicationNumber, customerFullName, customerPhone, serviceName, accessLink, whatsappUrl }` | Personel | `APPLICATION_CREATED`, `ACCESS_LINK_CREATED` |

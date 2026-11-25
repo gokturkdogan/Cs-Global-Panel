@@ -201,7 +201,10 @@ test.describe("giriş ve çıkış (geçici test hesapları)", () => {
             .replaceAll(username, "<kullanıcı>"),
         );
       const buttons = strip(await page.getByRole("button").allTextContents());
-      const links = strip(await page.getByRole("link").allTextContents());
+      // Başvuru numarası bağlantıları veridir (paralel testler ekleyebilir); arayüz karşılaştırılır.
+      const links = strip(await page.getByRole("link").allTextContents()).filter(
+        (text) => !/^CS-\d{4}-\d+$/.test(text),
+      );
       await context.close();
       return { buttons, links };
     };

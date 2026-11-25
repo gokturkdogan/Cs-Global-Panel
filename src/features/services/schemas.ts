@@ -108,19 +108,4 @@ export type UpdateRequirementInput = z.input<typeof updateRequirementSchema>;
 export type SetRequirementActiveInput = z.input<typeof setRequirementActiveSchema>;
 export type MoveRequirementInput = z.input<typeof moveRequirementSchema>;
 
-/**
- * Zod hatalarını alan → ilk Türkçe mesaj biçimine çevirir. Tanımsız alan veya tip hatası
- * (istemci manipülasyonu) genel doğrulama mesajı olarak `_form` altında döner.
- */
-export function fieldErrorsOf(error: z.ZodError): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const issue of error.issues) {
-    if (issue.code !== "custom") {
-      result._form ??= messages.common.validation;
-      continue;
-    }
-    const key = issue.path.length > 0 ? String(issue.path[0]) : "_form";
-    result[key] ??= issue.message;
-  }
-  return result;
-}
+export { fieldErrorsOf } from "@/lib/field-errors";

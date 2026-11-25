@@ -48,12 +48,18 @@ jobs:
           DATABASE_URL_UNPOOLED: postgresql://ci_owner:CANARY-ci-owner-9b2e@ci-canary.example.invalid/cs_global_dev?sslmode=verify-full
           BETTER_AUTH_SECRET: CANARY-ci-auth-secret-0000000000000000000000
           RATE_LIMIT_KEY_SECRET: CANARY-ci-ratelimit-secret-000000000000000000
+          ACCESS_TOKEN_HMAC_KEY: Q0FOQVJZLWNpLWhtYWMta2V5LTAwMDAwMDAwMDAwMDA=
+          ACCESS_TOKEN_ENCRYPTION_KEYS: '{"k1":"Q0FOQVJZLWNpLWVuYy1rZXktMDAwMDAwMDAwMDAwMDA="}'
+          ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: k1
       - run: pnpm check:bundle
         env:
           DATABASE_URL: postgresql://cs_app_runtime:CANARY-ci-runtime-5d1f@ci-canary-pooler.example.invalid/cs_global_dev?sslmode=verify-full
           DATABASE_URL_UNPOOLED: postgresql://ci_owner:CANARY-ci-owner-9b2e@ci-canary.example.invalid/cs_global_dev?sslmode=verify-full
           BETTER_AUTH_SECRET: CANARY-ci-auth-secret-0000000000000000000000
           RATE_LIMIT_KEY_SECRET: CANARY-ci-ratelimit-secret-000000000000000000
+          ACCESS_TOKEN_HMAC_KEY: Q0FOQVJZLWNpLWhtYWMta2V5LTAwMDAwMDAwMDAwMDA=
+          ACCESS_TOKEN_ENCRYPTION_KEYS: '{"k1":"Q0FOQVJZLWNpLWVuYy1rZXktMDAwMDAwMDAwMDAwMDA="}'
+          ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID: k1
       - run: pnpm audit --audit-level=high
 
   e2e:

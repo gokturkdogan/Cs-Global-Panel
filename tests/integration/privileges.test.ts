@@ -175,12 +175,21 @@ describe("runtime rolü — en az yetki (D-054)", () => {
     await expectPgError(runtime.query(statement), code);
   });
 
-  it("audit kaydı ekleyebilir ve okuyabilir", async () => {
-    const inserted = await runtime.query<{ id: string }>(
-      `INSERT INTO audit_logs (action, actor_type, resource_type, metadata)
-       VALUES ('TEST_EVENT', 'SYSTEM', 'session', '{"count": 1}') RETURNING id`,
-    );
-    expect(inserted.rows[0]!.id).toBeDefined();
+  it("audit kaydı ekleyebilir ve okuyabilir (geri alınan transaction — kalıcı test kaydı yok)", async () => {
+    await runtime.query("BEGIN");
+    try {
+      const inserted = await runtime.query<{ id: string }>(
+        `INSERT INTO audit_logs (action, actor_type, resource_type, metadata)
+         VALUES ('TEST_EVENT', 'SYSTEM', 'session', '{"count": 1}') RETURNING id`,
+      );
+      expect(inserted.rows[0]!.id).toBeDefined();
+      const read = await runtime.query("SELECT 1 FROM audit_logs WHERE id = $1", [
+        inserted.rows[0]!.id,
+      ]);
+      expect(read.rowCount).toBe(1);
+    } finally {
+      await runtime.query("ROLLBACK");
+    }
   });
 });
 

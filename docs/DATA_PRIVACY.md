@@ -63,7 +63,7 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 | Aktarım | TLS: tarayıcı ↔ hosting (HSTS), uygulama ↔ DB (`sslmode=verify-full` zorunlu; PHASE 02'de TLS 1.3 + doğrulanmış sertifika test edildi), uygulama ↔ storage (HTTPS) |
 | Neon at-rest | AES-256 (Neon güvenlik dokümanı) |
 | Vercel Blob at-rest | **Doğrulanmadı** — PHASE 08'de |
-| Uygulama seviyesi | Bağlantı token'ı: HMAC hash + AES-256-GCM kopya; personel şifreleri scrypt |
+| Uygulama seviyesi | Bağlantı token'ı: HMAC hash + AES-256-GCM kopya (PHASE 06'da uygulandı — D-080); personel şifreleri scrypt |
 | Belge uygulama seviyesi şifreleme | MVP'de yok (client upload ve doğrulama ile çelişir); private storage + erişim kontrolü + sağlayıcı at-rest şifrelemesi |
 
 ## 7. Erişim Kayıtları ve Olay Müdahalesi
@@ -105,3 +105,10 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 | Production | **Ayrı proje/hesap** — sağlayıcı açık (PB-01) | **Ayrı store** | Production scope | Gerçek |
 
 Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md). ⚠️ D-059 (tek veritabanı) nedeniyle gerçek müşteri verisi bu veritabanına **girmeden önce** ayrı production veritabanı gerekir (PB-06, TM-43).
+
+## 11. PHASE 06 Uygulama Notları
+- Müşteri verisi (ad, soyad, E.164 telefon, küçük harf e-posta) yalnızca başvuru satırında; `search_text` aynı verinin katlanmış kopyasıdır (arama için, istemciye gönderilmez). Liste telefon/e-posta göstermez (veri minimizasyonu); detay personele gösterir.
+- Audit kayıtlarında müşteri adı, telefon, e-posta, bağlantı veya mesaj yoktur (yalnızca kimlikler ve değişen alan adları).
+- Personel arama metni URL'ye, tarayıcı geçmişine ve erişim loglarına yazılmaz.
+- WhatsApp mesajı (ad, soyad, hizmet adı, bağlantı) personelin açık eylemiyle WhatsApp/Meta'ya aktarılır (§1, §9 madde 10 — değerlendirme açık). Sistem mesajı göndermez; testlerde `wa.me` istekleri yakalanır.
+- Testler yalnızca sentetik veriyle ve izole geçici veritabanında başvuru oluşturur; gerçek müşteri verisi kullanılmadı.

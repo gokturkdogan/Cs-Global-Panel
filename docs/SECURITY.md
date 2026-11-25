@@ -60,7 +60,7 @@ export async function requireStaff() { const s = await getCurrentStaff(); if (!s
 ### 3.2 Token üretimi ve saklama (OD-19)
 - `crypto.randomBytes(32)` (Node CSPRNG) → **256 bit** → base64url (43 karakter).
 - **Doğrulama:** `token_hash = HMAC-SHA256(ACCESS_TOKEN_HMAC_KEY, token)` — DB sızıntısında anahtarsız offline doğrulama yapılamaz.
-- **Tekrar görüntüleme:** `AES-256-GCM` (authenticated encryption), 96-bit rastgele IV, `AAD = application_id`, biçim `v1:<keyId>:<iv>:<ct>:<tag>`.
+- **Tekrar görüntüleme:** `AES-256-GCM` (authenticated encryption), 96-bit rastgele IV, 128-bit tag, biçim `v1:<keyId>:<iv>:<ct>:<tag>` (base64url parçalar). **AAD (PHASE 06, D-080): `cs-access-token:v1:<applicationId>:<tokenId>`** — şifreli kopya başka başvuruya veya token satırına taşınırsa çözülmez.
 - **Anahtarlar:** `ACCESS_TOKEN_HMAC_KEY`, `ACCESS_TOKEN_ENCRYPTION_KEYS` (JSON `{"k1":"<base64 32B>"}`), `ACCESS_TOKEN_ENCRYPTION_ACTIVE_KEY_ID` — yalnızca sunucu env'inde, ortam başına ayrı değer, DB'de değil, repoda değil.
 - **Rotasyon:** yeni şifreleme anahtarı ekle → aktif ID değiştir → yeniden şifreleme script'i → eskiyi kaldır. HMAC anahtarı rotasyonu tüm bağlantıların yenilenmesini gerektirir (yalnızca sızıntıda).
 - Düz token: DB'de yok; uygulama logu, audit, hata mesajı, analytics'te yok. Yalnızca yetkili personel isteğinde sunucuda çözülür ve yanıt olarak döner (`ACCESS_LINK_VIEWED` audit'i, token'sız).
@@ -172,6 +172,7 @@ Genel Bakış (PHASE 04) okumaları audit'e yazılmaz. PHASE 03'te uygulanan: `U
 | `APPLICATION_SUBMITTED` / `APPLICATION_RESUBMITTED` | CUSTOMER / USER | `{ onBehalfOfCustomer }` |
 | `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETED` | USER | `{ fileCount }` (başvuru ID'si `application_id` kolonunda; PII yok) |
 | `ACCESS_LINK_CREATED` / `ACCESS_LINK_ROTATED` / `ACCESS_LINK_REVOKED` / `ACCESS_LINK_VIEWED` | USER | `{ accessTokenId }` |
+| `ACCESS_LINK_SHARE_PREPARED` (PHASE 06, D-084) | USER | `{ accessTokenId }` — WhatsApp paylaşım mesajı hazırlandı; gönderim/teslim anlamına gelmez |
 | `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` / `DOCUMENT_DELETED` | CUSTOMER / USER | `{ requirementId, fileId, versionNumber, onBehalfOfCustomer }` |
 | `DOCUMENT_VALIDATION_REJECTED` | SYSTEM | `{ fileId, reason }` |
 | `DOCUMENT_VIEWED` / `DOCUMENT_DOWNLOADED` | USER / CUSTOMER | `{ fileId }` |
@@ -243,3 +244,12 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 - **Hata sızıntısı:** Kullanıcıya Türkçe genel mesajlar; log'da yalnızca PG hata kodu (unit/integration: log'da metin içeriği yok).
 - **Bütünlük:** Optimistic lock + satır kilitleri (kayıp güncelleme yok); audit aynı transaction'da (audit hatasında mutasyon geri alınır); şablon mutasyonları snapshot tablolarına yazmaz (statik + integration).
 - **Sabit dosya politikası:** Dosya tipi/boyutu/sayısı şablon alanı değil; ekranda salt okunur "Dosya kuralları (sabit)" kartı.
+
+## 14. PHASE 06 Güvenlik Notları (başvuru ve müşteri bağlantısı)
+- **Yetki:** 8 başvuru action'ı `requireStaff()` + Zod `.strict()` ile başlar (statik unit testi); aktör ve `created_by`/`updated_by`/`revoked_by` yalnızca oturumdan; statü, hizmet snapshot'ı, evrak listesi, token, başvuru numarası istemciden kabul edilmez (mass assignment testleri). Oturumsuz sayfa → `/login`; başka origin'den mutasyon → 403 (E2E).
+- **IDOR:** Başvuru işlemleri kimlik + `deletion_requested_at IS NULL` ile; geçersiz/bilinmeyen/silme talepli kimlik → 404/`NOT_FOUND`.
+- **Token:** D-080/D-081 — 256 bit CSPRNG, HMAC hash, AES-256-GCM kopya (AAD başvuru+token kimliği), fail-closed çözme, `APP_URL` kökü. Düz token: DB/log/audit/URL/tarayıcı depolaması/istemci bundle'ında yok (unit + integration + canary bundle + E2E depolama kontrolü). Liste toplu çözme yapmaz; bağlantı yalnızca açık aksiyonla, `no-store` dinamik sayfalarda, audit'lenerek döner. Trace kapalı, ekran görüntülerinde `data-sensitive` alanlar maskeli.
+- **İptal/yenileme:** `applications FOR UPDATE` + beklenen aktif token kimliği → eski onay yeni bağlantıyı iptal edemez; en fazla bir aktif token (partial unique + testli yarış).
+- **WhatsApp:** sabit `https://wa.me/` alan adı, rakam-only E.164, `encodeURIComponent`; yalnızca kullanıcı tıklamasıyla, `noopener noreferrer`; testlerde istek yakalanır.
+- **Arama gizliliği:** PII içerebilen arama metni URL'ye yazılmaz (POST gövdesi); log'a kişisel veri yazılmaz.
+- **Açık:** müşteri tarafı token doğrulaması ve oturum invalidation'ı PHASE 07; şifreleme anahtarı rotasyon betiği yok (PHASE 13 öncesi); bearer link riskleri (TM-13…TM-15, PB-04) aynen açık.

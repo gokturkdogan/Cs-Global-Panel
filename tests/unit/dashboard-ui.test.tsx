@@ -60,6 +60,7 @@ describe("dashboard sayaç tanımları (D-070)", () => {
     expect([...columns].sort()).toEqual(
       [
         "applicationNumber",
+        "id",
         "createdAt",
         "customerFirstName",
         "customerLastName",
@@ -106,6 +107,7 @@ describe("biçimlendirme", () => {
 
 describe("durum bileşenleri", () => {
   const row = {
+    id: "11111111-1111-4111-8111-111111111111",
     applicationNumber: "CS-2026-000001",
     customerName: "Deneme Kişi",
     serviceName: "Örnek Hizmet",
@@ -131,14 +133,15 @@ describe("durum bileşenleri", () => {
     expect(html).toContain("Oluşturulan başvurular burada görüntülenecektir.");
   });
 
-  it("son başvurular: sütunlar, bağlantısız satırlar", () => {
+  it("son başvurular: sütunlar; numara detaya bağlantı, telefon/e-posta yok", () => {
     const html = renderToStaticMarkup(<RecentApplications rows={[row]} />);
     for (const heading of ["Başvuru No", "Müşteri", "Hizmet", "Durum", "Oluşturulma Tarihi"]) {
       expect(html).toContain(heading);
     }
     expect(html).toContain("CS-2026-000001");
     expect(html).toContain("İncelemede");
-    expect(html).not.toContain("<a ");
+    expect(html).toContain('href="/dashboard/applications/11111111-1111-4111-8111-111111111111"');
+    expect(html).toContain('href="/dashboard/applications"'); // Tümünü Gör
   });
 
   it("inceleme kuyruğu: boş durum metni", () => {

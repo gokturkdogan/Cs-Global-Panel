@@ -54,7 +54,7 @@
 - **Sonuç (2026-11-24):** Düzen, Genel Bakış (gerçek veri), bilgilendirme sayfaları, 404, P4-01/P4-02 çözüldü, P4-03 azaltıldı, P4-04 yapılandırma düzeyinde. DataTable, Pagination ve ConfirmDialog ilk kullanıldıkları fazlara (PHASE 05/06) bırakıldı (kullanılmayan bileşen üretilmez). axe taraması PHASE 12.
 - **DoD:** Ortak DoD.
 
-## PHASE 05 — Service & Document Template Management (tamamlandı — kullanıcı onayı bekliyor)
+## PHASE 05 — Service & Document Template Management (tamamlandı — onaylandı)
 - **Scope:** Hizmet CRUD (silme yok), aktif/pasif, sıralama; evrak şablonu CRUD (başlık, açıklama, talimat, zorunlu/isteğe bağlı, sıra, aktif/pasif). Dosya boyutu/sayısı/tipi alanı **yok**. Her iki hesap yönetebilir (OD-24).
 - **Deliverables:** `/dashboard/services*`.
 - **Dependencies:** PHASE 04.
@@ -64,7 +64,7 @@
 - **DoD:** Ortak DoD.
 - **Sonuç (2026-11-24):** Hizmet CRUD (silme yok), aktif/pasif, evrak şablonu CRUD + sıralama, Türkçe arama/filtre, optimistic lock (migration 0004), audit, snapshot sözleşmesi (D-074). Hizmet sıralaması uygulanmadı (ada göre — D-072). Mutasyon E2E'si izole Docker veritabanında (D-077).
 
-## PHASE 06 — Customer & Application Management
+## PHASE 06 — Customer & Application Management (tamamlandı — kullanıcı onayı bekliyor)
 - **Scope:** Başvuru formu (müşteri bilgileri her başvuruda yeniden girilir; eşleştirme yok), atomik oluşturma (numara, snapshot, token), sonuç ekranı (Kopyala, **kişiselleştirilmiş WhatsApp paylaşımı** + onay penceresi, Detaya git), tek başvuru listesi (arama, statü/hizmet/tarih filtresi, sayfalama), detay (müşteri bilgisi düzenleme, statü geçmişi, iç notlar, bağlantı göster/kopyala/paylaş/yenile/iptal/yeni oluştur), manuel silme (her iki hesap) (iki aşamalı; storage silme PHASE 08 storage modülü hazır olduğunda tamamlanır — bu fazda dosyasız başvurular için).
 - **Deliverables:** `/dashboard/applications*`.
 - **Dependencies:** PHASE 05; D-011, D-033, D-036.
@@ -72,6 +72,7 @@
 - **Test requirements:** Unit: token, numara, WhatsApp URL. Integration: transaction geri alma, eşzamanlı numara, snapshot, bağımsız başvurular, eşzamanlı yenileme, silme. E2E: oluşturma akışı, E4, E5 (dosyasız), S22.
 - **Acceptance:** Brief §6 adımları tek transaction'da; sonuç ekranındaki tüm öğeler.
 - **DoD:** Ortak DoD.
+- **Sonuç (2026-11-24):** Oluşturma (atomik, idempotent, önizleme parmak izi), liste (URL dışı arama, filtre, sayfalama), detay, müşteri düzenleme, bağlantı göster/kopyala/yenile/iptal/yeniden oluştur, WhatsApp hazırlığı, dashboard bağlantıları; D-078…D-086. **Bu fazda yapılmayan (PHASE 06 talimatı dışında):** iç notlar, başvuru silme, tarih aralığı filtresi — sonraki ilgili fazlara.
 
 ## PHASE 07 — Customer Portal
 - **Scope:** `GET /b/[token]` (rate limit, doğrulama, imzalı portal cookie'si, 303), `/portal` (bilgiler, süreç göstergesi, tamamlanma göstergesi, evrak kartları — yükleme hariç, yorumlar, düzeltme açıklamaları, sabit iletişim kartı/placeholder, salt okunur modlar), `/link-invalid`.
