@@ -2,6 +2,37 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 09.1 — Workflow Hardening & Final Verification] — 2026-11-25
+
+### Added
+- Yorum idempotency: `idempotencyKey` (istemci işlem anahtarı), migration 0006 (`document_comments.idempotency_key` UNIQUE + `payload_hash`), `ON CONFLICT DO NOTHING` + içerik özeti karşılaştırması (D-113).
+- `tests/e2e/main-scenario.spec.ts` — 19 adımlı ana senaryo (Chrome + WebKit, gerçek arayüz).
+- `tests/integration/workflow-hardening.test.ts` — yorum idempotency (6), kontrollü araya girmeli eşzamanlılık (8), müşteri token/oturum kapsamı, storage regresyonu (D-114).
+- E2E: TM-40 yeniden gönderim/kaldırma/eski form/süresi dolmuş oturum/iptal-yenileme; yorum çift tıklama. Unit: iş akışı modüllerinin storage'a bağımlı olmadığı (statik).
+
+### Changed
+- `addCommentAction` girdisine `idempotencyKey`; yanıt `{ commentId, created }`; `CommentForm` işlem anahtarını ağ hatasında korur.
+- Dokümanlar: DECISION_LOG (D-113, D-114), DATABASE_SCHEMA (§9.10), API_CONTRACTS, SECURITY, TESTING_STRATEGY (§19), DEVELOPMENT_ROADMAP, PROJECT_STATE.
+
+### Not Done / Not Verified
+- Gerçek cihaz, GitHub CI, production HTTPS, hosting upload sınırı, token log redaksiyonu, WhatsApp önizleme, PDF görüntüleyici güvenliği, Range, uygulamadan gerçek B2'ye tam E2E. PB-01…PB-11 açık. Commit/push yapılmadı.
+
+## [PHASE 09 — Document Review & Application Workflow] — 2026-11-25
+
+### Added
+- Başvuru state machine (T1–T12) ve evrak kararı/kaldırma kuralları saf domain modüllerinde; transaction'lı iş akışı servisi (`src/features/workflow/*`) — D-108…D-110.
+- Müşteri: incelemeye gönder / yeniden gönder (onay penceresi, engel nedenleri), dosya kaldırma, "CS Global'den mesajlar", süreç geçmişi; dar giriş noktası `workflow/customer-entry.ts` (D-111).
+- Personel: "Başvuru durumu ve işlemler" paneli (matristen aksiyonlar, gerekçe/onay; T12 evrak seçimi), evrak "Onayla"/"Düzeltme İste" (incelenen versiyon), dosya kaldırma, inceleme geçmişi, müşteriye görünür yorumlar, gerekçeli statü geçmişi (D-112).
+- Testler: unit +63, izole integration +13, E2E +4 senaryo (4 proje).
+
+### Changed
+- PHASE 08 onayı: D-096, D-097, D-098, D-103, D-106, D-107 Accepted; D-099…D-102, D-104, D-105 koşullu Accepted. Canlı B2 smoke testi (kullanıcı terminali) PASS olarak kaydedildi.
+- `ActionErrorCode`'a `NOT_ALLOWED`; `WORKFLOW_TEXT_LIMITS` sabiti; `customerStillAllowed` dışa açıldı; dosya geçmişinde "Kaldırıldı" etiketi; yer tutucu `SubmitPlaceholder` kaldırıldı; personel bağlantı uyarısı sadeleşti.
+- Dokümanlar: DECISION_LOG, STATE_TRANSITIONS (§5), BUSINESS_RULES, AUTHORIZATION_MATRIX, API_CONTRACTS, ARCHITECTURE, SECURITY (§17), THREAT_MODEL (TM-40 çözüldü), DESIGN_SYSTEM (§15), TESTING_STRATEGY (§18), DATABASE_SCHEMA (§9.9), DATA_PRIVACY (§12b), FILE_STORAGE (§9 canlı sonuç), DEVELOPMENT_ROADMAP, PROJECT_STATE, README.
+
+### Not Done / Not Verified
+- Kalıcı silme, iç notlar, audit yönetim ekranı (PHASE 10). Gerçek cihaz testleri. Tek parça 19 adımlı ana senaryo E2E'si. Yeni migration yok. Commit/push yapılmadı.
+
 ## [PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage] — 2026-11-25
 
 ### Added

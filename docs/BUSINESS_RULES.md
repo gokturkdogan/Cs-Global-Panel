@@ -87,6 +87,7 @@
 - **BR-60** "Evrakları onayla" (`UNDER_REVIEW → DOCUMENTS_APPROVED`): `PENDING_REVIEW` / `REVISION_REQUIRED` kalmamış, tüm zorunlu evraklar `APPROVED`, aktif dosyası olan tüm isteğe bağlı evraklar `APPROVED`.
 - **BR-61** Başvuru statü geçişleri **manueldir** (D-027).
 - **BR-62** Onaylanmış ve değişmemiş evraklar yeniden yükleme gerektirmez; geri alma geçişlerinde (T10–T12) yalnızca açıkça seçilen evrakların onayı geçersiz kılınır (OD-05).
+- *Uygulama notları (PHASE 09 — ürün kuralı eklemez; D-108…D-112):* Gönderim (müşteri ve personel müşteri adına) aynı BR-50 guard'larını kilit altında, gerçek aktif dosya ve süresi dolmamış bekleyen yükleme verisiyle uygular; personel eksik evrakı/bekleyen yüklemeyi/düzeltmeyi atlayamaz. BR-53: tekrar istek "Başvurunuz zaten incelemede" ile reddedilir. Zorunlu evrakı olmayan hizmette BR-50 koşulları boş kümede sağlanır (gönderim izinli — kural metni). Evrak kararları başvuru statüsünü değiştirmez; T2/T3 manuel aksiyonlardır. Önceden onaylanan evraklar düzeltme turunda korunur (BR-52: `APPROVED` kalır). Yeni dosya aktif olunca önceki onay devralınmaz (BR-48; PHASE 08 aktivasyonu). İptal ve tamamlama müşteri bağlantısını iptal etmez (BR-101).
 
 ## 7. Versiyonlama
 
@@ -152,6 +153,7 @@ Gösterge vize onay olasılığı veya sonuç garantisi ifade etmez.
 - **BR-121** Müşteri tarafı veri erişim fonksiyonları `application_internal_notes` tablosunu hiçbir koşulda sorgulamaz; müşteri DTO'ları whitelist alanlardan oluşur ([ARCHITECTURE.md](ARCHITECTURE.md) §5).
 - **BR-122** Müşteri yorum yazamaz (MVP).
 - **BR-123** Yorum/not düzenleme ve silme yoktur (başvuru silinmesi hariç).
+- *Uygulama notu (PHASE 09, D-112):* Müşteriye görünür yorumlar uygulandı (personel ekler; müşteri panelinde salt okunur, yazar gösterilmez; düz metin 1–2000; statü değiştirmez). İç notlar PHASE 10.
 
 ## 13. Personel Hesapları (OD-24, OD-11, OD-22)
 

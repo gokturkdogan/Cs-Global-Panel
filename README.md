@@ -10,9 +10,9 @@ CS Global Customer Panel
 
 ## Durum
 
-**PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage** tamamlandı (kullanıcı onayı bekleniyor). Personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi, başvuru yönetimi, müşteri paneli (`/b/<token>` → imzalı 7 günlük oturum → `/portal/<bağlam>`) ve **PDF yükleme/değiştirme/görüntüleme** (müşteri ve personel — müşteri adına; yapısal PDF doğrulaması, versiyon geçmişi, depolama kotası) vardır. Dosyalar Backblaze B2 private bucket'ta (OD-25). İncelemeye gönderme ve evrak inceleme (PHASE 09) **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
+**PHASE 09 — Document Review & Application Workflow** tamamlandı (kullanıcı onayı bekleniyor): incelemeye gönderme, evrak onay/düzeltme, statü geçişleri (iptal, yeniden açma dahil), dosya kaldırma, müşteriye görünür yorumlar ve süreç geçmişi. Önceki faz: **PHASE 08** — Personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi, başvuru yönetimi, müşteri paneli (`/b/<token>` → imzalı 7 günlük oturum → `/portal/<bağlam>`) ve **PDF yükleme/değiştirme/görüntüleme** (müşteri ve personel — müşteri adına; yapısal PDF doğrulaması, versiyon geçmişi, depolama kotası) vardır. Dosyalar Backblaze B2 private bucket'ta (OD-25). Kalıcı silme, iç notlar ve audit yönetim ekranı (PHASE 10) **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
 
-Sonraki faz: **PHASE 09 — Document Review & Application Workflow** (kullanıcı onayı olmadan başlanmaz). Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Sonraki faz: **PHASE 10 — Administration & Operations** (kullanıcı onayı olmadan başlanmaz). Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 

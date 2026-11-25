@@ -83,3 +83,14 @@ export const PDF_VALIDATION_LIMITS = {
 /** Dosya istekleri için aktör başına sabit pencereli limitler (sağlayıcı kotasını korur). */
 export const FILE_UPLOAD_RATE_LIMIT = { max: 30, windowSeconds: 60 * 60 } as const;
 export const FILE_DOWNLOAD_RATE_LIMIT = { max: 120, windowSeconds: 60 * 60 } as const;
+
+/**
+ * İş akışı metin sınırları (PHASE 09; DB CHECK'leriyle aynı): düzeltme açıklaması müşteriye görünür
+ * (BR-56, 10–1000); geçiş gerekçesi personel içi (T7–T12, 1–1000); müşteriye görünür yorum (1–2000).
+ */
+export const WORKFLOW_TEXT_LIMITS = {
+  revisionMessageMin: 10,
+  revisionMessageMax: 1000,
+  reasonMax: 1000,
+  commentMax: 2000,
+} as const;

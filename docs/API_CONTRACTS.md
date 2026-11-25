@@ -69,6 +69,17 @@ Liste filtreleri (`searchParams`, Zod): `q` (2–100), `status` (`ALL` \| 7 stat
 
 `reviewDocumentAction`: `fileId` kilit altında aktif dosya değilse `CONFLICT` (BR-57).
 
+> **PHASE 09'da uygulandı (D-108…D-112) — `src/features/workflow/actions.ts` (personel):**
+> | Action | Input (Zod `.strict()`) | Çıktı | Audit |
+> |---|---|---|---|
+> | `submitOnBehalfAction` | `{ applicationId, expectedVersion }` | `{ status, version }` | `APPLICATION_SUBMITTED` / `APPLICATION_RESUBMITTED` (`onBehalfOfCustomer`) |
+> | `reviewDocumentAction` | `{ decision: 'APPROVED', requirementId, fileId, expectedVersion }` \| `{ decision: 'REVISION_REQUIRED', …, customerMessage (10–1000) }` | `{ status, version, reviewId }` | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` |
+> | `transitionApplicationAction` | `{ applicationId, expectedVersion, code: REQUEST_REVISION \| APPROVE_DOCUMENTS \| START_PROCESSING \| COMPLETE \| CANCEL \| REOPEN_CANCELLED \| REOPEN_COMPLETED \| REVERT_TO_DOCUMENTS_APPROVED \| REVERT_TO_REVIEW, reason? (T7–T11 zorunlu, ≤1000) }` | `{ status, version }` | `APPLICATION_STATUS_CHANGED {from, to, transitionCode}` |
+> | `revertForRevisionAction` (T12) | `{ applicationId, expectedVersion, reason, documents: [{ requirementId, fileId, customerMessage }] }` | `{ status, version }` | `APPLICATION_STATUS_CHANGED` + her evrak `DOCUMENT_REVISION_REQUESTED` |
+> | `removeFileAction` | `{ fileId, expectedVersion (evrak sürümü) }` | `{ status, version }` | `DOCUMENT_DELETED` |
+> | `addCommentAction` | `{ applicationId, requirementId?, body (1–2000), idempotencyKey (UUID — PHASE 09.1, D-113) }` | `{ commentId, created }` (aynı anahtar + aynı içerik → mevcut sonuç; farklı içerik/kapsam → `CONFLICT`) | `DOCUMENT_COMMENT_ADDED {id}` (yalnızca gerçek eklemede) |
+> Hata kodları: `VALIDATION`, `NOT_FOUND` (yok / başka başvuru / silinmekte), `CONFLICT` (eski sürüm, eski dosya versiyonu, eşzamanlı işlem, bağlam uyuşmazlığı), `NOT_ALLOWED` (matris dışı geçiş veya guard — Türkçe neden), `UNAUTHENTICATED` (müşteri oturumu/bağlantısı bitti), `INTERNAL`. Hedef statü, aktör, rol, evrak/dosya statüsü istemciden alınmaz.
+
 ### 2.3 Hizmetler (`features/services/actions.ts`) — personel — **PHASE 05'te uygulandı** (D-072…D-076)
 Tüm action'lar nesne girdi alır, `requireStaff()` → Zod `.strict()` → servis (tek transaction: kilit → ilişki → `expectedVersion` → yazma → audit) sırasını izler ve `ActionResult<T>` döndürür. Hata kodları: `VALIDATION` (+`fieldErrors`), `NOT_FOUND` (yok veya başka hizmete ait evrak — IDOR), `CONFLICT` (eski version / kilit), `DUPLICATE` (aynı ad, büyük/küçük harf duyarsız), `INTERNAL`.
 
@@ -95,12 +106,14 @@ Kapsam her zaman müşteri oturumundan (`requireCustomerAccess(contextId)` — P
 
 | Action | Input | Çıktı | Audit |
 |---|---|---|---|
-| `submitForReviewAction` | `{ expectedVersion }` | `{ status }` | `APPLICATION_SUBMITTED` / `RESUBMITTED` |
-| `removeOwnFileAction` | `{ fileId, expectedVersion }` | `{ requirementStatus }` | `DOCUMENT_DELETED` |
+| `submitForReviewAction` | `{ contextId, expectedVersion }` | `{ status, version }` | `APPLICATION_SUBMITTED` / `RESUBMITTED` — **PHASE 09'da uygulandı** |
+| `removeOwnFileAction` | `{ contextId, fileId, expectedVersion }` | `{ status, version }` | `DOCUMENT_DELETED` — **PHASE 09'da uygulandı** |
 | ~~`confirmUploadAction` / `getUploadStatusAction`~~ | Superseded — §4.2 (müşteri yükleme route'u) | | |
 
 Kaldırılan: `requestOtpAction`, `verifyOtpAction`, `exchangeFragmentTokenAction`, `customerLogoutAction`.
 
+> **PHASE 09 güncellemesi:** DTO ayrıca `application.version`, `comments: [{ body, createdAt, documentTitle }]` (yazar yok), `timeline: [{ status, at }]` (gerekçe/aktör yok) ve `pendingUploadRequirementIds` içerir; `canSubmit`/engeller ve `canRemove` sunucu bileşeninde aynı domain kurallarıyla hesaplanır.
+>
 > **PHASE 08 güncellemesi (D-091):** `documents[]` ayrıca `requirementId`, `version` (yükleme `expectedVersion`'ı) ve `activeFile: { id, name, sizeBytes, uploadedAt } | null` (yalnızca ACTIVE; storage anahtarı/versiyonu/SHA-256/yükleyen yok) içerir; `canUpload` sunucu bileşeninde `canUploadDocument("CUSTOMER", …)` ile hesaplanır.
 >
 > **PHASE 07'de uygulanan okuma (D-091):** `getCustomerPortalView(db, access)` → `{ customer: { firstName, lastName }, application: { number, serviceName, createdAt, status }, documents: [{ title, description, instructions, isRequired, status, revisionMessage }] }`. İlerleme/tamamlanma sunucu bileşeninde saf fonksiyonlarla hesaplanır (D-092). Telefon/e-posta, kimlikler, dosya, yorum, `canSubmit` alanları **henüz yok** — aşağıdaki hedef DTO PHASE 08/09'da tamamlanır.

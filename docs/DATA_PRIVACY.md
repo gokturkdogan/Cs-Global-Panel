@@ -128,3 +128,8 @@ Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md). ⚠️ D-059 (tek veritabanı) nedeni
 - Saklama: kayıtlı geçerli versiyonlar otomatik silinmez (OD-06); kapasite dolduğunda da silinmez. Teknik temizlik yalnızca başarısız/yarım yüklemelerin nesnelerini siler (saklama politikası değildir).
 - B2 lifecycle "tüm versiyonları sakla": uygulama dışından (panelden) silinen bir dosya için silme işareti ve eski versiyon kalır; kalıcı silme versiyona özgüdür. Başvuru silmenin storage aşaması (tüm fiziksel versiyonlar) PHASE 10.
 - Gerçek müşteri PDF'i hiçbir ortamda kullanılmadı; testler sentetik PDF üretir, gerçek B2'ye otomatik testlerde bağlanılmaz.
+
+## 12b. PHASE 09 Uygulama Notları (iş akışı)
+- Müşteriye yalnızca: statü + tarih zaman çizelgesi, evrak statüleri, düzeltme açıklamaları, müşteriye görünür yorumlar (yazar yok). Gösterilmeyen: iptal/geçiş gerekçeleri, personel kullanıcı adları, aktörler, iç notlar, audit.
+- Serbest metinler kendi tablolarında; audit metadata'sına kopyalanmaz.
+- İptal ve tamamlama veriyi silmez, bağlantıyı iptal etmez (OD-04, OD-06); kalıcı silme PHASE 10.

@@ -9,6 +9,7 @@ import { formatDateTime } from "@/lib/format";
 import { messages } from "@/lib/messages";
 
 import type { CustomerDocument } from "../queries";
+import { RemoveFileButton } from "./remove-file-button";
 
 const MAX_PDF_MB = MAX_PDF_SIZE_BYTES / (1024 * 1024);
 
@@ -23,11 +24,13 @@ export function DocumentCard({
   index,
   context,
   canUpload,
+  canRemove,
 }: {
   readonly document: CustomerDocument;
   readonly index: number;
   readonly context: string;
   readonly canUpload: boolean;
+  readonly canRemove: boolean;
 }) {
   const file = document.activeFile;
   const fileUrl = file ? `/api/portal/${context}/files/${file.id}` : null;
@@ -112,6 +115,9 @@ export function DocumentCard({
             </a>
           </div>
         </div>
+      ) : null}
+      {canRemove && file ? (
+        <RemoveFileButton contextId={context} fileId={file.id} expectedVersion={document.version} />
       ) : null}
       {canUpload ? (
         <PdfUpload

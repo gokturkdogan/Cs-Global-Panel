@@ -152,5 +152,8 @@ Unicode NFC; kontrol karakterleri, sıfır genişlikli ve yön (bidi) denetim ka
 - Bağlam uyuşmazlığında yükleme 409 ile reddedilir, dosya hiçbir başvuruya bağlanmaz (TM-40 dosya kısmı — E2E ile doğrulandı).
 - Müşteri dosya yanıtları `no-store`, `no-referrer`; müşteri yolu iç notları, eski versiyonları, storage anahtarını/versiyonunu ve personel bilgisini döndürmez.
 
-## 9. Canlı Doğrulama (`pnpm storage:verify`, D-106)
+## 9. Canlı Doğrulama (`pnpm storage:verify`, D-106) — **PASS (2026-11-25, kullanıcı terminali)**
+
+Sonuç: bucket erişimi PASS (başlangıç envanteri: 0 fiziksel versiyon, 0 bayt, bilinmeyen nesne 0, silme işareti 0); sentetik PDF yazma PASS; SSE-B2 `AES256` yanıtı PASS; sağlayıcı versiyon kimliği PASS; HEAD 400/400 bayt; GET SHA-256 PASS; imzasız erişim path-style / virtual-host / friendly URL → **HTTP 401**; versiyona özgü fiziksel silme PASS (1 versiyon). Kapsam yalnızca kontrollü smoke testidir — tarayıcıdan B2'ye tam yükleme akışı, gerçek kota/cap aşımı, tüm hata/kurtarma senaryoları, gerçek cihaz görüntüleme, Object Lock/replikasyon ve production doğrulanmış sayılmaz.
+
 Elle çalıştırılır, otomatik testlerde yoktur: bucket erişimi + sınırlı envanter (uygulama dışı nesne uyarısı), `_verification/<rastgele>.pdf` sentetik yazma (SSE-B2 yanıtı, versiyon kimliği, ETag=MD5), HEAD (boyut), GET (SHA-256), imzasız erişimin reddi (path-style, virtual-host, friendly URL), yalnızca kendi nesnesinin tüm fiziksel versiyonlarının versiyona özgü silinmesi ve doğrulanması. ≈10 API çağrısı. Değer/anahtar yazdırmaz.

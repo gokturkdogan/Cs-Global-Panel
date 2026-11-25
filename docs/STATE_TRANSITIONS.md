@@ -18,7 +18,7 @@
 
 \* "Terminal": normal akışta çıkışı olmayan, müşteri paneli salt okunur statü. Personel yalnızca gerekçeli yeniden açma geçişleriyle (T8, T9) çıkarabilir.
 
-Başlangıç statüsü: `AWAITING_DOCUMENTS` (`application_status_history`'ye `from_status = NULL`). **PHASE 06'da uygulandı:** başvuru oluşturma transaction'ında `NULL → AWAITING_DOCUMENTS` (`CREATE`, aktör personel) yazılır; snapshot evrakları `NOT_UPLOADED` başlar. T1–T12 geçişleri PHASE 09. Arşiv statüsü **yoktur** (OD-23). **PHASE 07:** müşteri paneli yukarıdaki müşteri açıklamalarını birebir gösterir (`CUSTOMER_STATUS_MESSAGE`, unit testli); hiçbir statü geçişi yapmaz; yükleme yer tutucusu yalnızca `AWAITING_DOCUMENTS`/`REVISION_REQUIRED`'da görünür, diğer statüler salt okunurdur (D-092).
+Başlangıç statüsü: `AWAITING_DOCUMENTS` (`application_status_history`'ye `from_status = NULL`). **PHASE 06'da uygulandı:** başvuru oluşturma transaction'ında `NULL → AWAITING_DOCUMENTS` (`CREATE`, aktör personel) yazılır; snapshot evrakları `NOT_UPLOADED` başlar. T1–T12 geçişleri **PHASE 09'da uygulandı** (D-108…D-110). Arşiv statüsü **yoktur** (OD-23). **PHASE 07:** müşteri paneli yukarıdaki müşteri açıklamalarını birebir gösterir (`CUSTOMER_STATUS_MESSAGE`, unit testli); hiçbir statü geçişi yapmaz; yükleme yer tutucusu yalnızca `AWAITING_DOCUMENTS`/`REVISION_REQUIRED`'da görünür, diğer statüler salt okunurdur (D-092).
 
 ### 1.1 Diyagram
 
@@ -170,3 +170,12 @@ Ayrıntı: [FILE_STORAGE.md](FILE_STORAGE.md).
 ## 4. İzin verilen aksiyonlar
 
 Domain modülü `(actor, application, requirements)` için izin verilen aksiyon listesini döndüren saf bir fonksiyon sağlar (`getAllowedApplicationActions`, `getAllowedDocumentActions`). UI butonları bu listeye göre gösterilir; Server Action aynı fonksiyonu kilit altında **yeniden** çağırarak doğrular. Matrisin her hücresi unit test ile kapsanır.
+
+## 5. PHASE 09 Uygulama Notları (D-108…D-112)
+- Tablolar `src/features/applications/domain/application-status.ts` (T1–T12, BR-50/59/60 guard'ları, `staffActions`) ve `src/features/documents/domain/document-status.ts` (D4–D6 karar, D2/D8 kaldırma) içindedir; mutasyonlar `src/features/workflow/service.ts`'te aynı fonksiyonları kilit altında yeniden çağırır. Her satır unit testle kapsanır.
+- **Otomatik geçiş yok (BR-61):** tüm zorunlu evraklar onaylansa da başvuru `UNDER_REVIEW`'da kalır; personel T3 ile ilerletir. Düzeltme kararı evrak statüsünü değiştirir; başvuru T2 ile `REVISION_REQUIRED` olur.
+- İstemci hedef statü göndermez; aksiyon kodu gönderir. T8 hedefi statü geçmişinden.
+- Evrak kararı (D4–D6) yalnızca ekranda görünen `fileId` hâlâ aktifse (BR-57) ve evrak sürümü güncelse.
+- Kaldırma: dosya `ACTIVE → REMOVED` (fiziksel silme yok); D2/D8 statü kuralları; `UNDER_REVIEW` ve sonrasında kaldırma yok.
+- T7 iptal: `UPLOAD_PENDING`/`VALIDATING` → `EXPIRED`; evrak statüleri, dosyalar, kararlar, bağlantı değişmez.
+- No-op geçiş yok: her geçiş statü değiştirir ve tek geçmiş kaydı yazar; tekrar istekleri sürüm/statü kontrolünde reddedilir.

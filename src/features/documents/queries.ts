@@ -17,6 +17,8 @@ export type StaffFileVersion = {
   readonly id: string;
   readonly versionNumber: number;
   readonly isActive: boolean;
+  /** Aktif olmayan geçerli versiyon: değiştirildi (SUPERSEDED) veya kaldırıldı (REMOVED — PHASE 09). */
+  readonly removed: boolean;
   readonly filename: string;
   readonly sizeBytes: number;
   /** "Müşteri" veya personel kullanıcı adı (iki hesap eşittir; yalnızca tanımlama). */
@@ -58,6 +60,7 @@ export async function getApplicationFileVersions(
       id: row.id,
       versionNumber: row.versionNumber,
       isActive: row.status === "ACTIVE",
+      removed: row.status === "REMOVED",
       filename: row.filename,
       sizeBytes: row.sizeBytes,
       uploadedBy: row.actorType === "CUSTOMER" ? "Müşteri" : (row.username ?? "Personel"),

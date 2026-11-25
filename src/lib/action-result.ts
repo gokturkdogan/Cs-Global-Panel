@@ -9,6 +9,8 @@ export type ActionErrorCode =
   | "DUPLICATE"
   | "UNAUTHENTICATED"
   | "STALE_PREVIEW"
+  /** İş akışı koşulu sağlanmıyor / matriste olmayan geçiş (PHASE 09). */
+  | "NOT_ALLOWED"
   | "INTERNAL";
 
 export type ActionError = {

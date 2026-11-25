@@ -1,0 +1,4 @@
+ALTER TABLE "document_comments" ADD COLUMN "idempotency_key" uuid;--> statement-breakpoint
+ALTER TABLE "document_comments" ADD COLUMN "payload_hash" text;--> statement-breakpoint
+ALTER TABLE "document_comments" ADD CONSTRAINT "document_comments_idempotency_key_unique" UNIQUE("idempotency_key");--> statement-breakpoint
+ALTER TABLE "document_comments" ADD CONSTRAINT "document_comments_idempotency_check" CHECK (("document_comments"."idempotency_key" IS NULL) = ("document_comments"."payload_hash" IS NULL) AND ("document_comments"."payload_hash" IS NULL OR "document_comments"."payload_hash" ~ '^[0-9a-f]{64}$'));

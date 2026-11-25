@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 
 import type { ApplicationStatus, DocumentStatus } from "@/config/statuses";
 import type { Database } from "@/server/db/client";
@@ -9,6 +9,8 @@ import {
   applicationDocumentFiles as files,
   applicationDocumentRequirements as snapshots,
   applications,
+  applicationStatusHistory as statusHistory,
+  documentComments as comments,
   documentReviews as reviews,
 } from "@/server/db/schema";
 
@@ -52,8 +54,20 @@ export type CustomerPortalView = {
     readonly serviceName: string;
     readonly createdAt: string;
     readonly status: ApplicationStatus;
+    /** Optimistic lock — gönderimde `expectedVersion` (PHASE 09). */
+    readonly version: number;
   };
   readonly documents: readonly CustomerDocument[];
+  /** Müşteriye görünür yorumlar (BR-120; yazar/personel bilgisi yok). */
+  readonly comments: readonly {
+    readonly body: string;
+    readonly createdAt: string;
+    readonly documentTitle: string | null;
+  }[];
+  /** Herkese açık süreç geçmişi: yalnızca statü + tarih (gerekçe ve aktör yok — STATE_TRANSITIONS §1.4). */
+  readonly timeline: readonly { readonly status: ApplicationStatus; readonly at: string }[];
+  /** Gönderim guard'ları için devam eden (süresi dolmamış) yükleme olan evraklar. */
+  readonly pendingUploadRequirementIds: readonly string[];
 };
 
 export async function getCustomerPortalView(
@@ -68,6 +82,7 @@ export async function getCustomerPortalView(
       serviceName: applications.serviceNameSnapshot,
       createdAt: applications.createdAt,
       status: applications.status,
+      version: applications.version,
     })
     .from(applications)
     .where(eq(applications.id, access.applicationId))
@@ -128,6 +143,36 @@ export async function getCustomerPortalView(
     revisionRows.map((row) => [row.requirementId, row.message]),
   );
 
+  const commentRows = await db
+    .select({
+      body: comments.body,
+      createdAt: comments.createdAt,
+      requirementId: comments.requirementId,
+    })
+    .from(comments)
+    .where(eq(comments.applicationId, access.applicationId))
+    .orderBy(desc(comments.createdAt), desc(comments.id))
+    .limit(100);
+  const titleById = new Map(rows.map((row) => [row.id, row.title]));
+
+  const timelineRows = await db
+    .select({ status: statusHistory.toStatus, at: statusHistory.createdAt })
+    .from(statusHistory)
+    .where(eq(statusHistory.applicationId, access.applicationId))
+    .orderBy(asc(statusHistory.createdAt), asc(statusHistory.id))
+    .limit(200);
+
+  const pendingRows = await db
+    .select({ requirementId: files.requirementId })
+    .from(files)
+    .where(
+      and(
+        eq(files.applicationId, access.applicationId),
+        inArray(files.status, ["UPLOAD_PENDING", "VALIDATING"]),
+        gt(files.uploadExpiresAt, sql`now()`),
+      ),
+    );
+
   return {
     customer: { firstName: application.firstName, lastName: application.lastName },
     application: {
@@ -135,7 +180,15 @@ export async function getCustomerPortalView(
       serviceName: application.serviceName,
       createdAt: application.createdAt.toISOString(),
       status: application.status,
+      version: application.version,
     },
+    comments: commentRows.map((row) => ({
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+      documentTitle: row.requirementId ? (titleById.get(row.requirementId) ?? null) : null,
+    })),
+    timeline: timelineRows.map((row) => ({ status: row.status, at: row.at.toISOString() })),
+    pendingUploadRequirementIds: [...new Set(pendingRows.map((row) => row.requirementId))],
     documents: rows.map((row) => ({
       requirementId: row.id,
       version: row.version,

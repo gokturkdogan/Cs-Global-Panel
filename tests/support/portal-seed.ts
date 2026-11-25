@@ -157,3 +157,39 @@ export function signCustomerSession(payload: Record<string, unknown>): string {
 }
 
 export const CUSTOMER_COOKIE = "cs_portal";
+
+/**
+ * E2E iş akışı tohumu (PHASE 09): evrağa sentetik ACTIVE dosya kaydı + `UPLOADED` statüsü. Storage'da
+ * nesne yoktur — yalnızca görüntüleme gerektirmeyen iş akışı testleri için (gerçek yükleme ayrıca test edilir).
+ */
+export async function seedActiveFile(
+  db: pg.ClientBase,
+  userId: string,
+  applicationId: string,
+  requirementId: string,
+): Promise<string> {
+  const fileId = randomUUID();
+  await db.query(
+    `INSERT INTO application_document_files
+       (id, application_id, requirement_id, status, version_number, blob_pathname, original_filename,
+        size_bytes, sha256, uploaded_by_actor_type, uploaded_by_user_id, upload_expires_at, activated_at, uploaded_at,
+        storage_version_id)
+     VALUES ($1, $2, $3, 'ACTIVE',
+       (SELECT coalesce(max(version_number), 0) + 1 FROM application_document_files WHERE requirement_id = $3),
+       $4, 'sentetik.pdf', 1024, $5, 'USER', $6, now(), now(), now(), $7)`,
+    [
+      fileId,
+      applicationId,
+      requirementId,
+      `applications/${applicationId}/${requirementId}/${fileId}.pdf`,
+      randomBytes(32).toString("hex"),
+      userId,
+      `seed-version-${fileId}`,
+    ],
+  );
+  await db.query(
+    "UPDATE application_document_requirements SET status = 'UPLOADED', version = version + 1 WHERE id = $1",
+    [requirementId],
+  );
+  return fileId;
+}

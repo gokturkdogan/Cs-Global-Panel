@@ -350,3 +350,10 @@ Kurallar (D-016):
 - **UI:** `PdfUpload` (XHR gerçek ilerleme, hydration sonrası etkin), `StaffDocumentCard` (aktif dosya, v, yükleyen, tarih, görüntüle/indir, değiştir onayı, geçmiş), müşteri `DocumentCard` (aktif dosya + yükle/değiştir), dashboard `StorageCapacityCard` (yalnızca DB).
 - **Bakım (D-105):** `scripts/storage/{verify,reconcile,cleanup,maintenance,common}.ts`, `scripts/env/configure-b2.ts`. Ücretli cron yok.
 - **Kilit sırası:** applications → application_document_requirements → application_document_files → storage_quota_state.
+
+## PHASE 09 Notları (uygulandı)
+- **Domain:** `src/features/applications/domain/application-status.ts` (T1–T12 tablosu, guard'lar, `staffActions`), `src/features/documents/domain/document-status.ts` (karar, kaldırma), `transition-labels.ts` (etiketler).
+- **Mutasyonlar:** `src/features/workflow/service.ts` (tek transaction: başvuru kilidi → müşteri token/süre → sürüm → evraklar id sırasıyla → dosyalar → guard → yazma → geçmiş → audit). Personel: `workflow/actions.ts`; müşteri: `customer-portal/actions.ts` → `workflow/customer-entry.ts` (dar giriş noktası).
+- **Okuma:** `workflow/queries.ts` (inceleme geçmişi + dosya versiyonu, yorumlar, statü geçmişi + gerekçe, guard girdileri); müşteri portalı sorgusu yorumlar + herkese açık zaman çizelgesi ile genişletildi.
+- **UI:** personel `WorkflowPanel` (yalnızca matristeki aksiyonlar, pasifler nedenleriyle, onay + gerekçe; T12 evrak seçimi), `ReviewActions` (incelenen versiyon gösterilir), inceleme geçmişi, yorum formu, statü geçmişi; müşteri `SubmitPanel`, "incelemeye gönderildi" bilgisi, `RemoveFileButton`, yorumlar, süreç geçmişi.
+- Hiçbir iş akışı işlemi storage/PDF çağrısı yapmaz; yeni migration ve bağımlılık yok.

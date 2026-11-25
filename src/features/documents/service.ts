@@ -123,7 +123,7 @@ function enderColumns(actor: FileActor) {
 }
 
 /** Müşteri: token hâlâ aktif mi, bu başvuruya mı ait, oturum süresi dolmadı mı (her aşamada). */
-async function customerStillAllowed(tx: Pick<Database, "select">, actor: FileActor) {
+export async function customerStillAllowed(tx: Pick<Database, "select">, actor: FileActor) {
   if (actor.kind !== "CUSTOMER") return true;
   if (actor.sessionExpiresAt <= Math.floor(Date.now() / 1000)) return false;
   const [row] = await tx

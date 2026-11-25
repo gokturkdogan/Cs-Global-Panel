@@ -1,10 +1,10 @@
 # Proje Durumu
 
-> Her faz sonunda güncellenir. Son güncelleme: **2026-11-25** (PHASE 08 sonu)
+> Her faz sonunda güncellenir. Son güncelleme: **2026-11-25** (PHASE 09 sonu)
 
 ## Current Phase
-**PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage**
-Phase Status: **COMPLETED (geliştirme) — kullanıcı onayı bekleniyor** (OD-25 kullanıcı kararı; D-096…D-107 Proposed). Canlı B2 doğrulaması kullanıcının `pnpm env:b2` + `pnpm storage:verify` çalıştırmasına bağlı (**NOT VERIFIED**).
+**PHASE 09 — Document Review & Application Workflow**
+Phase Status: **COMPLETED (PHASE 09 + 09.1 kapanış) — kullanıcı onayı bekleniyor** (D-108…D-114 Proposed)
 
 ## Completed Phases
 - PHASE 00 — Project Foundation & Architecture (+ revizyon) — Product Owner onayı 2026-11-24.
@@ -15,12 +15,15 @@ Phase Status: **COMPLETED (geliştirme) — kullanıcı onayı bekleniyor** (OD-
 
 - PHASE 05 — Service & Document Template Management — Product Owner onayı 2026-11-24 (D-072…D-077 Accepted; P4-01 yerel test izolasyonu açısından RESOLVED).
 - PHASE 06 — Customer & Application Management — Product Owner onayı 2026-11-25 (D-078…D-080, D-082…D-086 Accepted; D-081 koşullu).
+- PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage — Product Owner onayı 2026-11-25 (D-096, D-097, D-098, D-103, D-106, D-107 Accepted; D-099…D-102, D-104, D-105 koşullu Accepted). **Canlı B2 duman testi PASS** (kullanıcı terminali, `pnpm storage:verify`; yalnızca kontrollü storage smoke kapsamı).
 - PHASE 07 — Customer Portal — Product Owner onayı 2026-11-25 (D-088…D-092, D-094, D-095 Accepted; D-087, D-093 koşullu Accepted — hosting log redaksiyonu, tarayıcı geçmişi, WhatsApp önizleme, edge koruması, gerçek cihaz/in-app testleri, HTTPS `Secure` cookie, anahtar yedekleme/rotasyon ve PB'ler açık; D-081 koşullu kalır). TM-40 görüntüleme izolasyonu doğrulandı.
 
 > Faz onayları production güvenliği veya KVKK uyumluluğu onayı değildir; PB-01…PB-11 açıktır.
 
 ## Project Status
-PDF yükleme ve Backblaze B2 private depolama uygulandı (PHASE 08): müşteri ve personel (müşteri adına, `UNDER_REVIEW` dahil) PDF yükleme/değiştirme; ham PDF gövdesiyle kimlik doğrulamalı Route Handler'lar (proxy dışı); izole worker'da yapısal PDF doğrulaması (pdf.js + nesne düzeyi aktif içerik taraması — antivirüs değildir); SHA-256; rezervasyon → B2 → aktivasyon yaşam döngüsü ve hata kurtarma; tek aktif PDF + versiyon geçmişi; onay geçersizleştirme; atomik 9 GB kota (8 GB uyarı); yetkili görüntüleme/indirme (personel geçmiş, müşteri yalnızca ACTIVE); gerçek yükleme ilerlemesi; dashboard kapasite kartı; `pnpm env:b2`, `storage:verify`, `storage:reconcile`, `storage:cleanup`; migration 0005. İncelemeye gönderme/inceleme (PHASE 09), kaldırma (PHASE 09), başvuru silme (PHASE 10), deployment **yok**. Commit/push yapılmadı.
+Evrak inceleme ve başvuru iş akışı uygulandı (PHASE 09): müşteri ve personel (müşteri adına) incelemeye gönderme / yeniden gönderme (BR-50 guard'ları sunucuda), evrak kararları (onay / düzeltme — belirli dosya versiyonuna bağlı, BR-57), müşteriye görünür düzeltme açıklamaları, T2–T12 statü geçişleri (manuel, matristen; gerekçeli iptal / yeniden açma / geri alma; T8 iptal öncesine), dosya kaldırma (D2/D8, fiziksel silme yok), müşteriye görünür yorumlar, personel statü geçmişi (gerekçeli) ve müşteri süreç geçmişi (statü + tarih), TM-40 iş akışı mutasyonu kapsamı. Kalıcı silme, iç notlar, audit yönetim ekranı (PHASE 10) ve deployment **yok**. Yeni migration ve bağımlılık yok. Commit/push yapılmadı.
+
+Önceki faz (PHASE 08): PDF yükleme ve Backblaze B2 private depolama uygulandı (PHASE 08): müşteri ve personel (müşteri adına, `UNDER_REVIEW` dahil) PDF yükleme/değiştirme; ham PDF gövdesiyle kimlik doğrulamalı Route Handler'lar (proxy dışı); izole worker'da yapısal PDF doğrulaması (pdf.js + nesne düzeyi aktif içerik taraması — antivirüs değildir); SHA-256; rezervasyon → B2 → aktivasyon yaşam döngüsü ve hata kurtarma; tek aktif PDF + versiyon geçmişi; onay geçersizleştirme; atomik 9 GB kota (8 GB uyarı); yetkili görüntüleme/indirme (personel geçmiş, müşteri yalnızca ACTIVE); gerçek yükleme ilerlemesi; dashboard kapasite kartı; `pnpm env:b2`, `storage:verify`, `storage:reconcile`, `storage:cleanup`; migration 0005. İncelemeye gönderme/inceleme (PHASE 09), kaldırma (PHASE 09), başvuru silme (PHASE 10), deployment **yok**. Commit/push yapılmadı.
 
 Önceki faz (PHASE 07): Salt okunur müşteri paneli uygulandı: `/b/TOKEN` girişi (biçim kontrolü, HMAC arama, yan etkisiz), imzalı 7 günlük sabit müşteri oturumu (`CUSTOMER_SESSION_SECRET`), 303 ile token'sız `/portal/<bağlam>`, her istekte iptal/yenileme/silme kontrolü, çoklu sekme bağlam izolasyonu (TM-40 görüntüleme kapsamı), `/link-invalid` ve `/link-unavailable`, mobile-first panel (hoş geldiniz, süreç göstergesi, evrak ilerlemesi, evrak kartları + düzeltme açıklaması, yükleme/gönderim yer tutucuları, iletişim kartı), müşteri yolu başlıkları ve log redaksiyonu. Dosya yükleme, inceleme/gönderim, statü geçişleri, silme, deployment **yok**. Commit/push yapılmadı.
 
@@ -36,7 +39,8 @@ Altyapı:
 - PHASE 06: `/dashboard/applications` (liste), `/new` (oluşturma + başarı ekranı), `/[applicationId]` (özet, müşteri bilgileri, bağlantı yönetimi, evrak snapshot'ı, geçmiş); 8 Server Action; `src/server/access-tokens/crypto.ts`; `getAccessTokenEnv()`; `pnpm env:token-keys`; `libphonenumber-js` 1.13.17.
 - PHASE 07: `GET /b/[token]`; `src/server/customer-session/{session,access}.ts` (`requireCustomerAccess`); `getCustomerSessionEnv()`; `src/features/customer-portal/*`; `src/app/(customer)/` (`/portal/[context]`, `/portal`, `/link-invalid`, `/link-unavailable`); müşteri yolu başlıkları ve dev log redaksiyonu (`next.config.ts`); müşteri modülü ESLint sınırı.
 - PHASE 08: `src/server/storage/*` (B2 + yerel private adapter, config, quota), `src/server/pdf/*` (izole doğrulama), `src/features/documents/*` (servis, HTTP katmanı, sorgular, `PdfUpload`, `StaffDocumentCard`, `StorageCapacityCard`), 4 Route Handler (`/api/documents/[requirementId]/file`, `/api/files/[fileId]`, `/api/portal/[context]/documents/[requirementId]/file`, `/api/portal/[context]/files/[fileId]`), `scripts/storage/*`, `scripts/env/configure-b2.ts`; `@aws-sdk/client-s3` 3.1176.0, `pdfjs-dist` 6.5.438.
-- Veritabanı: Neon Free, Frankfurt, PostgreSQL 18.7, tek veritabanı `neondb` (D-059); **6 migration, 18 tablo** (0005: `storage_quota_state`, `storage_version_id`, token FK'leri CASCADE).
+- PHASE 09: `src/features/applications/domain/{application-status,transition-labels}.ts`, `src/features/documents/domain/document-status.ts`, `src/features/workflow/{service,actions,customer-entry,schemas,queries}.ts` + bileşenler (`WorkflowPanel`, `ReviewActions`, `CommentForm`), müşteri `actions.ts`, `SubmitPanel`, `RemoveFileButton`, yorumlar/süreç geçmişi.
+- Veritabanı: Neon Free, Frankfurt, PostgreSQL 18.7, tek veritabanı `neondb` (D-059); **7 migration, 18 tablo** (0006: yorum idempotency) (0005: `storage_quota_state`, `storage_version_id`, token FK'leri CASCADE).
 - Depolama: Backblaze B2 private bucket `cs-global-documents` (EU Central, SSE-B2; OD-25) — uygulama bağlantısı **henüz yapılandırılmadı** (`.env.local`'da B2 anahtarı yok).
 
 ## Pending Features
@@ -48,7 +52,7 @@ OD-01…OD-24 ACCEPTED (Product Owner, 2026-11-24); **OD-25 — Backblaze B2** A
 
 ## Technical Decisions
 
-D-042…D-058, D-060…D-064, D-066, D-069…D-080, D-082…D-086, D-088…D-092, D-094, D-095 **Accepted**; D-067, D-068, D-081, D-087, D-093 **Conditionally Accepted**; D-063, D-065, D-035 **Partially Superseded**; D-017, D-040 **Superseded** (OD-25). PHASE 08 kararları **D-096…D-107 Proposed** (kullanıcı onayı bekliyor).
+D-042…D-058, D-060…D-064, D-066, D-069…D-080, D-082…D-086, D-088…D-092, D-094…D-098, D-103, D-106, D-107 **Accepted**; D-067, D-068, D-081, D-087, D-093, D-099…D-102, D-104, D-105 **Conditionally Accepted**; D-063, D-065, D-035 **Partially Superseded**; D-017, D-040 **Superseded** (OD-25). PHASE 09 kararları **D-108…D-114 Proposed** (kullanıcı onayı bekliyor; D-113/D-114 PHASE 09.1).
 
 | ID | Konu | Öneri | Gerekli faz |
 |---|---|---|---|
@@ -76,18 +80,21 @@ D-042…D-058, D-060…D-064, D-066, D-069…D-080, D-082…D-086, D-088…D-092
 6. **B2 anahtarı:** kullanıcı kendi terminalinde `pnpm env:b2` (gizli girdi) + `pnpm storage:verify` çalıştırmalıdır. Anahtar sohbette istenmez.
 
 ## Known Issues
-1. **Canlı Backblaze B2 doğrulaması yapılmadı:** `.env.local`'da B2 anahtarı yok (kullanıcı `pnpm env:b2` ile girecek; sohbette istenmedi). Gerçek API erişimi, anahtar yetkileri, SSE-B2 yanıtı, versiyon kimliği, ETag=MD5, imzasız erişim reddi, Object Lock/replikasyon durumu **NOT VERIFIED**. Uygulamada B2 yapılandırılana kadar dosya işlemleri "şu anda işlenemiyor" (503) döner; diğer işlevler çalışır. Tüm otomatik testler yerel private adapter ile.
+1. **Canlı B2 duman testi PASS** (kullanıcı terminali, 2026-11-25): bucket erişimi, sentetik yazma, SSE-B2 AES256, versiyon kimliği, HEAD 400/400, GET SHA-256, imzasız erişim 401 (3 biçim), versiyona özgü silme. **Doğrulanmayan:** tarayıcıdan B2'ye tam uygulama yükleme akışı, gerçek kota/cap aşımı davranışı, tüm sağlayıcı hata/kurtarma senaryoları, Object Lock/replikasyon, production. Tüm otomatik testler yerel private adapter ile.
 2. **Gerçek cihaz testi yapılmadı:** iOS Safari, Android Chrome, WhatsApp in-app — dosya seçici, yükleme, satır içi PDF görüntüleme ve PHASE 07 cookie davranışı (ROADMAP DoD maddeleri **karşılanmadı**). Yalnızca Playwright Chrome/WebKit + mobil emülasyon.
 3. **Yapısal doğrulama antivirüs değildir** (OD-07, PB-05); gerçek belge setiyle (tarayıcı "PDF olarak kaydet", tarama uygulamaları, ofis çıktıları) yanlış pozitif oranı ölçülmedi (PHASE 12). Ad taraması içerik akışlarını taramaz (nesne değildir); pdf.js bozuk xref'leri onarabildiği için zarf kontrolü ayrıca yapılır.
-4. **Kaldırma (BR-44 "kaldır", `REMOVED`) uygulanmadı** — PHASE 09. **Başvuru silmenin storage aşaması** PHASE 10 (başvuru silme henüz yok).
+4. Kaldırma PHASE 09'da uygulandı (dosya `REMOVED`, fiziksel silme yok). **Başvuru silmenin storage aşaması** PHASE 10 (başvuru silme henüz yok; D-102 koşulu: storage nesneleri silinmeden metadata kaybedilmemeli).
 5. **Teknik temizlik elle:** `pnpm storage:cleanup --apply` / `storage:reconcile --apply` zamanlanmadı (ücretli cron yok; TD-10). Yarım yüklemelerin nesneleri temizlik çalıştırılana kadar kotada sayılır.
 6. **Range desteği yok:** görüntülemede dosya her açılışta tam indirilir (≤ 10 MiB) — günlük 1 GB indirme cap'i için ~100 tam görüntüleme/gün. Uygulama tarafı günlük indirme göstergesi yok.
 7. **Cap aşımındaki gerçek S3 hata kodu** belgelerde yok; sınıflandırma 403+cap/limit ve 429 üzerinden (canlı doğrulanmadı).
 8. **Eşzamanlılık/kuyruk süreç başına** (bellek içi sayaç — yalnızca kaynak koruması, güvenlik limiti değil); çoklu instance'ta instance başına 4. Rate limitler Postgres'te (aktör başına).
-9. **Aynı tarayıcıda tek etkin başvuru paneli (D-090)**; TM-40 dosya kısmı çözüldü, **gönderim kısmı açık** (PHASE 09).
+9. **Aynı tarayıcıda tek etkin başvuru paneli (D-090)**; TM-40 görüntüleme, dosya ve iş akışı mutasyonu kapsamında testle çözüldü (gerçek cihaz/production tarayıcı önbelleği açık).
 10. **`/b` için IP rate limit yok** (TD-04, D-093) — PHASE 13. **HTTPS `__Host-`/`Secure` cookie** gerçek tarayıcıda doğrulanmadı.
 11. **Anahtar yedekleme/rotasyon prosedürü yok** (token anahtarları, `CUSTOMER_SESSION_SECRET`, B2 anahtarı — TM-48, TM-49, TM-51; D-081 koşulu) — PHASE 13 öncesi zorunlu.
-12. **Müşteri yorumları gösterilmiyor** (PHASE 09). Arama sayfa yenilenince sıfırlanır (D-085); iç notlar yok.
+12. **Müşteri yorum yazamaz** (BR-122 — salt okunur). Yorum idempotency PHASE 09.1'de sunucu/veritabanı düzeyinde çözüldü (D-113). Arama sayfa yenilenince sıfırlanır (D-085); iç notlar yok (PHASE 10).
+18. Ana senaryo (TESTING_STRATEGY §5.1, 19 adım) PHASE 09.1'de tek parça E2E olarak eklendi (Chrome + WebKit).
+20. **Değiştirme ↔ karar yarışı:** personel değiştirmesi yazım aşamasındayken aynı evraka karar verilirse değiştirme sürüm çakışmasıyla reddedilir (güvenli; yeniden deneme gerekir — D-114).
+19. **Otomatik statü geçişi yok (BR-61):** tüm evraklar onaylansa da personel "Evrakları Onayla" ile ilerletir; düzeltme kararları sonrası "Düzeltmeye Gönder" gerekir.
 13. **Hesap başına kilitleme DoS'u** (D-068, TD-04); köken kontrolü hosting'e bağlı (D-069).
 14. **İzole testler Docker gerektirir;** CI'da izole hedef yok; gerçek GitHub CI çalışması gözlemlenmedi.
 15. **Ortak `neondb`'de test yan etkisi yok** (parmak izi öncesi/sonrası aynı); migration 0005 uygulandı (şema değişikliği, veri değişmedi).
@@ -134,15 +141,14 @@ Ayrıntı: [SECURITY.md](SECURITY.md) §11.
 
 **Geliştirmeyi engelleyen:** yok (yalnızca faz onayları). PB-01…PB-11 açık; hiçbiri çözülmüş sayılmaz. PHASE 00/01 onayları production güvenliği veya KVKK uyumluluğu onayı değildir.
 
-## Latest Verification Results (2026-11-25, PHASE 08)
-- `install --frozen-lockfile`, lint, typecheck, format:check, `db:check` → exit 0; `db:verify` → **18 tablo, 6 migration**, TLS doğrulandı.
-- Unit **310/310** (yeni: PDF doğrulama 25, dosya/depolama 51).
-- Integration (`neondb`, salt okunur/geri alınan): 58 geçti / 17 atlandı. Integration (izole Docker): **153 geçti / 10 atlandı** (yeni `documents.test.ts` 23 test; atlananlar gerçek hesaba özgü).
-- E2E (izole): **425 geçti / 99 atlandı / 0 başarısız** (yeni `documents.spec.ts` 7 × 4 proje = 28); atlananlar proje/genişlik kapsamı. E2E (`neondb`, salt okunur): **267 geçti / 257 atlandı / 0 başarısız** (izole-mutasyon testleri, şifreyle giriş, proje/genişlik kapsamı).
-- Canary build (13 canary secret değeri — B2 dahil) + client bundle kontrolü (28 dosya) temiz; build uyarısız.
-- `pnpm audit --audit-level=high` temiz (1 moderate, dev — önceki fazlardan).
-- `pnpm storage:verify`: **çalıştırılmadı** (B2 anahtarı yok — NOT VERIFIED).
-- `neondb` parmak izi (2 hesap + credential özeti, gerçek oturum 0, 3 hizmet, 12 şablon evrak, başvuru 0, token 0, dosya 0, audit 154) migration ve tüm testler öncesi/sonrası **aynı**. Artık Docker container'ı ve geçici depolama kökü yok.
+## Latest Verification Results (2026-11-25, PHASE 09.1)
+- `install --frozen-lockfile`, lint, typecheck, format:check, `db:check` → exit 0; `db:verify` → 18 tablo, **7 migration**, TLS doğrulandı.
+- Unit **374/374**.
+- Integration (`neondb`, salt okunur): 58 geçti / 17 atlandı. Integration (izole): **181 geçti / 10 atlandı** (yeni `workflow-hardening.test.ts` 15).
+- E2E (izole): **451 geçti / 101 atlandı / 0 başarısız** (ana senaryo Chrome + WebKit; TM-40/oturum ve yorum çift tıklama 4 projede). E2E (`neondb`, salt okunur): **267 geçti / 285 atlandı / 0 başarısız**.
+- Canary build (uyarısız) + client bundle kontrolü temiz. `pnpm audit --audit-level=high` temiz (1 moderate, dev — önceki).
+- Canlı B2 smoke testi yeniden çalıştırılmadı (PHASE 08 sonrası PASS; iş akışı storage çağrısı yapmaz — statik test).
+- `neondb` veri parmak izi migration 0006 ve tüm testler öncesi/sonrası aynı; açık Docker container'ı ve geçici depolama dizini yok.
 
 ## Next Phase
-**PHASE 09 — Document Review & Application Workflow** — kullanıcı açıkça onaylamadan başlanmaz.
+**PHASE 10 — Administration & Operations** — kullanıcı açıkça onaylamadan başlanmaz.

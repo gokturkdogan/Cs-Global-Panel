@@ -61,7 +61,7 @@ export const messages = {
     messageCopied: "Mesaj panoya kopyalandı.",
     copyFailed: "Panoya kopyalanamadı. Metni seçip elle kopyalayın.",
     portalLimitedNotice:
-      "Müşteri paneli geliştirme aşamasındadır: PDF yükleme açık, incelemeye gönderme henüz yok. Platform gerçek müşteri kullanımına hazır değildir; gerçek müşterilerle paylaşmayın ve gerçek belge yükletmeyin.",
+      "Müşteri paneli geliştirme aşamasındadır. Platform gerçek müşteri kullanımına hazır değildir; gerçek müşterilerle paylaşmayın ve gerçek belge yükletmeyin.",
     contactChangedWarning:
       "İletişim bilgisi değişti. Mevcut bağlantı önceki alıcıda kalmış olabilir ve hâlâ geçerlidir; gerekirse bağlantıyı yenileyin.",
     emptyTitle: "Henüz başvuru bulunmuyor.",
@@ -93,7 +93,6 @@ export const messages = {
     unavailableTitle: "Şu anda erişilemiyor",
     unavailableDescription:
       "Başvuru paneliniz geçici olarak görüntülenemiyor. Lütfen biraz sonra tekrar deneyiniz veya size gönderilen bağlantıyı yeniden açınız.",
-    submitSoon: "İncelemeye gönderme yakında kullanıma açılacak.",
     contactSoon: "İletişim bilgisi yakında eklenecek.",
     privateLink: "Bu bağlantı size özeldir, başkalarıyla paylaşmayınız.",
     progressDisclaimer:
@@ -154,6 +153,63 @@ export const messages = {
     capacityFull: "Şu anda yeni evrak yüklenemiyor (uygulama kapasite sınırı).",
     capacityNote: "Uygulama kayıtlarından hesaplanır (sağlayıcı faturalama verisi değildir).",
     capacityUnavailable: "Depolama kullanımı şu anda hesaplanamıyor.",
+  },
+  workflow: {
+    stateChanged: "Başvurunun durumu değişmiş. Lütfen sayfayı yenileyip tekrar deneyiniz.",
+    alreadyUnderReview: "Başvurunuz zaten incelemede.",
+    notAllowed: "Bu işlem başvurunun mevcut durumunda yapılamaz.",
+    staleFile:
+      "Bu evrak inceleme sırasında değiştirilmiş. Lütfen güncel dosyayı açarak yeniden inceleyiniz.",
+    accessEnded: "Oturumunuz sona erdi. Size gönderilen bağlantıyı yeniden açınız.",
+    contextChanged:
+      "Bu sayfa artık güncel değil: bu tarayıcıda başka bir başvuru açıldı. İşlem yapılmadı.",
+    unavailable: "İşleminiz şu anda gerçekleştirilemiyor. Lütfen daha sonra tekrar deneyiniz.",
+    reasonRequired: "Gerekçe zorunludur.",
+    reasonTooLong: "Gerekçe en fazla 1000 karakter olabilir.",
+    revisionMessageLength: "Düzeltme açıklaması 10–1000 karakter olmalıdır.",
+    commentLength: "Yorum 1–2000 karakter olmalıdır.",
+    controlCharacters: "Metin geçersiz karakter içeriyor.",
+    blockers: {
+      WRONG_STATUS: "Başvurunun mevcut durumu bu işleme izin vermiyor.",
+      MISSING_REQUIRED: "İncelemeye göndermek için tüm zorunlu evrakları yüklemelisiniz.",
+      UPLOAD_IN_PROGRESS: "Devam eden bir dosya yüklemesi var; tamamlanmasını bekleyiniz.",
+      REVISION_PENDING: "Düzeltme istenen evraklar için yeni dosya yüklenmelidir.",
+      PENDING_REVIEW: "İnceleme bekleyen evraklar var.",
+      NO_REVISION: "Düzeltme istenen evrak yok.",
+      NOT_ALL_APPROVED:
+        "Zorunlu evrakların ve yüklenmiş isteğe bağlı evrakların tamamı onaylanmalıdır.",
+    },
+    submitButton: "İncelemeye Gönder",
+    resubmitButton: "Yeniden İncelemeye Gönder",
+    submitConfirmTitle: "Evraklarınızı incelemeye göndermek istiyor musunuz?",
+    submitConfirmDescription:
+      "İnceleme süresince evraklarınızı değiştiremezsiniz. Gerekli görülürse danışmanlarımız sizden düzeltme isteyecektir.",
+    submitted: "Evraklarınız incelemeye gönderildi.",
+    removeButton: "Dosyayı Kaldır",
+    removeConfirmTitle: "Dosya kaldırılsın mı?",
+    removeConfirmDescription:
+      "Dosya bu evrakın güncel dosyası olmaktan çıkarılır. Yeni bir PDF yükleyebilirsiniz.",
+    removeConfirmStaffDescription:
+      "Dosya bu evrakın aktif dosyası olmaktan çıkarılır; dosya geçmişinde korunur (fiziksel olarak silinmez).",
+    removed: "Dosya kaldırıldı.",
+    approve: "Onayla",
+    requestRevision: "Düzeltme İste",
+    approveConfirmTitle: "Evrak onaylansın mı?",
+    revisionDialogTitle: "Düzeltme iste",
+    revisionMessageLabel: "Müşteriye görünecek düzeltme açıklaması",
+    revisionMessageHint: "10–1000 karakter. Müşteri bu metni evrak kartında görür.",
+    approved: "Evrak onaylandı.",
+    revisionRequested: "Düzeltme istendi.",
+    reasonLabel: "Gerekçe (personel içi, müşteriye gösterilmez)",
+    commentLabel: "Müşteriye görünecek yorum",
+    commentHint: "Müşteri bu metni başvuru panelinde görür. Düzenlenemez ve silinemez.",
+    commentAdd: "Yorum Ekle",
+    commentAdded: "Yorum eklendi.",
+    idempotencyConflict:
+      "Bu işlem başka bir istekle çakıştı. Lütfen sayfayı yenileyip yorumu yeniden gönderiniz.",
+    commentsTitle: "Müşteriye görünen yorumlar",
+    noComments: "Henüz yorum yok.",
+    transitionDone: "Başvuru durumu güncellendi.",
   },
   validation: {
     nameRequired: "Hizmet adı zorunludur.",

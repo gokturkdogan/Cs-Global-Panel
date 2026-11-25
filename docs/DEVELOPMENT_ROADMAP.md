@@ -84,7 +84,7 @@
 - **DoD:** Ortak DoD + gerçek cihaz (iOS Safari, Android Chrome, WhatsApp in-app — cookie davranışı dahil) manuel test sonuçları raporlandı.
 - **Sonuç (2026-11-25):** `/b/[token]` (biçim kontrolü, HMAC arama, imzalı oturum, 303 token'sız `/portal/<bağlam>`), 7 gün sabit oturum, her istekte iptal/yenileme/silme kontrolü, çoklu sekme bağlam izolasyonu, `/link-invalid`, `/link-unavailable`, mobile-first salt okunur panel (hoş geldiniz, süreç, evrak ilerlemesi, evrak kartları + düzeltme açıklaması, yükleme/gönderim yer tutucuları, iletişim kartı), başlıklar ve log redaksiyonu; D-087…D-095. **Yapılmayan / ertelenen:** IP rate limit (TD-04 → PHASE 13, D-093); müşteri yorumları (PHASE 09 — yorum modeli henüz yok); gerçek cihaz/WhatsApp in-app manuel testi (**yapılmadı** — cihaz erişimi yok; PHASE 12/13 öncesi gerekli). Testler izole Docker ortamında (Chrome, WebKit, mobil emülasyon).
 
-## PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage (tamamlandı — kullanıcı onayı bekliyor)
+## PHASE 08 — Secure PDF Upload & Backblaze B2 Private Storage (tamamlandı — onaylandı 2026-11-25; canlı B2 smoke PASS)
 - **Kapsam değişikliği (OD-25, 2026-11-25):** Vercel Blob + doğrudan client upload + `/api/uploads` token/callback + günlük cron tasarımı yerine **Backblaze B2 private bucket** + sunucu üzerinden yükleme + elle çalıştırılan bakım komutları. Önceki kapsam metni: "Dev/demo private Blob store'ları, `storage.ts`/`upload-client.ts`, `/api/uploads` (token + callback), client confirm, …, günlük teknik temizlik (cron), başvuru silmenin storage aşaması" — Superseded.
 - **Scope (uygulanan):** storage soyutlaması (B2 + yerel private), güvenli env yapılandırması (`pnpm env:b2`), canlı duman testi (`pnpm storage:verify`), yükleme route'ları (personel müşteri adına + müşteri), PDF yapısal doğrulama (pdf.js + nesne düzeyi tarama, izole worker — TD-06), SHA-256, tek aktif PDF + versiyonlama, atomik yaşam döngüsü + hata kurtarma, depolama kotası, görüntüleme/indirme route'ları (TD-12 kısmen), müşteri ve personel UI, dosya geçmişi, dashboard kapasite kartı, mutabakat/temizlik komutları, migration 0005.
 - **Kapsam dışı (bu fazda):** kaldırma (BR-44 "kaldır" — PHASE 09), başvuru silmenin storage aşaması (PHASE 10), zamanlanmış temizlik (PHASE 10/13), incelemeye gönderme/inceleme (PHASE 09).
@@ -94,14 +94,16 @@
 - **DoD:** Ortak DoD + SDK/sağlayıcı davranışı TECH_STACK §3.8'de doğrulandı + canlı `storage:verify` (kullanıcının anahtarı girmesine bağlı).
 - **Sonuç (2026-11-25):** Uygulandı; unit, izole integration ve izole E2E (Chrome, WebKit, mobil emülasyon) yeşil; migration 0005 önce izole ortamda sonra `neondb`'de; ortak veritabanı verisi değişmedi. **Yapılmayan:** canlı B2 doğrulaması (anahtar henüz `.env.local`'da yok — kullanıcı `pnpm env:b2` + `pnpm storage:verify` çalıştıracak); gerçek cihaz testleri; gerçek belge setiyle yanlış pozitif ölçümü.
 
-## PHASE 09 — Document Review & Application Workflow
-- **Scope:** Gönderim (müşteri + müşteri adına), evrak inceleme (onay/düzeltme + gerekçe, `fileId` bağlı), karar değişikliği, müşteri yorumları, T2–T7, **T8–T12** (her iki hesap; gerekçeli, evrak seçimli), izin verilen aksiyonlar, müşteri panelinde düzeltme gösterimi, yeniden gönderim, statü geçmişi.
+## PHASE 09 — Document Review & Application Workflow (tamamlandı — kullanıcı onayı bekliyor)
+- **Scope:** Gönderim (müşteri + müşteri adına), evrak inceleme (onay/düzeltme + gerekçe, `fileId` bağlı), karar değişikliği, müşteri yorumları, T2–T7, **T8–T12** (her iki hesap; gerekçeli, evrak seçimli), izin verilen aksiyonlar, müşteri panelinde düzeltme gösterimi, yeniden gönderim, statü geçmişi. **PHASE 08'den devredilen:** dosya kaldırma (BR-44, D2/D8).
 - **Deliverables:** Tam iş akışı.
 - **Dependencies:** PHASE 08; D-027, D-041.
 - **Security checks:** Sunucu tarafı state machine; kilit + version; BR-57; aktör kaydı.
 - **Test requirements:** Unit: geçiş matrisleri %100. Integration: eşzamanlılık, T8–T12 geçişleri (iki hesapla). E2E: §5.1 ana senaryo (tamamı), E1–E3, S13, S14, S23.
 - **Acceptance:** Ana senaryonun 19 adımı desktop + mobilde yeşil.
 - **DoD:** Ortak DoD.
+- **Sonuç (2026-11-25):** Uygulandı (D-108…D-112; yeni migration/bağımlılık yok). Unit (matrisin tamamı), izole integration (ana akış + eşzamanlılık + T8–T12, iki hesap) ve izole E2E (Chrome, WebKit, mobil emülasyon) yeşil. **Not:** ana senaryo E2E'de üç senaryoya bölünerek (müşteri gönderim → karar/düzeltme; müşteri adına gönderim → onay → işlem → tamamla → yeniden aç → iptal; düzeltme + gerçek yükleme + yeniden gönderim) kapsandı; tek parça "19 adım" testi yazılmadı. Gerçek cihaz testi yapılmadı.
+- **PHASE 09.1 kapanışı (2026-11-25):** yorum idempotency (D-113, migration 0006); 19 adımlı ana senaryo tek parça E2E (Chrome + WebKit, gerçek arayüz, şifreyle giriş/çıkış); eksik eşzamanlılık senaryoları kontrollü araya girmeyle (D-114); TM-40 yeniden gönderim/kaldırma/tekrar/oturum/bağlantı kapsamı; storage regresyon testleri.
 
 ## PHASE 10 — Administration & Operations
 - **Scope:** Dashboard istatistikleri, audit log ekranı (filtre, sayfalama), başvuru detayında işlem geçmişi, manuel başvuru/müşteri verisi silme akışının tamamlanması ve ilgili storage temizliği, operasyonel bakım gereksinimleri. Her iki hesap eşit erişir (OD-24). **Kaldırılanlar:** çalışan CRUD, kullanıcı yönetim ekranı, rol/izin yönetimi, hesap aktif/pasif ekranı, personel hesabı oluşturma ekranı.

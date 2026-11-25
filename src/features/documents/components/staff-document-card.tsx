@@ -6,6 +6,10 @@ import { RequiredBadge } from "@/features/services/components/status-badges";
 import { formatDateTime } from "@/lib/format";
 import { messages } from "@/lib/messages";
 
+import { ReviewActions } from "@/features/workflow/components/review-actions";
+import type { StaffReview } from "@/features/workflow/queries";
+
+import { canRemoveFile, reviewTarget } from "../domain/document-status";
 import { formatFileSize } from "../domain/filename";
 import { canUploadDocument } from "../domain/upload-rules";
 import type { StaffFileVersion } from "../queries";
@@ -21,6 +25,7 @@ export function StaffDocumentCard({
   requirement,
   applicationStatus,
   versions,
+  reviews,
 }: {
   readonly index: number;
   readonly requirement: {
@@ -34,6 +39,7 @@ export function StaffDocumentCard({
   };
   readonly applicationStatus: ApplicationStatus;
   readonly versions: readonly StaffFileVersion[];
+  readonly reviews: readonly StaffReview[];
 }) {
   const active = versions.find((item) => item.isActive) ?? null;
   const canUpload = canUploadDocument("STAFF", applicationStatus, requirement.status);
@@ -101,6 +107,57 @@ export function StaffDocumentCard({
         <p className="text-sm text-muted-foreground">{messages.files.noFile}</p>
       )}
 
+      {active ? (
+        <ReviewActions
+          requirementId={requirement.id}
+          fileId={active.id}
+          fileVersion={active.versionNumber}
+          expectedVersion={requirement.version}
+          canApprove={reviewTarget(applicationStatus, requirement.status, "APPROVED") !== null}
+          canRequestRevision={
+            reviewTarget(applicationStatus, requirement.status, "REVISION_REQUIRED") !== null
+          }
+          canRemove={canRemoveFile("STAFF", applicationStatus, requirement.status)}
+        />
+      ) : null}
+
+      {reviews.length > 0 ? (
+        <details className="group rounded-lg border p-3" data-testid="staff-review-history">
+          <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium">
+            İnceleme Geçmişi ({reviews.length})
+          </summary>
+          <ol className="mt-2 grid gap-2">
+            {reviews.map((review) => (
+              <li
+                key={review.id}
+                className="grid gap-1 border-b pb-2 text-sm last:border-b-0 last:pb-0"
+                data-testid="staff-review"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span>
+                    <strong>
+                      {review.decision === "APPROVED" ? "Onaylandı" : "Düzeltme istendi"}
+                    </strong>
+                    {review.fileVersion ? ` · v${review.fileVersion}` : ""} · {review.reviewer}
+                  </span>
+                  <time
+                    dateTime={review.createdAt}
+                    className="text-xs text-muted-foreground tabular-nums"
+                  >
+                    {formatDateTime(review.createdAt)}
+                  </time>
+                </div>
+                {review.customerMessage ? (
+                  <p className="text-xs wrap-anywhere whitespace-pre-line text-muted-foreground">
+                    Müşteriye: {review.customerMessage}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+
       {canUpload ? (
         <PdfUpload
           endpoint={endpoint}
@@ -145,7 +202,9 @@ export function StaffDocumentCard({
                         Aktif
                       </span>
                     ) : (
-                      <span className="ml-2 text-xs text-muted-foreground">Önceki versiyon</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {version.removed ? "Kaldırıldı" : "Önceki versiyon"}
+                      </span>
                     )}
                   </span>
                   <time

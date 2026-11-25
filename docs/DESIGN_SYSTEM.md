@@ -260,3 +260,13 @@ Doğrulama: 320, 360, 375, 390, 414, 430, 768, 1024, 1440 px'te uzun boşluksuz 
 - **`StorageCapacityCard`** (dashboard): "Dosya Depolama", `2,40 GB / 9 GB` (tr-TR), `role="meter"` + SVG çubuk (ok: `fill-primary`, ≥ 8 GB: `fill-warning`, ≥ 9 GB: `fill-destructive`), "%X kullanıldı · Kalan", aktif / önceki versiyon / devam eden / temizlik bekleyen dökümü, son sağlayıcı mutabakatı, uyarı kutusu (`role="alert"`: "Depolama kapasitesi dolmak üzere." / "Depolama kapasitesi dolu."). Not: "Uygulama kayıtlarından hesaplanır (sağlayıcı faturalama verisi değildir)." Yapılandırma yoksa "Depolama kullanımı şu anda hesaplanamıyor." Müşteri panelinde yok.
 - Uzun dosya adları 320 px'te yatay taşma yapmaz (E2E); dosya adı her yerde `wrap-anywhere`.
 - Gerçek cihazda (iOS Safari, Android Chrome, WhatsApp in-app) dosya seçici ve görüntüleme **doğrulanmadı**; testler tarayıcı emülasyonu.
+
+## 15. PHASE 09 Uygulanan Bileşenler (iş akışı)
+- **Personel `WorkflowPanel`** ("Başvuru durumu ve işlemler"): statü rozeti + yalnızca matristen çıkan aksiyon butonları (keyfî statü seçimi yok); koşulu sağlanmayanlar pasif, altında Türkçe nedenler. Her aksiyon `ConfirmDialog` ister; T7–T12'de "Gerekçe (personel içi, müşteriye gösterilmez)" zorunlu (boşsa pencere kapanmaz). İptal metni: "Başvuru ve yüklenmiş evraklar silinmeyecektir…". T12: onaylı evrak seçimi + her evrak için müşteriye görünür açıklama + gerekçe.
+- **`ReviewActions`**: "İncelenen dosya: v<n>", "Onayla" (onay penceresi), "Düzeltme İste" (müşteriye görünür açıklama 10–1000, yardım metni + `aria-describedby`), izinliyse "Dosyayı Kaldır" (yıkıcı onay). Sonuç `role="status"`.
+- **İnceleme geçmişi** (`<details>`): karar, dosya versiyonu, inceleyen, tarih, müşteriye açıklama. Dosya geçmişinde kaldırılan versiyon "Kaldırıldı".
+- **Statü geçmişi** (personel): geçiş etiketi → hedef statü · aktör ("Müşteri", kullanıcı adı, "(müşteri adına)") · tarih; gerekçe ayrı satırda "Gerekçe (personel içi)".
+- **Yorumlar** (personel): liste + "Müşteriye görünecek yorum" formu (düzenlenemez/silinemez uyarısı; çift gönderim kilidi).
+- **Müşteri `SubmitPanel`**: "İncelemeye gönder" / "Yeniden incelemeye gönder"; engeller listesi (pasif buton `aria-describedby`); onay penceresi "İnceleme süresince evraklarınızı değiştiremezsiniz…"; `UNDER_REVIEW`'da kalıcı "Evraklarınız incelemeye gönderildi…" kutusu.
+- **Müşteri `RemoveFileButton`** (izinli statülerde, ≥ 44 px, yıkıcı onay), **"CS Global'den mesajlar"** (yazar yok, HTML çalışmaz), **"Süreç geçmişi"** (statü + tarih).
+- Gerçek cihaz doğrulanmadı.

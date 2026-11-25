@@ -168,19 +168,19 @@ Genel Bakış (PHASE 04) okumaları audit'e yazılmaz. PHASE 03'te uygulanan: `U
 | `USER_SESSIONS_REVOKED` | USER | `{ count }` |
 | `APPLICATION_CREATED` | USER | `{ serviceId }` |
 | `APPLICATION_UPDATED` | USER | `{ changedFields }` |
-| `APPLICATION_STATUS_CHANGED` | USER | `{ from, to, transitionCode }` |
-| `APPLICATION_SUBMITTED` / `APPLICATION_RESUBMITTED` | CUSTOMER / USER | `{ onBehalfOfCustomer }` |
+| `APPLICATION_STATUS_CHANGED` (PHASE 09 — T2, T3, T5–T12) | USER | `{ from, to, transitionCode, count? }` (gerekçe metni yok; gerekçe statü geçmişinde) |
+| `APPLICATION_SUBMITTED` / `APPLICATION_RESUBMITTED` (PHASE 09) | CUSTOMER / USER | `{ from, to, transitionCode, count, onBehalfOfCustomer }` |
 | `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETED` | USER | `{ fileCount }` (başvuru ID'si `application_id` kolonunda; PII yok) |
 | `ACCESS_LINK_CREATED` / `ACCESS_LINK_ROTATED` / `ACCESS_LINK_REVOKED` / `ACCESS_LINK_VIEWED` | USER | `{ accessTokenId }` |
 | `ACCESS_LINK_SHARE_PREPARED` (PHASE 06, D-084) | USER | `{ accessTokenId }` — WhatsApp paylaşım mesajı hazırlandı; gönderim/teslim anlamına gelmez |
 | `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` (PHASE 08) | CUSTOMER / USER | `{ fileId, requirementId, versionNumber, from, to, onBehalfOfCustomer? }` (personelde `onBehalfOfCustomer: true`) |
-| `DOCUMENT_DELETED` | CUSTOMER / USER | (kaldırma — PHASE 09) |
+| `DOCUMENT_DELETED` (PHASE 09 — kaldırma) | CUSTOMER / USER | `{ fileId, requirementId, versionNumber, from, to, onBehalfOfCustomer? }` — dosya `REMOVED` (fiziksel silme değil) |
 | `DOCUMENT_APPROVAL_INVALIDATED` (PHASE 08) | USER | `{ fileId, requirementId, from: APPROVED, to: PENDING_REVIEW }` — onaylı evrak personel tarafından değiştirildi (BR-48) |
 | `DOCUMENT_VALIDATION_REJECTED` (PHASE 08) | CUSTOMER / USER | `{ requirementId, reason }` (yapısal ret) veya `{ fileId, requirementId, reason: STATE_CHANGED }` (aktivasyonda durum değişti) |
 | `DOCUMENT_UPLOAD_FAILED` (PHASE 08) | CUSTOMER / USER | `{ fileId, requirementId, reason }` — storage/aktivasyon hatası (`STORAGE_ERROR`, `STORAGE_LIMIT`, `STORAGE_AMBIGUOUS`, `STORAGE_NO_VERSION`, `ACTIVATION_FAILED`) |
 | `DOCUMENT_VIEWED` / `DOCUMENT_DOWNLOADED` (PHASE 08) | USER / CUSTOMER | `{ fileId, requirementId }` — storage okumasından önce |
 | `STORAGE_RECONCILED` (PHASE 08) | SYSTEM | `{ counts }` — `pnpm storage:reconcile --apply` |
-| `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` | USER | `{ requirementId, fileId, reviewId }` |
+| `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` (PHASE 09) | USER | `{ requirementId, fileId, reviewId, from, to, transitionCode? }` (açıklama metni yok) |
 | `DOCUMENT_COMMENT_ADDED` / `INTERNAL_NOTE_ADDED` | USER | `{ id }` |
 | `SERVICE_CREATED` / `SERVICE_UPDATED` / `SERVICE_ACTIVATED` / `SERVICE_DEACTIVATED` | USER | `{ changedFields }` |
 | `DOCUMENT_TEMPLATE_CREATED` / `DOCUMENT_TEMPLATE_UPDATED` | USER | `{ serviceId, changedFields }` (sıralama: `["sortOrder"]`) |
@@ -280,3 +280,10 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 - **Secret'lar:** B2 anahtarı yalnızca `pnpm env:b2` (yankısız terminal girdisi) ile `.env.local`'a; sohbette istenmez; client bundle canary kontrolü B2 adlarını/değerlerini kapsar; CI gerçek B2 hesabı kullanmaz. `APP_ENV=production` geliştirme bucket'ını reddeder; testlerde B2 reddedilir.
 - **Önizleme botları:** müşteri sayfası açılışında PDF baytı çekilmez; dosya route'ları müşteri oturumu gerektirir → bağlantı önizlemesi dosya indiremez (D-087 koşulu — WhatsApp önizleme davranışı gerçek cihazda doğrulanmadı).
 - **Açık:** gerçek tarayıcılarda satır içi PDF görüntüleme (TD-12); gerçek belge setiyle yanlış pozitif ölçümü; B2 anahtar rotasyonu prosedürü (DEPLOYMENT §5) ve canlı `storage:verify` sonucu (kullanıcının anahtarı girmesine bağlı); cap aşımında gerçek S3 hata kodu; 10 MiB gövde kabul eden production hosting (PHASE 13); PB-01…PB-11 açık.
+
+## 17. PHASE 09 Güvenlik Notları (iş akışı)
+- Her personel mutasyonu kendi içinde `requireStaff()`; iki hesap eşit (RBAC/`requireAdmin` yok). Müşteri mutasyonları `requireCustomerAccess(contextId)` + kilit altında token/süre yeniden doğrulama; başvuru yalnızca oturumdan; başka başvurunun kaynağı → 404; bağlam uyuşmazlığı → ret, değişiklik yok (TM-40).
+- Mass assignment yok: girdiler Zod `.strict()`; hedef statü, aktör, rol, evrak/dosya statüsü, storage anahtarı, audit metadata'sı istemciden alınmaz; statü yalnızca matristeki aksiyonla.
+- Serbest metinler (düzeltme açıklaması, gerekçe, yorum) düz metin: satır sonu normalizasyonu, kontrol/yön karakteri reddi, uzunluk sınırı (sunucu); React metni olarak render (HTML çalışmaz — E2E).
+- Gizlilik: iptal/geçiş gerekçesi ve personel adları müşteriye gönderilmez; müşteri zaman çizelgesi yalnızca statü + tarih; yorumlarda yazar yok. Audit metadata'sına yorum/gerekçe/açıklama metni yazılmaz (yalnızca kimlikler, statüler, geçiş kodu).
+- Yorum idempotency (PHASE 09.1, D-113): istemci işlem anahtarı + veritabanı UNIQUE + içerik özeti; ağ tekrarı/eşzamanlı tekrar tek yorum ve tek audit üretir; anahtarın başka kapsamda kullanımı genel çakışma döner (sonuç ifşa edilmez).

@@ -8,10 +8,16 @@ import { MAX_PDF_SIZE_BYTES } from "@/config/constants";
 import { AccessLinkCard } from "@/features/applications/components/access-link-card";
 import { ApplicationStatusBadge } from "@/features/applications/components/application-status-badge";
 import { CustomerInfoCard } from "@/features/applications/components/customer-info-card";
+import { staffActions } from "@/features/applications/domain/application-status";
 import { APPLICATION_STATUS_PRESENTATION } from "@/features/applications/domain/status-labels";
+import { TRANSITION_HISTORY_LABELS } from "@/features/applications/domain/transition-labels";
 import { getApplicationDetail, type ApplicationDetail } from "@/features/applications/queries";
 import { StaffDocumentCard } from "@/features/documents/components/staff-document-card";
 import { getApplicationFileVersions } from "@/features/documents/queries";
+import { CommentForm } from "@/features/workflow/components/comment-form";
+import { WorkflowPanel } from "@/features/workflow/components/workflow-panel";
+import { getWorkflowDetail, type WorkflowDetail } from "@/features/workflow/queries";
+import { messages } from "@/lib/messages";
 import { formatDateTime } from "@/lib/format";
 import { requireStaff } from "@/server/auth/staff";
 import { getDb } from "@/server/db/client";
@@ -21,7 +27,6 @@ export const metadata: Metadata = { title: "Başvuru Detayı | CS Global" };
 
 type PageProps = { params: Promise<{ applicationId: string }> };
 const MAX_PDF_MB = MAX_PDF_SIZE_BYTES / (1024 * 1024);
-const TRANSITION_LABELS: Record<string, string> = { CREATE: "Başvuru oluşturuldu" };
 
 /** Başvuru detayı. Geçersiz/bilinmeyen/silme sürecindeki kimlik → 404 (BR-153). */
 export default async function ApplicationDetailPage({ params }: PageProps) {
@@ -31,9 +36,11 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
 
   let application: ApplicationDetail | null;
   let fileVersions: Awaited<ReturnType<typeof getApplicationFileVersions>>;
+  let workflow: WorkflowDetail;
   try {
     application = await getApplicationDetail(getDb(), applicationId);
     fileVersions = await getApplicationFileVersions(getDb(), applicationId);
+    workflow = await getWorkflowDetail(getDb(), applicationId);
   } catch (error) {
     console.error("[applications] Detay okunamadı", { code: pgErrorCode(error) ?? "unknown" });
     return (
@@ -51,6 +58,17 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
     );
   }
   if (application === null) notFound();
+
+  // İzinli aksiyonlar ve engeller aynı domain kurallarından (sunucu kilit altında yeniden doğrular).
+  const actions = staffActions(application.status, workflow.facts);
+  const approvedDocuments = workflow.facts
+    .filter((fact) => fact.status === "APPROVED" && fact.activeFileId !== null)
+    .map((fact) => ({
+      requirementId: fact.requirementId,
+      title: fact.title,
+      fileId: fact.activeFileId!,
+      fileVersion: fact.activeFileVersion,
+    }));
 
   return (
     <div className="grid gap-6">
@@ -101,6 +119,28 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         </dl>
       </section>
 
+      <section
+        aria-labelledby="workflow-title"
+        className="grid gap-3 rounded-xl border bg-card p-4 shadow-sm sm:p-5"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="workflow-title" className="text-lg leading-7 font-semibold">
+            Başvuru durumu ve işlemler
+          </h2>
+          <ApplicationStatusBadge status={application.status} />
+        </div>
+        {actions.length > 0 ? (
+          <WorkflowPanel
+            applicationId={application.id}
+            version={application.version}
+            actions={actions}
+            approvedDocuments={approvedDocuments}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">Bu durumda yapılabilecek işlem yok.</p>
+        )}
+      </section>
+
       <div className="grid gap-6 xl:grid-cols-2">
         <CustomerInfoCard
           applicationId={application.id}
@@ -132,8 +172,8 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           <p className="text-sm text-muted-foreground">
             Başvuru anında kopyalanan liste (hizmet şablonundaki sonraki değişikliklerden
             etkilenmez). Yalnızca PDF, dosya başına en fazla {MAX_PDF_MB} MB, evrak başına tek aktif
-            dosya; önceki versiyonlar geçmişte korunur. Evrak inceleme (onay/düzeltme) sonraki
-            aşamada kullanıma açılacak.
+            dosya; önceki versiyonlar geçmişte korunur. Evrak kararları (onay/düzeltme) yalnızca
+            &ldquo;İncelemede&rdquo; durumunda ve ekranda görünen dosya versiyonu için verilir.
           </p>
         </div>
         <ol className="grid gap-3" data-testid="application-requirements">
@@ -144,6 +184,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
               requirement={requirement}
               applicationStatus={application.status}
               versions={fileVersions.get(requirement.id) ?? []}
+              reviews={workflow.reviewsByRequirement.get(requirement.id) ?? []}
             />
           ))}
         </ol>
@@ -157,24 +198,68 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           Başvuru geçmişi
         </h2>
         <ol className="grid gap-2" data-testid="application-history">
-          {application.history.map((entry) => (
+          {workflow.history.map((entry) => (
             <li
               key={entry.id}
-              className="flex flex-wrap items-baseline justify-between gap-2 border-b pb-2 text-sm last:border-b-0 last:pb-0"
+              className="grid gap-0.5 border-b pb-2 text-sm last:border-b-0 last:pb-0"
             >
-              <span>
-                {TRANSITION_LABELS[entry.transitionCode] ?? entry.transitionCode} →{" "}
-                <strong>{APPLICATION_STATUS_PRESENTATION[entry.toStatus].label}</strong>
-                {entry.actorUsername ? (
-                  <span className="text-muted-foreground"> · {entry.actorUsername}</span>
-                ) : null}
-              </span>
-              <time dateTime={entry.createdAt} className="text-muted-foreground tabular-nums">
-                {formatDateTime(entry.createdAt)}
-              </time>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span>
+                  {TRANSITION_HISTORY_LABELS[
+                    entry.transitionCode as keyof typeof TRANSITION_HISTORY_LABELS
+                  ] ?? entry.transitionCode}{" "}
+                  →{" "}
+                  <strong>
+                    {
+                      APPLICATION_STATUS_PRESENTATION[
+                        entry.toStatus as keyof typeof APPLICATION_STATUS_PRESENTATION
+                      ].label
+                    }
+                  </strong>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {entry.actor}
+                    {entry.onBehalfOfCustomer ? " (müşteri adına)" : ""}
+                  </span>
+                </span>
+                <time dateTime={entry.createdAt} className="text-muted-foreground tabular-nums">
+                  {formatDateTime(entry.createdAt)}
+                </time>
+              </div>
+              {entry.reason ? (
+                <p className="text-xs wrap-anywhere whitespace-pre-line text-muted-foreground">
+                  Gerekçe (personel içi): {entry.reason}
+                </p>
+              ) : null}
             </li>
           ))}
         </ol>
+      </section>
+
+      <section
+        aria-labelledby="comments-title"
+        className="grid gap-3 rounded-xl border bg-card p-4 shadow-sm sm:p-5"
+      >
+        <h2 id="comments-title" className="text-lg leading-7 font-semibold">
+          {messages.workflow.commentsTitle}
+        </h2>
+        {workflow.comments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{messages.workflow.noComments}</p>
+        ) : (
+          <ol className="grid gap-2" data-testid="staff-comments">
+            {workflow.comments.map((comment) => (
+              <li key={comment.id} className="grid gap-1 rounded-lg border bg-muted/30 p-3 text-sm">
+                <p className="wrap-anywhere whitespace-pre-line">{comment.body}</p>
+                <p className="text-xs text-muted-foreground">
+                  {comment.author}
+                  {comment.documentTitle ? ` · ${comment.documentTitle}` : ""} ·{" "}
+                  <time dateTime={comment.createdAt}>{formatDateTime(comment.createdAt)}</time>
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
+        <CommentForm applicationId={application.id} />
       </section>
     </div>
   );

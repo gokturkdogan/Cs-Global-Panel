@@ -263,9 +263,18 @@ export const documentComments = pgTable(
     authorUserId: text("author_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    // PHASE 09.1 (D-113): istemcinin her mantıksal yorum işlemi için ürettiği anahtar; ağ tekrarlarında
+    // aynı kalır. UNIQUE → eşzamanlı tekrarlar veritabanında tek kayda iner. `payload_hash` = SHA-256
+    // (başvuru, evrak, yazar, metin): aynı anahtar farklı içerikle/kapsamla kullanılırsa çakışma.
+    idempotencyKey: uuid("idempotency_key").unique("document_comments_idempotency_key_unique"),
+    payloadHash: text("payload_hash"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (t) => [
+    check(
+      "document_comments_idempotency_check",
+      sql`(${t.idempotencyKey} IS NULL) = (${t.payloadHash} IS NULL) AND (${t.payloadHash} IS NULL OR ${t.payloadHash} ~ '^[0-9a-f]{64}$')`,
+    ),
     foreignKey({
       name: "document_comments_requirement_fk",
       columns: [t.requirementId, t.applicationId],
