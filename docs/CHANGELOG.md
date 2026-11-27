@@ -2,6 +2,11 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 12.1 — storage:inspect v4 uyumu] — 2026-11-27
+
+### Fixed
+- `pnpm storage:inspect` `b2_authorize_account` v3 kullanıyordu; v4 `b2_create_key` (`bucketIds`) ile oluşturulan "Multi-Bucket Application Key"ler yalnızca v4 ile yetkilendirilebildiği için HTTP 400 alınıyordu. Artık v4 + `apiInfo.storageApi.allowed.{buckets,capabilities,namePrefix}` ayrıştırması (`scripts/storage/key-scope.ts`), tek bucket/uç nokta kontrolü ve yetkisi olmayan bucket yapılandırma okumaları için "BEKLENEN 403" ayrımı (resmî S3 yetki tablosuna göre). Test: `tests/unit/b2-key-scope.test.ts`. Uygulama çalışma zamanı (S3 API) etkilenmedi.
+
 ## [PHASE 12.1 — Nihai kararlar ve Neon migration 0011] — 2026-11-27
 
 ### Changed

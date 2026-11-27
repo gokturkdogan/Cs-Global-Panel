@@ -1,13 +1,15 @@
 /**
- * pnpm storage:inspect — Backblaze B2 SALT OKUNUR denetimi (PHASE 12, D-143).
+ * pnpm storage:inspect — Backblaze B2 SALT OKUNUR denetimi (PHASE 12, D-143; PHASE 12.1 v4 uyumu).
  *
  * Yazma, silme, nesne içeriği indirme veya ayar değişikliği YAPMAZ. Secret, token, URL veya nesne adı
  * yazdırmaz; yalnızca yapılandırma sonuçları ve sayılar. Kullanım: anahtar yenileme sonrası doğrulama,
  * gerçek sağlayıcı Checkpoint A (docs/VERIFICATION_PLANS.md).
  *
- * Kontroller: anahtar kapsamı (b2_authorize_account — yetkiler, bucket/önek kısıtı, son kullanma), bucket
+ * Kontroller: anahtar kapsamı (`b2_authorize_account` **v4** — v4 `b2_create_key` ile oluşturulan anahtarlar
+ * yalnızca v4 ile yetkilendirilebilir; yetkiler, bucket/önek kısıtı, son kullanma, S3 uç noktası), bucket
  * erişimi, versiyonlama, varsayılan şifreleme, CORS, lifecycle, nesne/versiyon/silme işareti sayıları (ilk
- * sayfa), kimliksiz erişimin reddi, uygulamanın ihtiyacı dışındaki yetkiler.
+ * sayfa), kimliksiz erişimin reddi. En az yetkili anahtarda bucket yapılandırma okumaları için yetki
+ * bulunmaz → bu 403'ler "beklenen" olarak raporlanır (gerçek bağlantı/yetki hatalarından ayrı).
  */
 import {
   GetBucketCorsCommand,
@@ -20,30 +22,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { loadLocalEnv } from "../db/lib.ts";
-
-/**
- * Uygulamanın gerçekten kullandığı yetkiler (S3 uyumlu API — Backblaze "S3-Compatible App Key Capabilities":
- * GetObject/HeadObject → readFiles, PutObject → writeFiles, versiyona özgü DeleteObject → deleteFiles,
- * ListObjectVersions → listFiles). PHASE 12.1: uygulama ListBuckets/HeadBucket çağırmaz → `listBuckets`
- * zorunlu DEĞİL; yalnızca bu denetimin HeadBucket kontrolü için isteğe bağlıdır.
- */
-const REQUIRED = ["listFiles", "readFiles", "writeFiles", "deleteFiles"] as const;
-const OPTIONAL = ["listBuckets"] as const;
-/** Sızıntı durumunda zararı büyüten yetkiler (bucket'ı public yapma, lifecycle/replikasyon, paylaşım). */
-const RISKY = [
-  "writeBuckets",
-  "writeBucketLifecycleRules",
-  "writeBucketReplications",
-  "writeBucketEncryption",
-  "writeBucketNotifications",
-  "writeBucketLogging",
-  "writeBucketRetentions",
-  "bypassGovernance",
-  "shareFiles",
-  "writeKeys",
-  "deleteKeys",
-  "deleteBuckets",
-];
+import { classifyCheckFailure, summarizeKeyScope } from "./key-scope.ts";
 
 loadLocalEnv();
 const env = process.env;
@@ -59,42 +38,26 @@ if (missing.length > 0) {
   process.exit(2);
 }
 
-const report: Record<string, unknown> = { bucket: env.B2_BUCKET_NAME, region: env.B2_REGION };
+const Bucket = env.B2_BUCKET_NAME!;
+const report: Record<string, unknown> = { bucket: Bucket, region: env.B2_REGION };
 
-const auth = await fetch("https://api.backblazeb2.com/b2api/v3/b2_authorize_account", {
+// Yanıt gövdesi yalnızca bellekte ayrıştırılır; token ve hata mesajı yazdırılmaz (yalnızca HTTP durumu/kod).
+const auth = await fetch("https://api.backblazeb2.com/b2api/v4/b2_authorize_account", {
   headers: {
     Authorization: `Basic ${Buffer.from(`${env.B2_KEY_ID}:${env.B2_APPLICATION_KEY}`).toString("base64")}`,
   },
 });
+let capabilities: readonly string[] | null = null;
 if (auth.ok) {
-  const body = (await auth.json()) as {
-    applicationKeyExpirationTimestamp?: number | null;
-    apiInfo?: {
-      storageApi?: {
-        capabilities?: string[];
-        bucketName?: string | null;
-        namePrefix?: string | null;
-      };
-    };
-  };
-  const storage = body.apiInfo?.storageApi ?? {};
-  const capabilities = [...(storage.capabilities ?? [])].sort();
-  report.key = {
-    bucketRestriction: storage.bucketName ?? "YOK (tüm bucket'lar)",
-    namePrefix: storage.namePrefix ?? null,
-    expires: body.applicationKeyExpirationTimestamp ? "var" : "yok",
-    capabilities,
-    missingRequired: REQUIRED.filter((c) => !capabilities.includes(c)),
-    excessRisky: RISKY.filter((c) => capabilities.includes(c)),
-    unexpected: capabilities.filter(
-      (c) =>
-        !(REQUIRED as readonly string[]).includes(c) &&
-        !(OPTIONAL as readonly string[]).includes(c) &&
-        !RISKY.includes(c),
-    ),
-  };
+  const scope = summarizeKeyScope(await auth.json(), Bucket, env.B2_ENDPOINT!);
+  capabilities = scope.capabilities;
+  report.key = scope;
 } else {
-  report.key = `yetkilendirme başarısız (HTTP ${auth.status})`;
+  const code = await auth
+    .json()
+    .then((body: { code?: unknown }) => (typeof body.code === "string" ? body.code : ""))
+    .catch(() => "");
+  report.key = `yetkilendirme başarısız (HTTP ${auth.status}${code ? ` ${code}` : ""})`;
 }
 
 const client = new S3Client({
@@ -103,27 +66,40 @@ const client = new S3Client({
   forcePathStyle: true,
   credentials: { accessKeyId: env.B2_KEY_ID!, secretAccessKey: env.B2_APPLICATION_KEY! },
 });
-const Bucket = env.B2_BUCKET_NAME!;
-async function check<T>(name: string, send: () => Promise<T>, pick: (r: T) => unknown) {
+/** `capability`: Backblaze "S3-Compatible App Key Capabilities" tablosundaki ilgili okuma yetkisi. */
+async function check<T>(
+  name: string,
+  capability: string,
+  send: () => Promise<T>,
+  pick: (r: T) => unknown,
+) {
   try {
     report[name] = pick(await send());
   } catch (error) {
     const e = error as { name?: string; $metadata?: { httpStatusCode?: number } };
-    report[name] = `HATA ${e.$metadata?.httpStatusCode ?? ""} ${e.name ?? ""}`.trim();
+    report[name] = classifyCheckFailure(
+      e.$metadata?.httpStatusCode,
+      e.name,
+      capability,
+      capabilities,
+    );
   }
 }
 await check(
   "headBucket",
+  "listBuckets",
   () => client.send(new HeadBucketCommand({ Bucket })),
   () => "OK",
 );
 await check(
   "versioning",
+  "readBuckets",
   () => client.send(new GetBucketVersioningCommand({ Bucket })),
   (r) => r.Status ?? "yok",
 );
 await check(
   "defaultEncryption",
+  "readBucketEncryption",
   () => client.send(new GetBucketEncryptionCommand({ Bucket })),
   (r) =>
     r.ServerSideEncryptionConfiguration?.Rules?.map(
@@ -132,16 +108,20 @@ await check(
 );
 await check(
   "cors",
+  "readBuckets",
   () => client.send(new GetBucketCorsCommand({ Bucket })),
   (r) => `${(r.CORSRules ?? []).length} kural`,
 );
 await check(
   "lifecycle",
+  "readBucketLifecycleRules",
   () => client.send(new GetBucketLifecycleConfigurationCommand({ Bucket })),
   (r) => `${(r.Rules ?? []).length} kural`,
 );
+// Uygulamanın gerçekten kullandığı okuma yetkisi (listFiles): burada 403 her zaman gerçek sorundur.
 await check(
   "objects",
+  "listFiles",
   () => client.send(new ListObjectVersionsCommand({ Bucket, MaxKeys: 1000 })),
   (r) => ({
     versions: (r.Versions ?? []).length,
@@ -155,12 +135,32 @@ await anonymous.body?.cancel();
 
 console.log(JSON.stringify(report, null, 2));
 const key = report.key as
-  { excessRisky?: string[]; missingRequired?: string[]; unexpected?: string[] } | string;
-if (
-  typeof key !== "string" &&
-  (key.excessRisky?.length || key.missingRequired?.length || key.unexpected?.length)
+  | {
+      excessRisky?: readonly string[];
+      missingRequired?: readonly string[];
+      unexpected?: readonly string[];
+      restrictedToExpectedBucket?: boolean;
+      namePrefix?: string | null;
+      s3EndpointMatches?: boolean | null;
+    }
+  | string;
+if (typeof key === "string") {
+  console.log("UYARI: anahtar yetkilendirilemedi (b2_authorize_account v4).");
+  process.exitCode = 2;
+} else if (
+  key.excessRisky?.length ||
+  key.missingRequired?.length ||
+  key.unexpected?.length ||
+  !key.restrictedToExpectedBucket ||
+  key.namePrefix !== null ||
+  key.s3EndpointMatches === false
 ) {
   console.log(
-    "UYARI: anahtar yetkileri en az yetki ilkesine uymuyor (bkz. docs/OPERATIONS_RUNBOOK.md — B2 anahtar yenileme).",
+    "UYARI: anahtar kapsamı beklenenden farklı (en az yetki / tek bucket / önek / uç nokta — docs/OPERATIONS_RUNBOOK.md §3.1).",
+  );
+  process.exitCode = 2;
+} else {
+  console.log(
+    "Anahtar kapsamı beklenen: yalnızca gerekli yetkiler, tek bucket, önek yok. (Salt okunur sonuç; gerçek dosya işlemleri ayrıca doğrulanır.)",
   );
 }

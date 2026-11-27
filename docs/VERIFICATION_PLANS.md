@@ -31,6 +31,8 @@ Sonlu sayıda başarılı test, sağlayıcının gelecekteki tüm davranışlar�
 - **Anonim listeleme:** 403, anonim nesne isteği 401.
 - **Anahtar:** bucket'a kısıtlı, önek yok, süresiz. Gerekli yetkiler tam; **fazla yetkiler: 7** (SEC-01).
 
+**Checkpoint A — yeni en az yetkili runtime anahtarı (2026-11-27, salt okunur, `storage:inspect` v4):** yetkiler tam olarak `deleteFiles, listFiles, readFiles, writeFiles`; tek bucket `cs-global-documents`; önek yok; süresiz; S3 uç noktası eşleşiyor; riskli/beklenmeyen yetki yok; nesne listesi (listFiles) başarılı — 0 versiyon / 0 silme işareti; anonim liste 403. Bucket yapılandırma okumaları (HeadBucket, versiyonlama, şifreleme, CORS, lifecycle) yetki olmadığı için **beklenen 403** (önceki anahtarla 2026-11-27'de: versiyonlama Enabled, SSE-B2, CORS/lifecycle yok). Gerçek dosya işlemleri (PUT/GET/DELETE) bu anahtarla henüz doğrulanmadı — OPERATIONS_RUNBOOK §3.1 adım E (ayrı onay). Eski anahtar iptal edilmedi.
+
 ### 1.3 Checkpoint B — canlı mutasyon için TEK onay talebi (BEKLİYOR — PHASE 12.1 güncel)
 
 Aşağıdaki plan **kullanıcının açık onayı olmadan çalıştırılmaz.** D-143 onayı canlı mutasyon yetkisi değildir. Önkoşul (önerilen): §3.1'e göre oluşturulmuş en az yetkili yeni anahtar.
