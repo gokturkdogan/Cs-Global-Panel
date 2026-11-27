@@ -46,7 +46,16 @@ export type B2Config = {
   readonly region: string;
 };
 
-const NOT_FOUND_NAMES = new Set(["NoSuchKey", "NoSuchVersion", "NotFound"]);
+/**
+ * PHASE 12.1 (REVIEW-06): yalnızca S3 hata KODU taşıyan "yok" yanıtları (GET/DELETE gövdesindeki
+ * `NoSuchKey`/`NoSuchVersion`) nesne/versiyon yokluğudur. SDK, kodu okunamayan 404'ü (yanlış uç nokta,
+ * proxy/HTML hata sayfası, bozuk yanıt) `NotFound` adlandırır → GET/DELETE'te yokluk kanıtı DEĞİLDİR
+ * (UNAVAILABLE, fail-closed). HEAD yanıtı protokol gereği gövdesizdir; orada `NotFound` kabul edilir ama
+ * bucket/uç nokta hatasından ayırt edilemez → HEAD yokluğu tek başına silme/sonlandırma kanıtı sayılmaz
+ * (kararlar tam envanter listesine dayanır — D-116/D-123).
+ */
+const NOT_FOUND_CODES = new Set(["NoSuchKey", "NoSuchVersion"]);
+const HEAD_NOT_FOUND = "NotFound";
 
 /**
  * İsteğin sağlayıcıya hiç ulaşmadığını kanıtlayan ağ hataları (TCP bağlantısı kurulamadı / ad çözülemedi).
@@ -82,15 +91,22 @@ export function isDefinitelyNotSent(error: unknown): boolean {
 }
 
 /** Sağlayıcı hatasını sınıflandırır; mesaj/gövde dışarı taşınmaz (yalnızca durum kodu / hata adı). */
-export function classifyB2Error(error: unknown): StorageError {
+export function classifyB2Error(
+  error: unknown,
+  operation: "head" | "other" = "other",
+): StorageError {
   if (error instanceof StorageError) return error;
   if (error instanceof S3ServiceException) {
     const status = error.$metadata.httpStatusCode ?? 0;
     const code = `${status}:${error.name}`.slice(0, 80);
     // PHASE 10 (D-116): bucket yoksa nesne "yok" sayılmaz (silme doğrulamasını yanıltır) → yapılandırma hatası.
     if (error.name === "NoSuchBucket") return new StorageError("NOT_CONFIGURED", code);
-    if (status === 404 || NOT_FOUND_NAMES.has(error.name))
+    if (
+      NOT_FOUND_CODES.has(error.name) ||
+      (operation === "head" && error.name === HEAD_NOT_FOUND && status === 404)
+    ) {
       return new StorageError("NOT_FOUND", code);
+    }
     // B2 cap'leri 403 ile döner (native API belgesi: "reached a storage cap limit"); metin sınıflandırma
     // için okunur, dışarı aktarılmaz.
     if (status === 403 && /cap|limit|exceed/i.test(`${error.name} ${error.message}`)) {
@@ -203,6 +219,17 @@ export function createB2Adapter(config: B2Config): StorageAdapter {
         throw new StorageError("INTEGRITY", "empty-body");
       }
       const body = response.Body.transformToWebStream() as ReadableStream<Uint8Array>;
+      // PHASE 12.1 (REVIEW-06): versiyona özgü istekte yanıt AYNI versiyonu bildirmelidir. Backblaze S3
+      // belgeleri `x-amz-version-id`'yi yalnızca örnek yanıtta gösterir (sözleşme olarak tanımlamaz) →
+      // eksik veya farklı kimlik "doğrulanmamış" sayılır; gövde aktarılmaz (fail-closed). Gerçek B2
+      // davranışı Checkpoint B (B2-02) ile doğrulanacak.
+      if (versionId !== null && response.VersionId !== versionId) {
+        await body.cancel().catch(() => undefined);
+        throw new StorageError(
+          "INTEGRITY",
+          response.VersionId === undefined ? "version-missing" : "version-mismatch",
+        );
+      }
       const contentRange = parseContentRange(response.ContentRange);
       // Aralık istendi ama sağlayıcı uygulamadı (200 + tam gövde) veya bozuk Content-Range → aktarma.
       if (range !== undefined && contentRange === null) {
@@ -232,7 +259,7 @@ export function createB2Adapter(config: B2Config): StorageAdapter {
           contentLength: response.ContentLength ?? 0,
         };
       } catch (error) {
-        const classified = classifyB2Error(error);
+        const classified = classifyB2Error(error, "head");
         if (classified.kind === "NOT_FOUND") return null;
         throw classified;
       }

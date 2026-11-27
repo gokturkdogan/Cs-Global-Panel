@@ -2,6 +2,7 @@ import type { BrowserContext, Page } from "@playwright/test";
 import type pg from "pg";
 
 import { connect, resolveDatabaseUrls } from "../../scripts/db/lib";
+import { CUSTOMER_LINK_BUTTON } from "../e2e/customer-link";
 import { expect, sessionsAvailable, test } from "../e2e/fixtures";
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { multiPagePdf } from "../support/pdf-fixtures";
@@ -543,10 +544,16 @@ test.describe("PHASE 11 performans ölçümü (izole)", () => {
         const ready = async (p: Page) => {
           await expect(p.getByTestId("document-progress")).toBeVisible();
         };
-        // Soğuk: bağlantıyla ilk giriş (303 → panel), boş önbellek.
-        const cold = await measurePage(page, owner, `/b/${app.token}`, ready);
+        // PHASE 12.1 (D-141): bağlantı önce genel ara sayfayı açar (veritabanı sorgusu beklenmez);
+        // oturum açık tıklamayla (POST → 303) kurulur. Soğuk ölçüm: ara sayfa + ilk panel yüklemesi.
+        const button = page.getByRole("button", { name: CUSTOMER_LINK_BUTTON });
+        results.customerLinkEntry = await measurePage(page, owner, `/b/${app.token}`, async () => {
+          await expect(button).toBeVisible();
+        });
+        await button.click();
         await expect(page).toHaveURL(/\/portal\//);
         const portalUrl = new URL(page.url()).pathname;
+        const cold = await measurePage(page, owner, portalUrl, ready);
         await page.screenshot({ path: screenshotPath(project, "customer-portal"), fullPage: true });
         const warm: PageSample[] = [];
         for (let run = 0; run < WARM_RUNS; run += 1) {

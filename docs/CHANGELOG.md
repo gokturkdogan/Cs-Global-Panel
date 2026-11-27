@@ -2,6 +2,43 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 12.1 — OD-27: Özel yedek/geri yükleme altyapısının kaldırılması] — 2026-11-27 (kullanıcı onayı bekleniyor)
+
+### Removed
+- `scripts/test/restore-drill.ts` ve `pnpm test:restore-drill` (sentetik yedek/geri yükleme tatbikatı, R-A…R-I senaryoları).
+- `scripts/ops/post-restore.ts`, `scripts/ops/post-restore-check.ts` ve `pnpm ops:post-restore` (geri yükleme sonrası kilitleme, GO/NO-GO raporu, `planVersionMapping`).
+- Aktif yol haritası/kabul kriterlerinden geri yükleme provası (PHASE 13).
+
+### Changed
+- **OD-27 (ACCEPTED):** uygulamaya özel yedekleme/geri yükleme/felaket kurtarma altyapısı kapsam dışı; Neon ve B2 birincil veri kaynakları; sağlayıcı yerleşik özellikleri uygulama tarafından yönetilmez. BR-190 eklendi.
+- D-142 → SUPERSEDED; D-148 → WITHDRAWN. SEC-03 / REVIEW-04 → RISK ACCEPTANCE REQUIRED (teknik olarak çözülmedi). PB-08, PB-12 → RESIDUAL RISK / USER ACCEPTANCE REQUIRED (kapatılmadı).
+- OPERATIONS_RUNBOOK §2: kısa sağlayıcı düzeyi geri yükleme uyarısı + manuel prosedür (yeni otomasyon yok).
+
+### Not changed
+- PDF versiyon geçmişi, değişmez VersionId, kalıcı silme, versiyona özgü silme, yazım girişimleri, UNKNOWN işleme, mutabakat, `accounting_epoch`, kota, audit değiştirilemezliği, BR-47, OD-26, tüm PHASE 12.1 güvenlik düzeltmeleri ve migration 0011. `ops:rate-limit-cleanup` korunur (yedek aracı değildir). Sağlayıcı ayarlarına dokunulmadı.
+
+## [PHASE 12.1 — Targeted Security Remediation & Final Verification] — 2026-11-27 (kullanıcı onayı bekleniyor)
+
+### Security (fixed)
+- **SEC-14 (HIGH, REVIEW-01):** PDF görüntüleme audit tekilleştirme işareti ve audit kaydı ayrı transaction'lardaydı — audit yazılamazken eşzamanlı parça istekleri audit'siz teslim edilebiliyordu. Artık tek kısa transaction; sağlayıcı okuması commit sonrası.
+- **SEC-15 (MEDIUM, REVIEW-02):** ilk aralık hatası/erken kapatmada pdf.js worker serbest bırakılmıyordu → kaynak oluşturulduğu anda tek, idempotent serbest bırakma.
+- **SEC-16 (MEDIUM, REVIEW-03):** tuval ölçeğinde 0,25 tabanı piksel sınırını aşabiliyordu → `computeCanvasSize` (kenar ≤ 8192, toplam ≤ 16,7 MP, taban yok, güvenli hata).
+- **SEC-17 (MEDIUM, REVIEW-05):** env yoksa 100 GB kod tavanı aktif oluyordu → production/preview'da zorunlu, development 9/8 GB (D-151).
+- **SEC-18 (MEDIUM, REVIEW-06):** eksik yanıt VersionId'si kabul ediliyordu; kodsuz 404 "yok" sayılıyordu; belirsiz yazımda aynı boyutlu farklı içerik onaylanabiliyordu → D-147.
+- **SEC-05:** süresi dolmuş rate-limit satırları için `pnpm ops:rate-limit-cleanup`.
+- **SEC-04 (izole):** migration 0011 — runtime rolünden users/accounts INSERT/UPDATE ve verifications INSERT/UPDATE/DELETE geri alındı; CLI ve test hesap kurulumu sahip rolüne taşındı. **Neon'a uygulanmadı.**
+
+### Changed
+- **D-141 (ACCEPTED, uygulandı):** müşteri bağlantısı `GET /b/<token>` artık veritabanısız genel ara sayfa; oturum yalnızca "Başvurumu Görüntüle" → `POST /b/enter` (köken, gövde biçimi, geçerli token başına 30/saat — D-150) ile. Ara sayfa `strict-origin` referrer (D-146, Proposed). BR-102, BR-103, BR-105, API_CONTRACTS §4.4 güncellendi.
+- Integration testleri ortak veritabanına migration uygulamaz (D-149).
+- `storage:inspect`: asgari yetki kümesi `listFiles, readFiles, writeFiles, deleteFiles` (+ isteğe bağlı `listBuckets`); gereksiz okuma yetkileri `unexpected` olarak raporlanır.
+- `.env.example`, DEPLOYMENT: kapasite değerleri production'da zorunlu; aktif 9/8 GB ile hedef ayrı.
+
+### Added
+- `pnpm ops:post-restore [--lockdown]` (geri yükleme sonrası kilitleme + GO/NO-GO raporu), `scripts/ops/post-restore.ts` (tam VersionId eşleme planı — uygulanmaz, D-148), genişletilmiş `test:restore-drill` (R-A…R-I).
+- Testler: `customer-link.spec.ts`, `viewer-lifecycle.spec.ts`, `canvas-size.test.ts`, `rate-limit-cleanup.test.ts`; `file-delivery`, `documents`, `b2-range`, `privileges`, `auth`, `portal`, `security-audit`, `main-scenario` güncellemeleri; `openCustomerLink` yardımcısı.
+- Kararlar D-146…D-151 (Proposed). D-141, D-144 ACCEPTED; D-142, D-143, D-145 CONDITIONALLY ACCEPTED. PB-12, PB-13 kabul edilmiş blocker.
+
 ## [PHASE 12 — Testing & Security Audit] — 2026-11-27 (kullanıcı onayı bekleniyor)
 
 ### Added

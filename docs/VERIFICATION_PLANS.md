@@ -1,6 +1,6 @@
 # Harici Doğrulama Planları (PHASE 12)
 
-> Bu belgedeki doğrulamalar kullanıcı onayı veya kullanıcı erişimi gerektirir. PHASE 12'de **yalnızca Checkpoint A (salt okunur)** gerçekleştirildi.
+> Bu belgedeki doğrulamalar kullanıcı onayı veya kullanıcı erişimi gerektirir. PHASE 12 ve 12.1'de **yalnızca Checkpoint A (salt okunur)** gerçekleştirildi (son: 2026-11-27, PHASE 12.1 — durum değişmedi: 0 nesne, versiyonlama açık, SSE-B2, CORS/lifecycle yok; anahtarda 7 riskli + 6 gereksiz okuma yetkisi).
 
 ## 1. Gerçek Backblaze B2 doğrulaması
 
@@ -31,24 +31,26 @@ Sonlu sayıda başarılı test, sağlayıcının gelecekteki tüm davranışlar�
 - **Anonim listeleme:** 403, anonim nesne isteği 401.
 - **Anahtar:** bucket'a kısıtlı, önek yok, süresiz. Gerekli yetkiler tam; **fazla yetkiler: 7** (SEC-01).
 
-### 1.3 Checkpoint B — canlı mutasyon için onay talebi (BEKLİYOR)
+### 1.3 Checkpoint B — canlı mutasyon için TEK onay talebi (BEKLİYOR — PHASE 12.1 güncel)
 
-Aşağıdaki plan **kullanıcının açık onayı olmadan çalıştırılmaz.**
+Aşağıdaki plan **kullanıcının açık onayı olmadan çalıştırılmaz.** D-143 onayı canlı mutasyon yetkisi değildir. Önkoşul (önerilen): §3.1'e göre oluşturulmuş en az yetkili yeni anahtar.
 
 | Başlık | Öneri |
 |---|---|
-| Hedef | **Tercih:** kullanıcının oluşturacağı ayrı test bucket'ı (`cs-global-verify-<tarih>`, private, aynı bölge) + yalnızca o bucket'a kısıtlı geçici anahtar (5 yetki). **Alternatif:** mevcut bucket'ta `_verification/` ve tek seferlik `applications/<test-uuid>/…` önekleri. Mevcut anahtar bucket genelidir: önek sınırı **yalnızca uygulama kodundadır**, sağlayıcı düzeyinde değildir. |
-| İşlemler | PutObject, GetObject (tam + aralık), HeadObject, ListObjectVersions, DeleteObject(versionId), ada göre DeleteObject (silme işareti) |
-| Nesne / versiyon | En fazla 12 anahtar, en fazla 20 fiziksel versiyon (1 anahtarda 3 versiyon; sayfalama için `MaxKeys=2` ile küçük sayfalar — 1000+ nesne oluşturulmaz) |
-| Azami depolama | 60 MB (en büyük tek PDF 10 MiB, sentetik) |
-| Azami egress | 80 MB |
-| Azami istek | 300 (Class A/B/C) |
-| Tahmini maliyet | 0 USD (ilk 10 GB ücretsiz; egress 3× kuralı/hesap cap'i 1 GB/gün içinde; işlemler ücretsiz) — mevcut günlük kullanım panelden kontrol edilmeden kesinleşmez |
+| Hedef | **Tercih:** kullanıcının oluşturacağı ayrı test bucket'ı (`cs-global-verify-<tarih>`, private, aynı bölge) + yalnızca o bucket'a kısıtlı geçici anahtar (`listFiles, readFiles, writeFiles, deleteFiles`). **Alternatif:** mevcut bucket'ta `_verification/<run-id>/` ve tek seferlik `applications/<test-uuid>/…` önekleri. Bucket geneli anahtarda önek sınırı **yalnızca uygulama kodundadır**, sağlayıcı düzeyinde yalıtım değildir. |
+| İşlemler | PutObject, GetObject (tam + kapalı/açık/sonek aralık, VersionId'li), HeadObject, ListObjectVersions (`MaxKeys=2` sayfalama), DeleteObject(versionId), ada göre DeleteObject (silme işareti), istemci iptali |
+| Nesne / versiyon | En fazla 12 anahtar, 20 fiziksel versiyon (1 anahtarda 3 versiyon; 1000+ nesne oluşturulmaz) |
+| Azami depolama | 100 MB (tek PDF ≤ 10 MiB, sentetik) — anlık; test sonunda 0 |
+| Azami egress | 100 MB |
+| Azami istek | 500 (Class A/B/C toplam) |
+| Tahmini maliyet | ~0 USD (ilk 10 GB depolama ücretsiz; Class A/B/C ücretsiz; egress ortalama depolamanın 3 katına kadar ücretsiz — 0 nesneli hesapta bu pay küçük olabilir, en kötü durum 100 MB × 0,01 USD/GB ≈ 0,001 USD). **Kullanıcı panelinde güncel kullanım ve cap'ler görülmeden kesinleşmez.** Limitler otomatik harcama yetkisi değildir. |
 | Veritabanı | Yalnızca izole Docker PostgreSQL (gerçek Neon'a kayıt yazılmaz) |
-| Koşu manifesti | Her çalıştırma benzersiz `run-id`; oluşturulan her (anahtar, versionId) yerel manifestte; silme yalnızca manifestteki tam (anahtar, versionId) çiftleri — joker/önek/toplu silme yok |
-| Temizlik | Manifestteki tüm versiyonlar versiyona özgü silinir; sonra tam liste ile yokluk doğrulanır; kalan nesne raporlanır |
-| Hata kurtarma | Yarıda kalırsa manifest korunur; aynı manifestle temizlik yeniden çalıştırılır; manifest dışında hiçbir nesneye dokunulmaz |
-| Gerçek dosyaların korunması | Mevcut bucket'ta gerçek nesne yok (0, Checkpoint A); yine de silme yalnız manifestten |
+| Sahiplik manifesti | Her çalıştırma benzersiz `run-id`; oluşturulan her (anahtar, versionId) yerel manifestte (secret yok); silme yalnızca manifestteki tam çiftler — joker/önek/toplu silme, global purge yok |
+| Durdurma koşulları | Beklenmeyen yetki/403, cap/429, manifest dışı nesne görülmesi, VersionId uyuşmazlığı, ilk hata sonrası otomatik yeniden deneme YOK; sayaç (istek/bayt) sınıra ulaşınca dur |
+| Temizlik ve kurtarma | Manifestteki tüm versiyonlar versiyona özgü silinir → tam liste ile yokluk; yarıda kalırsa manifest korunur ve aynı manifestle sürdürülür; kalan nesne raporlanır |
+| Kapsam dışı | Object Lock, replikasyon, cap tüketme; hesap ayarı değişikliği; gerçek müşteri dosyası |
+
+**PHASE 12.1 ek doğrulamaları (D-147):** B2-02'de yanıtın `x-amz-version-id` döndürdüğü (eksikse uygulama fail-closed teslim etmez — bu nedenle production öncesi ZORUNLU), mevcut olmayan anahtar/versiyon için hata kodu adı (`NoSuchKey`/`NoSuchVersion`), 206 + `Content-Range` + `Content-Length` biçimi, aralık yok sayıldığında 200 davranışı, belirsiz yazım gözlemi için HEAD + sınırlı SHA-256 okuması.
 
 **Test matrisi (onay sonrası):**
 1. **Yükleme ve okuma**

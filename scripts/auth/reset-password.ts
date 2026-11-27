@@ -13,8 +13,9 @@ import { askNewPassword, askVisible, assertInteractiveTerminal } from "./prompt.
 await runCli("auth:reset-password", async () => {
   assertInteractiveTerminal();
   loadLocalEnv();
-  const { runtime } = resolveDatabaseUrls();
-  const client = await connect(runtime, "cs-global-auth-reset-password");
+  // D-144: şifre sıfırlama yalnızca operatör (sahip) rolüyle; çalışma zamanı rolünün yazma yetkisi yok.
+  const { owner } = resolveDatabaseUrls();
+  const client = await connect(owner, "cs-global-auth-reset-password");
   try {
     await assertAccountModelReady(client);
     const accounts = await listAccounts(client);

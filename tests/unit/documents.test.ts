@@ -112,13 +112,48 @@ describe("depolama yapılandırması (fail-closed)", () => {
     }
   };
 
-  it("geçerli B2 yapılandırması + varsayılan (hedef) kota 100 GB / 90 GB (OD-26)", () => {
+  it("REVIEW-05: kota tanımsızsa development güvenli 9 GB / 8 GB'a düşer — 100 GB kod tavanı kendiliğinden etkinleşmez", () => {
     const config = parseStorageConfig(b2, "/app");
     expect(config).toMatchObject({
       provider: "b2",
       bucket: "cs-global-documents",
-      quota: { maxTotalBytes: 100e9, warningBytes: 90e9 },
+      quota: { maxTotalBytes: 9e9, warningBytes: 8e9 },
     });
+  });
+
+  it("REVIEW-05: production/preview'da sınır ve uyarı açıkça verilmeli (eksik → fail-closed); açık 100/90 GB kabul", () => {
+    const prod = { ...b2, APP_ENV: "production", B2_BUCKET_NAME: "cs-global-prod-documents" };
+    for (const appEnv of ["production", "preview"]) {
+      expect(invalid({ ...prod, APP_ENV: appEnv })).toEqual([
+        "STORAGE_MAX_TOTAL_BYTES",
+        "STORAGE_WARNING_BYTES",
+      ]);
+      expect(invalid({ ...prod, APP_ENV: appEnv, STORAGE_MAX_TOTAL_BYTES: "9000000000" })).toEqual([
+        "STORAGE_WARNING_BYTES",
+      ]);
+      expect(invalid({ ...prod, APP_ENV: appEnv, STORAGE_WARNING_BYTES: "8000000000" })).toEqual([
+        "STORAGE_MAX_TOTAL_BYTES",
+      ]);
+    }
+    expect(
+      parseStorageConfig(
+        { ...prod, STORAGE_MAX_TOTAL_BYTES: "100000000000", STORAGE_WARNING_BYTES: "90000000000" },
+        "/app",
+      ).quota,
+    ).toEqual({ maxTotalBytes: 100e9, warningBytes: 90e9 });
+    // Ondalık GB (10^9) ile ikili MiB karışmaz: MiB tabanlı 9 GiB değeri de yalnızca bayt olarak okunur.
+    expect(
+      parseStorageConfig(
+        { ...prod, STORAGE_MAX_TOTAL_BYTES: "9663676416", STORAGE_WARNING_BYTES: "8000000000" },
+        "/app",
+      ).quota,
+    ).toEqual({ maxTotalBytes: 9_663_676_416, warningBytes: 8e9 });
+    for (const bad of ["9.5e9", "9000000000.5", "99999999999999999", " ", "abc"]) {
+      expect(
+        invalid({ ...prod, STORAGE_MAX_TOTAL_BYTES: bad, STORAGE_WARNING_BYTES: "1" }),
+        bad,
+      ).toContain("STORAGE_MAX_TOTAL_BYTES");
+    }
   });
 
   it("güvenli aktif yapılandırma (9 GB / 8 GB) hâlâ geçerli; uyarı tanımsızsa sınırın %90'ı", () => {
@@ -163,7 +198,13 @@ describe("depolama yapılandırması (fail-closed)", () => {
     expect(invalid({ ...b2, ISOLATED_TEST_DB: "1" })).toContain("STORAGE_PROVIDER");
     expect(invalid({ ...b2, APP_ENV: "production" })).toContain("B2_BUCKET_NAME");
     expect(
-      invalid({ ...b2, APP_ENV: "production", B2_BUCKET_NAME: "cs-global-prod-documents" }),
+      invalid({
+        ...b2,
+        APP_ENV: "production",
+        B2_BUCKET_NAME: "cs-global-prod-documents",
+        STORAGE_MAX_TOTAL_BYTES: "9000000000",
+        STORAGE_WARNING_BYTES: "8000000000",
+      }),
     ).toEqual([]);
     expect(invalid({ ...b2, APP_ENV: undefined, NODE_ENV: "production" })).toEqual(["APP_ENV"]);
   });

@@ -102,7 +102,7 @@
 
 ## 5. Kapsam Dışı (MVP)
 
-Önceki brief listesi (WhatsApp Business API, ödeme, faturalama, muhasebe, AI/OCR, PDF oluşturma/birleştirme, e-imza, konsolosluk/resmî entegrasyonlar, randevu, native mobil, canlı sohbet, multi-tenant, abonelik, finansal raporlama, çoklu dil, dark mode) **ve** ürün kararlarıyla çıkarılanlar: müşteri hesabı/profili, müşteri eşleştirme/birleştirme, OTP (e-posta/SMS), e-posta entegrasyonu, çalışan atama, arşivleme, ayarlar sayfası, otomatik saklama/silme, otomatik bağlantı süre sonu, dinamik dosya limitleri, evrak başına çoklu aktif dosya, harici antivirüs, self-servis şifre işlemleri, zorunlu ilk şifre değişimi, logo/iletişim/WhatsApp şablonu yönetimi.
+Önceki brief listesi (WhatsApp Business API, ödeme, faturalama, muhasebe, AI/OCR, PDF oluşturma/birleştirme, e-imza, konsolosluk/resmî entegrasyonlar, randevu, native mobil, canlı sohbet, multi-tenant, abonelik, finansal raporlama, çoklu dil, dark mode) **ve** ürün kararlarıyla çıkarılanlar: müşteri hesabı/profili, müşteri eşleştirme/birleştirme, OTP (e-posta/SMS), e-posta entegrasyonu, çalışan atama, arşivleme, ayarlar sayfası, otomatik saklama/silme, otomatik bağlantı süre sonu, dinamik dosya limitleri, evrak başına çoklu aktif dosya, harici antivirüs, self-servis şifre işlemleri, zorunlu ilk şifre değişimi, logo/iletişim/WhatsApp şablonu yönetimi, uygulamaya özel yedekleme/geri yükleme/felaket kurtarma altyapısı (OD-27 — sağlayıcıların yerleşik özellikleri sağlayıcı politikasına tabidir; veri kaybı kalan riski kullanıcı kabulündedir).
 
 ## 6. Kabul Kriterleri
 

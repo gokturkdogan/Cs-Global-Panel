@@ -310,6 +310,24 @@ export const fixtures = {
       "<< /Type /Annot /Subtype /Link /Rect [0 0 595 842] /Border [0 0 0] /A << /S /URI /URI (https://phase12-leak.example.invalid/pdf-link) >> >>",
       "<< /Type /Annot /Subtype /Widget /FT /Tx /T (ad) /Rect [72 600 300 630] /P 3 0 R /V (form) >>",
     ]),
+  /**
+   * PHASE 12.1 (REVIEW-03): olağan dışı sayfa geometrisi. Çok dar/uzun sayfa genişliğe sığdırılınca dev
+   * bir görünüm alanı üretir (tuval sınırı test edilir); çok geniş/kısa sayfa güvenli ölçekle çizilir.
+   */
+  extremeTallPage: () =>
+    buildPdf([
+      CATALOG,
+      PAGES,
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 3 14400] /Contents 4 0 R >>",
+      contentObject("BT /F1 2 Tf 0 10 Td (x) Tj ET"),
+    ]),
+  veryWidePage: () =>
+    buildPdf([
+      CATALOG,
+      PAGES,
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 14400 200] /Contents 4 0 R >>",
+      contentObject("BT /F1 48 Tf 72 72 Td (Genis sayfa) Tj ET"),
+    ]),
   deepNesting: () =>
     buildPdf([CATALOG, PAGES, PAGE, contentObject(), `${"[".repeat(200)}${"]".repeat(200)}`]),
 } as const;

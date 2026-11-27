@@ -159,10 +159,16 @@ Kaynak: 6698 sayılı KVKK resmî metni (mevzuat.gov.tr, 2024 değişiklikleri d
 | Aydınlatma (md. 10) | Metin hazırlanmalı | Kimlik, amaç, alıcılar (yurt dışı sağlayıcılar), yöntem/hukuki sebep, haklar |
 | Yurt dışı aktarım (md. 9, 2024) | **Açık** | Yeterlilik kararı yoksa uygun güvenceler (standart sözleşme imzadan itibaren **5 iş günü** içinde Kuruma bildirilir); Neon AWS Frankfurt + Grafana Labs (ABD) alt işleyen; Backblaze "may be transferred to … United States"; AB bölgesi tek başına uyum sağlamaz |
 | Saklama/imha | Karar bekliyor | OD-06: otomatik silme yok; kalıcı silme manuel (BR-150…); tamamlanan başvuru, audit ve yedek saklama süreleri belirlenmemiş |
-| İlgili kişi hakları (md. 11) | Prosedür gerekli | Silme talebi → kalıcı silme akışı + yedeklerdeki kopyalar (OPERATIONS_RUNBOOK §2.4) |
+| İlgili kişi hakları (md. 11) | Prosedür gerekli | Silme talebi → kalıcı silme akışı; sağlayıcı geri yükleme penceresi/kopyalarında kalan veri ve geri yükleme sonrası geri dönüş riski (OD-27, OPERATIONS_RUNBOOK §2) |
 | İhlal bildirimi (md. 12/5) | Prosedür taslağı | "en kısa sürede" ilgiliye ve Kurula; OPERATIONS_RUNBOOK §4.7 |
 | VERBİS (md. 16) | Hukuk görüşü gerekli | Muafiyet eşiği doğrulanmadı |
 | Sağlayıcı DPA / alt işleyenler | Kısmen incelendi | Backblaze DPA Module 1/2 mevcut, alt işleyen değişikliği ≥7 gün önceden; Neon "Product Specific Schedule" (Databricks MCSA), alt işleyenler Databricks listesi (bu oturumda okunmadı) |
 | GDPR uygulanabilirliği | Değerlendirilmeli | Şirketin AB'deki faaliyetlerine bağlı |
 
 **Kullanıcı karar listesi:** gerekli müşteri verileri (minimizasyon), tamamlanan başvuruların saklama süresi, audit saklama süresi, yedek saklama süresi ve şifrelemesi, silme taleplerinin yedeklere etkisi, bearer bağlantı kalan riski (PB-04, SEC-02), antivirüssüz kabul kalan riski (PB-05), yurt dışı aktarım mekanizması. Teknik denetim hukuki uyumluluk sertifikası değildir; yeni otomatik saklama/silme oluşturulmadı (OD-06).
+
+## 14. PHASE 12.1 notları
+
+- OD-27: uygulama özel yedek almaz. Sağlayıcıların yerleşik geri yükleme/versiyon kopyaları kişisel veri taşıyabilir ve sağlayıcı politikasına tabidir; sağlayıcı düzeyi geri yükleme yedekten sonra silinmiş verileri geri getirebilir → manuel değerlendirme (OPERATIONS_RUNBOOK §2; tahminle silme yok). Veri kaybında uygulamaya özel kurtarma garantisi yoktur. Hukuki saklama/imha kararı kullanıcıdadır (PB-03, PB-08, PB-12).
+- Müşteri bağlantısı ara sayfası (D-141) kişisel veri göstermez; önizleme istemcileri müşteri verisine ulaşamaz. Bağlantı yine bearer credential'dır (PB-04).
+- Rate limit anahtarları teknik kimliklerdir (HMAC veya iç token kimliği); IP/UA saklanmaz. Süresi dolmuş satırlar `ops:rate-limit-cleanup` ile temizlenir.

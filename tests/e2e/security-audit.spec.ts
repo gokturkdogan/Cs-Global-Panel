@@ -5,6 +5,7 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { fixtures, multiPagePdf } from "../support/pdf-fixtures";
 import { seedApplication } from "../support/portal-seed";
+import { openCustomerLink } from "./customer-link";
 import { collectErrors } from "./console-errors";
 import { uploadAsCustomer } from "./customer-upload";
 import { expect, sessionsAvailable, test } from "./fixtures";
@@ -88,7 +89,7 @@ test.describe("PHASE 12 güvenlik denetimi (izole)", () => {
     await expect(page.getByText(`Yorum ${XSS}`).first()).toBeVisible();
 
     // Müşteri paneli (aynı bağlamda personel cookie'si de var: müşteri kapsamı yalnızca kendi oturumundan).
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page.getByText(`Talimat ${XSS}`)).toBeVisible();
     await expect(page.getByText(`Düzeltme ${XSS}`)).toBeVisible();
     await page.waitForLoadState("networkidle");
@@ -173,7 +174,7 @@ test.describe("PHASE 12 güvenlik denetimi (izole)", () => {
     // Müşteri A oturumu.
     const customerA = await browser.newContext({ baseURL });
     const pageA = await customerA.newPage();
-    await pageA.goto(`/b/${a.token}`);
+    await openCustomerLink(pageA, a.token);
     const contextA = new URL(pageA.url()).pathname.split("/portal/")[1]!;
     // Kendi dosyası: Range 206, HEAD meta.
     const own = await customerA.request.get(
@@ -274,7 +275,7 @@ test.describe("PHASE 12 güvenlik denetimi (izole)", () => {
     const open = async (token: string) => {
       const context = await browser.newContext({ baseURL });
       const page = await context.newPage();
-      await page.goto(`/b/${token}`);
+      await openCustomerLink(page, token);
       return { context, ctx: new URL(page.url()).pathname.split("/portal/")[1]! };
     };
     const A = await open(a.token);
@@ -376,7 +377,7 @@ test.describe("PHASE 12 güvenlik denetimi (izole)", () => {
     expect(errors).toEqual([]);
   });
 
-  test("bağlantı önizleme/tarayıcı: /b yanıtı token ve kişisel veri içermez; cookie saklamayan istemci müşteri verisi göremez; cookie saklayan istemci görür (kalan risk — SEC-02)", async ({
+  test("bağlantı önizleme/tarayıcı (D-141, SEC-02): GET/HEAD oturum açmaz; cookie saklayan ve yönlendirme izleyen istemci müşteri verisine/dosyaya ulaşamaz", async ({
     runtimeDb,
     baseURL,
     playwright,
@@ -386,35 +387,44 @@ test.describe("PHASE 12 güvenlik denetimi (izole)", () => {
       firstName: "Önizleme",
       lastName: `Gözcü${randomUUID().slice(0, 6)}`,
     });
-    const entry = await fetch(`${baseURL}/b/${app.token}`, { redirect: "manual" });
-    expect(entry.status).toBe(303);
-    const location = entry.headers.get("location") ?? "";
-    expect(location).toMatch(/\/portal\/[A-Za-z0-9_-]+$/);
-    expect(location).not.toContain(app.token);
-    expect(entry.headers.get("cache-control")).toContain("no-store");
-    expect(entry.headers.get("referrer-policy")).toBe("no-referrer");
-    const setCookie = entry.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain("HttpOnly");
-    expect(setCookie.toLowerCase()).toContain("samesite=lax");
-    const entryBody = await entry.text();
-    expect(entryBody).not.toContain(app.lastName);
+    for (const method of ["GET", "HEAD"] as const) {
+      const entry = await fetch(`${baseURL}/b/${app.token}`, { method, redirect: "manual" });
+      expect(entry.status).toBe(200);
+      expect(entry.headers.get("set-cookie")).toBeNull();
+      expect(entry.headers.get("location")).toBeNull();
+      expect(entry.headers.get("cache-control")).toContain("no-store");
+      // D-146: ara sayfa Referer olarak en fazla kökeni gönderir (yol/token asla).
+      expect(entry.headers.get("referrer-policy")).toBe("strict-origin");
+      const body = await entry.text();
+      for (const secret of [app.lastName, app.number, app.serviceName, "Pasaport"]) {
+        expect(body).not.toContain(secret);
+      }
+      // Genel Open Graph / başlık: kişisel veri veya başvuru numarası yok.
+      expect(body).not.toMatch(/og:(title|description)[^>]*Gözcü/);
+    }
 
-    // Cookie saklamayan önizleme istemcisi: yönlendirmeyi izler ama oturum yoktur → kişisel veri yok.
-    const cookieless = await fetch(new URL(location, baseURL).toString(), { redirect: "manual" });
-    const cookielessBody = await cookieless.text();
-    expect(cookielessBody).not.toContain(app.lastName);
-    expect(cookielessBody).not.toContain(app.number);
-
-    // Cookie saklayan istemci (bazı önizleme/tarama botları): bağlantının kendisi taşıyıcı kimlik bilgisidir.
+    // Cookie saklayan ve yönlendirme izleyen istemci (bazı önizleme/tarama botları): yalnızca ara sayfa.
     const jar = await playwright.request.newContext({ baseURL });
-    const portal = await jar.get(`/b/${app.token}`);
-    const exposed = (await portal.text()).includes(app.lastName);
+    const preview = await jar.get(`/b/${app.token}`);
+    const previewBody = await preview.text();
+    expect(previewBody).toContain("Başvuru Takip Paneli");
+    expect(previewBody).not.toContain(app.lastName);
+    await jar.head(`/b/${app.token}`);
+    expect((await jar.storageState()).cookies).toEqual([]);
+    const portal = await jar.get("/portal");
+    expect(await portal.text()).not.toContain(app.lastName);
+    await jar.dispose();
+    // GET/HEAD bu bağlantı için sayaç satırı dahil hiçbir şey yazmaz (paralel testlerden bağımsız sorgu).
+    const exchangeRows = await runtimeDb.query(
+      `SELECT 1 FROM rate_limit_buckets WHERE key IN (
+         SELECT 'link:exchange:' || id FROM application_access_tokens WHERE application_id = $1)`,
+      [app.applicationId],
+    );
+    expect(exchangeRows.rowCount).toBe(0);
     testInfo.annotations.push({
       type: "SEC-02",
-      description: `cookie saklayan istemci kişisel veri gördü: ${exposed}`,
+      description: "GET/HEAD önizleme: oturum 0, veri 0",
     });
-    console.log(`[security-audit] SEC-02 cookie saklayan istemci kişisel veri gördü: ${exposed}`);
-    await jar.dispose();
   });
 
   test("çıkış sonrası geri tuşu: yeniden yükleme girişe yönlendirir; bfcache görünürlüğü kaydedilir", async ({

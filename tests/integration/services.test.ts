@@ -51,10 +51,18 @@ async function actorIn(tx: Tx): Promise<service.Actor> {
   );
   const id = existing.rows[0]?.id;
   if (id !== undefined) return { userId: id };
+  // PHASE 12.1 (D-144): çalışma zamanı rolü personel hesabı oluşturamaz → geçici hesap (yalnızca hiç hesap
+  // yokken, yani izole veritabanında) sahip rolüyle; global teardown siler.
   const created = testId();
-  await tx.execute(
-    sql`INSERT INTO users (id, name, email, username, role) VALUES (${created}, 'Test', ${`${created}@staff.invalid`}, ${`t_${randomUUID().slice(0, 8)}`}, 'employee')`,
-  );
+  const owner = await connectOwner();
+  try {
+    await owner.query(
+      "INSERT INTO users (id, name, email, username, role) VALUES ($1, 'Test', $1 || '@staff.invalid', $2, 'employee')",
+      [created, `t_${randomUUID().slice(0, 8)}`],
+    );
+  } finally {
+    await owner.end();
+  }
   return { userId: created };
 }
 

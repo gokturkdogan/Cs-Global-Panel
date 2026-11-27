@@ -215,3 +215,12 @@ Elle çalıştırılır, otomatik testlerde yoktur: bucket erişimi + sınırlı
 - `pnpm storage:reconcile --apply` muhasebe neslini listelemeden önce okur ve `untracked_bytes`'ı yalnızca nesil değişmemişse yazar. Envanter sırasında fiziksel silme/kayıt sonlandırma (başvuru silme, teknik temizlik, yükleme yolu en iyi çaba silme) veya başka bir mutabakat olduysa sonuç **bayattır**, yazılmaz (çıkış kodu 3; yeniden çalıştırılır). Böylece silinen nesneler eski envanterle kotaya geri eklenmez ve eski sonuç yeniyi ezmez.
 - Eksik liste veya liste ortasında hata hiçbir değer yazmaz. Bilinmeyen kullanım sıfır sayılmaz; belirsiz yazım kayıtları kotada kalır (D-127). Dashboard açılışında sağlayıcı çağrısı yoktur.
 - **Doğrulanmayan:** gerçek B2 üzerinde çok sayfalı mutabakat ve tutarlılık modeli (PHASE 12).
+
+## PHASE 12.1 — Sağlayıcı yanıt sözleşmesi, gözlem bütünlüğü ve kapasite yapılandırması
+
+- **Versiyon kimliği (D-147):** versiyona özgü GET yanıtında `VersionId` eşleşmeli; eksik/farklı → gövde aktarılmadan INTEGRITY (servis de aynı kuralı uygular). Backblaze belgeleri başlığı yalnızca örnekte gösterir → gerçek davranış Checkpoint B'de doğrulanmadan production'a geçilmez.
+- **Aralık:** 206 + birebir `Content-Range` (başlangıç/bitiş/toplam) + `Content-Length`; 200 tam gövde → INTEGRITY (gövde iptal). Akış tam uzunluk korumalı (kısa/uzun gövde hata).
+- **Yokluk:** yalnızca `NoSuchKey`/`NoSuchVersion` (GET/DELETE) ve gövdesiz HEAD `NotFound`; kodsuz 404 → UNAVAILABLE. HEAD yokluğu tek başına silme/sonlandırma kanıtı değildir (tam envanter — D-116/D-123).
+- **Belirsiz yazım gözlemi:** HEAD (versiyon + boyut) + o TEK versiyonun sınırlı SHA-256 okuması eşleşirse CONFIRMED (OBSERVED); aksi, okuma hatası veya kaydedilemeyen onay (benzersizlik) → UNKNOWN. Normal görüntüleme/indirme trafiğine ek GET eklenmez.
+- **Kapasite (D-151):** production/preview'da `STORAGE_MAX_TOTAL_BYTES` ve `STORAGE_WARNING_BYTES` zorunlu; development'ta eksikse 9 GB / 8 GB. Hedef 100 / 90 GB yalnızca etkinleştirme kapısından sonra (VERIFICATION_PLANS §1.5). Aktif değer: 9 / 8 GB (değişmedi).
+- **En az yetkili anahtar (D-143):** `listFiles, readFiles, writeFiles, deleteFiles` (+ isteğe bağlı `listBuckets` yalnızca denetim için).

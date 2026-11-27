@@ -6,6 +6,7 @@ import type { Locator, Page, TestInfo } from "@playwright/test";
 import { fixtures } from "../support/pdf-fixtures";
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { seedApplication } from "../support/portal-seed";
+import { openCustomerLink } from "./customer-link";
 import { expect, sessionsAvailable, test } from "./fixtures";
 
 /**
@@ -57,7 +58,7 @@ test.describe("PDF yükleme (izole veritabanı)", () => {
     runtimeDb,
   }, testInfo) => {
     const app = await seedApplication(runtimeDb, userId, { documents: twoDocs });
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page.getByTestId("document-progress")).toContainText(
       "0 / 2 zorunlu evrak yüklendi · %0",
     );
@@ -131,7 +132,7 @@ test.describe("PDF yükleme (izole veritabanı)", () => {
     runtimeDb,
   }) => {
     const app = await seedApplication(runtimeDb, userId, { documents: twoDocs });
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     const card = page.getByTestId("portal-document").first();
     await choose(card, pdfFile("betik.pdf", fixtures.javascriptOpenAction()));
     await expect(card.getByTestId("pdf-upload-status")).toContainText("aktif içerik", {
@@ -161,10 +162,10 @@ test.describe("PDF yükleme (izole veritabanı)", () => {
     const a = await seedApplication(runtimeDb, userId, { firstName: "Ada", documents: twoDocs });
     const b = await seedApplication(runtimeDb, userId, { firstName: "Bora", documents: twoDocs });
     const tabA = await context.newPage();
-    await tabA.goto(`/b/${a.token}`);
+    await openCustomerLink(tabA, a.token);
     await expect(tabA.getByRole("heading", { level: 1 })).toContainText("Ada");
     const tabB = await context.newPage();
-    await tabB.goto(`/b/${b.token}`);
+    await openCustomerLink(tabB, b.token);
     await expect(tabB.getByRole("heading", { level: 1 })).toContainText("Bora");
     // Sekme A hâlâ eski sayfayı gösteriyor (yeniden yüklenmedi) → yükleme denemesi.
     const card = tabA.getByTestId("portal-document").first();
@@ -196,7 +197,7 @@ test.describe("PDF yükleme (izole veritabanı)", () => {
   }) => {
     const a = await seedApplication(runtimeDb, userId, { documents: twoDocs });
     const b = await seedApplication(runtimeDb, userId, { documents: twoDocs });
-    await page.goto(`/b/${a.token}`);
+    await openCustomerLink(page, a.token);
     const context = page.url().split("/portal/")[1]!;
     const reqA = (
       await runtimeDb.query<{ id: string; version: number }>(
@@ -329,7 +330,7 @@ test.describe("PDF yükleme (izole veritabanı)", () => {
       status: "UNDER_REVIEW",
       documents: [{ title: "Pasaport", status: "PENDING_REVIEW" }],
     });
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page.getByTestId("portal-document")).toHaveCount(1);
     await expect(page.getByTestId("pdf-upload")).toHaveCount(0);
   });
@@ -337,7 +338,7 @@ test.describe("PDF yükleme (izole veritabanı)", () => {
   test("uzun dosya adı mobilde taşma yapmaz", async ({ page, runtimeDb }, testInfo) => {
     const app = await seedApplication(runtimeDb, userId, { documents: twoDocs });
     await page.setViewportSize({ width: 320, height: 800 });
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     const card = page.getByTestId("portal-document").first();
     await choose(card, pdfFile(`${"Çok-uzun-dosya-adı-".repeat(9)}son.pdf`));
     await expect(card.getByTestId("portal-active-file")).toBeVisible({ timeout: 20_000 });

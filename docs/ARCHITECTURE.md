@@ -375,3 +375,7 @@ Kurallar (D-016):
 - **Ön-getirme (D-137):** yalnızca ana gezinme/breadcrumb; diğer `Link`'ler `prefetch={false}`. Ölçüm: PHASE 11 raporu.
 - **Veritabanı (D-138):** migration 0010 bileşik audit indeksi; başvuru sorgularına indeks eklenmedi (ölçüm).
 - **Keep-alive / ısıtma sorgusu yok;** soğuk başlangıç kabul edilir (sağlayıcı ölçeklemesi).
+
+## 12e. PHASE 12.1 — Kapsam sadeleştirmesi (OD-27)
+
+Uygulamaya özel yedekleme/geri yükleme/felaket kurtarma bileşeni yoktur (tatbikat, geri yükleme sonrası kilitleme/rapor, VersionId eşleme kaldırıldı). Neon ve Backblaze B2 birincil veri kaynaklarıdır; yerleşik sağlayıcı özellikleri uygulama tarafından yönetilmez. Veri bütünlüğü mekanizmaları (versiyon geçmişi, yazım girişimleri, kalıcı silme, mutabakat, kota, append-only audit) değişmedi.

@@ -1,7 +1,8 @@
 import {
   MAX_PDF_SIZE_BYTES,
-  STORAGE_DEFAULT_WARNING_BYTES,
   STORAGE_HARD_MAX_TOTAL_BYTES,
+  STORAGE_SAFE_DEFAULT_MAX_TOTAL_BYTES,
+  STORAGE_SAFE_DEFAULT_WARNING_BYTES,
 } from "../../config/constants.ts";
 
 /**
@@ -87,15 +88,22 @@ export function parseStorageConfig(source: Source, cwd: string = process.cwd()):
     invalid.push("MAX_PDF_SIZE_BYTES");
   }
 
+  // REVIEW-05: production/preview'da sınır ve uyarı AÇIKÇA verilmelidir; development'ta eksikse güvenli
+  // 9 GB / 8 GB (kod tavanı 100 GB hiçbir ortamda kendiliğinden etkinleşmez).
+  const explicitRequired = appEnv !== "development";
   const max = parseByteCount(source.STORAGE_MAX_TOTAL_BYTES);
-  const maxTotalBytes = max === undefined ? STORAGE_HARD_MAX_TOTAL_BYTES : max;
+  if (max === undefined && explicitRequired) invalid.push("STORAGE_MAX_TOTAL_BYTES");
+  const maxTotalBytes = max === undefined ? STORAGE_SAFE_DEFAULT_MAX_TOTAL_BYTES : max;
   if (maxTotalBytes === null || maxTotalBytes < 1 || maxTotalBytes > STORAGE_HARD_MAX_TOTAL_BYTES) {
     invalid.push("STORAGE_MAX_TOTAL_BYTES");
   }
   const warning = parseByteCount(source.STORAGE_WARNING_BYTES);
+  if (warning === undefined && explicitRequired) invalid.push("STORAGE_WARNING_BYTES");
   const warningBytes =
     warning === undefined
-      ? Math.min(STORAGE_DEFAULT_WARNING_BYTES, Math.floor(((maxTotalBytes ?? 0) * 9) / 10))
+      ? max === undefined
+        ? STORAGE_SAFE_DEFAULT_WARNING_BYTES
+        : Math.floor(((maxTotalBytes ?? 0) * 9) / 10)
       : warning;
   if (warningBytes === null || warningBytes < 1 || warningBytes >= (maxTotalBytes ?? 0)) {
     invalid.push("STORAGE_WARNING_BYTES");

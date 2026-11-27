@@ -48,7 +48,13 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         admin: { username: `e2e_adm_${suffix}`, password: `E2e-${randomUUID()}` },
         employee: { username: `e2e_emp_${suffix}`, password: `E2e-${randomUUID()}` },
       };
-      await bootstrapAccounts(client, credentials, () => `test-${randomUUID()}`);
+      // D-144: geçici hesaplar sahip rolüyle (çalışma zamanı rolü hesap oluşturamaz).
+      const ownerClient = await connect(owner, "cs-global-e2e-bootstrap");
+      try {
+        await bootstrapAccounts(ownerClient, credentials, () => `test-${randomUUID()}`);
+      } finally {
+        await ownerClient.end();
+      }
       createdTemporaryAccounts = true;
       process.env.E2E_ACCOUNTS = "available";
       process.env.E2E_ADMIN_USERNAME = credentials.admin.username;

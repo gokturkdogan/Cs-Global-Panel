@@ -281,6 +281,17 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 
 ---
 
+### OD-27 — Uygulamaya özel yedekleme/geri yükleme altyapısı kapsam dışı
+- **Status:** **ACCEPTED** · **Approved By:** Product Owner (kullanıcı kararı) · **Approval Date:** 2026-11-27 (PHASE 12.1)
+- **Karar:** CS Global (iki personelli, küçük ölçekli platform) uygulamaya özel yedekleme, geri yükleme ve felaket kurtarma altyapısı SUNMAZ: özel veritabanı/nesne yedeği, zamanlanmış yedek, ayrı yedek bucket'ı, geri yükleme otomasyonu, geri yükleme sonrası karantina/kilitleme betikleri, bucket'lar arası VersionId eşlemesi, kurtarma manifestleri, yedek saklama otomasyonu, geri yükleme tatbikatı ürün ve kod kapsamından çıkarıldı.
+- **Birincil veri kaynakları:** Neon PostgreSQL ve Backblaze B2 olarak kalır. Sağlayıcıların yerleşik geri yükleme/versiyon özellikleri (ör. Neon geri yükleme penceresi) sağlayıcı politikasına tabidir; uygulama bunları yönetmez, panel ayarları değiştirilmez ve bunlar bağımsız/garantili yedek olarak SUNULMAZ.
+- **Kalan risk (açıkça kabul edilecek):** veritabanında veya depolamada geri dönüşü olmayan veri kaybında uygulamaya özel kurtarma garantisi yoktur. Olağanüstü sağlayıcı düzeyi geri yükleme gerekirse kullanıcı ve yetkili operatör ayrıca değerlendirir; geri yüklenen ortam doğrudan müşterilere açılmaz; eski token/oturum, silinmiş başvuru ve depolama referansı riskleri değerlendirilmeden ve veri bütünlüğü doğrulanmadan normal erişim başlatılmaz (manuel — OPERATIONS_RUNBOOK §2).
+- **Değişmeyenler:** PDF yükleme/değiştirme/versiyon geçmişi, değişmez VersionId, kalıcı başvuru silme, versiyona özgü fiziksel silme, yazım girişimleri, UNKNOWN işleme, mutabakat, `accounting_epoch`, kota, audit değiştirilemezliği, BR-47, OD-06, OD-26 ve tüm güvenlik düzeltmeleri.
+- **Güncellenen önceki hükümler:** D-142 SUPERSEDED, D-148 WITHDRAWN; PB-08 ve PB-12 kapsamı "kalan risk / kullanıcı kabulü"ne çevrildi (kapatılmadı).
+- **Faz:** PHASE 12.1 ve sonrası.
+
+---
+
 ## B. Teknik Kararlar
 
 ### D-001 — Modüler monolit, tek Next.js uygulaması
@@ -963,24 +974,54 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 - **Rate limit (değişiklik yok):** ölçüm — 10 MB/100 sayfalık belgenin tamamını okumak ≤ 14 parça isteği, tipik görüntüleme 1–3; 600/saat parça ve 120/saat tam/uzun istek sınırları meşru personel kullanımını engellemiyor; müşteri sayaçları token başına (diğer müşterileri/personeli etkilemez). Hesap cap'leri ile uygulama rate limit'i ayrı kavramlardır.
 
 ### D-141 — Bağlantı önizleme azaltma seçeneği: kullanıcı onaylı ara sayfa
-- **Date:** 2026-11-27 (PHASE 12) · **Status:** **Proposed** (kullanıcı kararı bekliyor — ürün akışı değişikliği; UYGULANMADI) · SEC-02, TM-59, PB-04
+- **Date:** 2026-11-27 (PHASE 12) · **Status:** **ACCEPTED** (Product Owner, 2026-11-27 — PHASE 12.1 başlangıcı) · **UYGULANDI (PHASE 12.1)** · SEC-02, TM-59, PB-04
+- **Uygulama (PHASE 12.1):** `GET /b/<token>` (`src/app/(customer)/b/[token]/page.tsx`) veritabanına erişmeyen, oturum açmayan, cookie yazmayan genel ara sayfadır (geçerli/geçersiz bağlantı aynı sayfa — varlık kahini yok; biçimsiz girdi veritabanısız `/link-invalid`). Oturum yalnızca "Başvurumu Görüntüle" ile yerel form `POST /b/enter` (`src/app/(customer)/b/enter/route.ts`): köken (proxy + route), gövde biçimi (yalnızca `token`, ≤ 512 bayt), HMAC arama + iptal/silme kontrolleri, geçerli token başına rate limit (D-150), mevcut cookie politikası ve tek bağlam sözleşmesi (D-090), 303 → `/portal/<bağlam>`. Token POST gövdesinde (log satırında/URL'de değil). Eski GET tabanlı oturum açma yolu kaldırıldı; başka route/action yok (statik test). **Kalan risk:** ara sayfa otomatik GET/HEAD önizlemesini azaltır; bağlantıyı ele geçiren ya da bilinçli POST yapan istemciye karşı ikinci faktör değildir (PB-04 açık). Gerçek WhatsApp davranışı doğrulanmadı.
 - **Öneri:** `GET /b/<token>` oturum açmak yerine kişisel veri içermeyen bir ara sayfa gösterir ("Başvurunuzu görüntülemek için devam edin"); oturum yalnızca kullanıcının düğmeye basmasıyla (aynı köken POST + Origin kontrolü) açılır. Cookie saklayan önizleme botları düğmeye basmadığından portal verisini alamaz. Maliyet: müşteri için bir dokunuş; BR-102…BR-105 ve D-087 metinlerinin güncellenmesi. Alternatif: PB-04 kapsamında yazılı risk kabulü.
 
 ### D-142 — Yedek/geri yükleme tatbikatı ve geri yükleme sonrası prosedür
-- **Date:** 2026-11-27 (PHASE 12) · **Status:** **Proposed** (kullanıcı onayı bekliyor) · SEC-03, TM-60, PB-08, PB-12
+- **Date:** 2026-11-27 (PHASE 12) · **Status:** **SUPERSEDED by OD-27** (2026-11-27 — uygulamaya özel yedek/geri yükleme altyapısı kapsam dışı; `test:restore-drill`, `ops:post-restore` kaldırıldı). Önceki durum: CONDITIONALLY ACCEPTED (koşul: silinmiş verinin yeniden etkinleşmesi ve TÜM depolama versiyon referansları güvenle ele alınmalı) · SEC-03, TM-60, PB-08, PB-12
+- **PHASE 12.1 durumu:** `pnpm ops:post-restore` (salt okunur GO/NO-GO raporu + onaylı `--lockdown`) ve genişletilmiş tatbikat (R-A…R-I) eklendi — OPERATIONS_RUNBOOK §2.4. Koşul **KISMEN** karşılandı: iptal/yenileme/oturum geri dönüşü kilitlemeyle engellenir; sağlayıcıda versiyonu eksik başvurular karantinaya alınır; başlamış ama nesnesi henüz silinmemiş silme sağlayıcıdan **tespit edilemez** (PB-12 açık). Bucket değişiminde tam versiyon eşleme planı fail-closed (D-148, Proposed — uygulanmadı).
 - **Decision:** `pnpm test:restore-drill` (yalnızca geçici Docker container'ları + sentetik veri) şema/kısıt/indeks/trigger/yetki/veri parmak izi eşitliğini, audit değiştirilemezliğini ve silme korumasını doğrular; silinmiş/iptal edilmiş verinin geri dönüşünü ve nesne VersionId değişimini kanıtlar. Geri yükleme sonrası zorunlu prosedür (müşteri erişimi açılmadan bağlantıların iptali, silmelerin yeniden uygulanması, SHA-256 ile versiyon eşleme): OPERATIONS_RUNBOOK §2.4–2.5. Otomatik koruma (veritabanı dışı silme defteri) eklenmedi — PB-12 kararı.
 
 ### D-143 — Salt okunur sağlayıcı denetimi ve en az yetkili B2 anahtarı
-- **Date:** 2026-11-27 (PHASE 12) · **Status:** **Proposed** (kullanıcı işlemi bekliyor) · SEC-01, TM-51, PB-13
+- **Date:** 2026-11-27 (PHASE 12) · **Status:** **CONDITIONALLY ACCEPTED** (Product Owner, 2026-11-27 — gerçek anahtar oluşturma ve sağlayıcı doğrulaması açık) · SEC-01, TM-51, PB-13
+- **PHASE 12.1 düzeltmesi:** resmî "S3-Compatible App Key Capabilities" tablosuna göre uygulamanın asgari yetkileri `listFiles, readFiles, writeFiles, deleteFiles`'tır; uygulama ListBuckets/HeadBucket çağırmaz → `listBuckets` yalnızca `storage:inspect` HeadBucket kontrolü için isteğe bağlıdır. Panel yalnızca Read and Write / Read Only / Write Only sunar; özel yetki kümesi yalnızca `b2_create_key` API ile (OPERATIONS_RUNBOOK §3.1). D-143 onayı canlı mutasyon yetkisi değildir.
 - **Decision:** `pnpm storage:inspect` — yazma/silme/indirme yapmadan anahtar kapsamını (yetkiler, bucket/önek kısıtı, son kullanma), bucket ayarlarını (versiyonlama, şifreleme, CORS, lifecycle), nesne sayılarını ve kimliksiz erişim reddini raporlar; secret/token/nesne adı yazdırmaz. Uygulama yalnızca `listBuckets, listFiles, readFiles, writeFiles, deleteFiles` gerektirir; mevcut anahtardaki 7 fazla yetki (writeBuckets, writeBucket*, shareFiles) kaldırılmalıdır — yeni anahtarı kullanıcı oluşturur (OPERATIONS_RUNBOOK §3.1). Asistan sağlayıcı ayarı/anahtar değiştirmedi.
 
 ### D-144 — Runtime rolünün `users`/`accounts` yazma yetkisinin daraltılması (öneri)
-- **Date:** 2026-11-27 (PHASE 12) · **Status:** **Proposed** (UYGULANMADI — Neon yetki değişikliği kullanıcı onayı gerektirir) · SEC-04, TM-41
+- **Date:** 2026-11-27 (PHASE 12) · **Status:** **ACCEPTED** (Product Owner, 2026-11-27) · **İzole ortamda UYGULANDI (PHASE 12.1); Neon'a UYGULANMADI** (ayrı onay) · SEC-04, TM-41
+- **Uygulama (PHASE 12.1):** migration `0011_runtime_auth_least_privilege` — `REVOKE INSERT, UPDATE ON users, accounts` ve `REVOKE INSERT, UPDATE, DELETE ON verifications` (SELECT kalır; `sessions` değişmez — giriş oturum oluşturur, çıkış siler). Ölçüm: Better Auth giriş/oturum/çıkış izole tam regresyonda users/accounts'a yazmadı. `pnpm auth:bootstrap` / `auth:reset-password` ve E2E geçici hesap kurulumu artık **sahip (operatör)** bağlantısını kullanır. Negatif testler: runtime ile hesap/credential ekleme-değiştirme-silme, doğrulama kaydı, kendine GRANT (etkisiz), ALTER ROLE → reddedilir. Neon için değişiklik listesi/etki/geri alma: PROJECT_STATE "Kullanıcı İşlemleri".
 - **Öneri:** Yeni migration ile `REVOKE INSERT ON users, accounts FROM cs_app_runtime` (UPDATE ihtiyacı Better Auth giriş akışında izole ortamda ölçülerek belirlenir). Ön koşul: E2E global-setup'ın geçici hesapları runtime yerine owner bağlantısıyla oluşturması. Önce izole ortamda tam regresyon, sonra onayla Neon.
 
 ### D-145 — CI'da izole Docker paketleri ve deterministik izole kota
-- **Date:** 2026-11-27 (PHASE 12) · **Status:** **Proposed** (kullanıcı onayı bekliyor; uzak CI çalıştırılmadı) · SEC-07, SEC-09
+- **Date:** 2026-11-27 (PHASE 12) · **Status:** **CONDITIONALLY ACCEPTED** (Product Owner, 2026-11-27 — uzak GitHub CI doğrulanmadı) · SEC-07, SEC-09
 - **Decision:** `.github/workflows/ci.yml`'a `isolated` işi: `pnpm test:integration:isolated` + `pnpm test:e2e:isolated` (geçici PostgreSQL, rastgele secret'lar, gerçek Neon/B2 yok; workflow secret kullanmaz → untrusted PR'lar da secret almaz; `permissions: contents: read`). `scripts/test/isolated-db.ts` kotayı açıkça 9 GB / 8 GB verir (geliştirici `.env.local`'ından bağımsız).
+### D-146 — Bağlantı ara sayfasında `Referrer-Policy: strict-origin`
+- **Date:** 2026-11-27 (PHASE 12.1) · **Status:** **Proposed** (kullanıcı onayı gerekiyor — "no-referrer korunmalıdır" talimatından dar sapma) · D-141, D-069, D-093
+- **Sorun:** `no-referrer` altında tarayıcılar form POST'unda `Origin: null` gönderir (Fetch standardı); köken/CSRF kontrolü (D-069) meşru girişi de 403 ile reddetti (ilk E2E koşusu). `Origin: null` kabul etmek CSRF/oturum sabitleme korumasını kaldırırdı.
+- **Decision:** YALNIZCA `/b/<43 karakter>` ara sayfası `strict-origin` (başlık + meta): Referer EN FAZLA köken içerir, yol/token asla gönderilmez; aynı köken POST gerçek `Origin` taşır. Sayfada harici kaynak/bağlantı yoktur (CSP). `/b/enter` yanıtı, portal ve diğer müşteri sayfaları `no-referrer` kalır. Test: POST'un Referer'ı yok veya yalnızca köken; token içermez.
+
+### D-147 — Sağlayıcı yanıt kimliği ve yokluk kanıtı sözleşmesi
+- **Date:** 2026-11-27 (PHASE 12.1) · **Status:** **Proposed** · REVIEW-06, D-102, D-123, D-132, D-135
+- **Decision:** (1) Versiyona özgü GET yanıtı aynı `VersionId`'yi bildirmelidir; eksik veya farklıysa gövde aktarılmadan INTEGRITY (Backblaze belgeleri `x-amz-version-id`'yi yalnızca örnek yanıtta gösterir — sözleşme değil; gerçek davranış Checkpoint B / B2-02). (2) "Yok" yalnızca S3 hata kodlu `NoSuchKey`/`NoSuchVersion` (GET/DELETE); kodsuz 404 (yanlış uç nokta/HTML) UNAVAILABLE; gövdesiz HEAD'de `NotFound` kabul edilir ama tek başına silme/sonlandırma kanıtı değildir (tam envanter). (3) Belirsiz yazımda gözlenen versiyon yalnızca o versiyonun sınırlı SHA-256 okumasıyla doğrulanırsa CONFIRMED (OBSERVED); aksi UNKNOWN. Normal görüntüleme/indirme akışına ek GET eklenmez.
+
+### D-148 — Bucket değişiminde tam VersionId eşleme (çevrimdışı prosedür tasarımı)
+- **Date:** 2026-11-27 (PHASE 12.1) · **Status:** **WITHDRAWN** (OD-27 — bucket'lar arası VersionId eşlemesi kapsam dışı; uygulanmadı, `planVersionMapping` kaldırıldı). Önceki durum: Proposed · SEC-03, PB-12, REVIEW-04
+- **Bulgu:** Başka bucket'a kopyada VersionId'ler değişir; referanslar `application_document_files.storage_version_id`, `storage_write_attempts.version_id` (kimlik değişmez — tetikleyici, sahip rolüyle bile 55000) ve `application_deletion_objects.version_id`'dedir. Aynı içerikli farklı tarihî versiyonlar yalnızca hash ile ayırt edilemez.
+- **Öneri:** Desteklenen kurtarma yolu aynı bucket'tır (versiyonlar korunur, lifecycle yok). Bucket kaybında: `planVersionMapping` (anahtar + boyut + SHA-256, tek aday) — tüm referanslar VERIFIED değilse NO-GO; uygulamak için yeni, onaylı, çevrimdışı bir eşleme tablosu/migration gerekir (eski yerleşim kanıtı yeniden yazılmaz). Kullanıcı kararı.
+
+### D-149 — Testler ortak veritabanına migration uygulamaz
+- **Date:** 2026-11-27 (PHASE 12.1) · **Status:** **Proposed** · D-059, D-086, D-129, D-144
+- **Decision:** Integration global setup migration'ları yalnızca izole geçici veritabanına uygular. Ortak veritabanında (Neon) bekleyen migration varsa hiçbir test başlamadan durulur; uygulama yalnızca `pnpm db:migrate` ile ve ayrı onayla. Sebep: 0011 gibi yetki değişikliklerinin test komutuyla onaysız Neon'a gitmesini önlemek.
+
+### D-150 — Müşteri bağlantısı girişi için geçerli token başına sınır
+- **Date:** 2026-11-27 (PHASE 12.1) · **Status:** **Proposed** · SEC-06, D-141, D-093
+- **Decision:** `POST /b/enter` geçerli token başına saatte 30 (`CUSTOMER_LINK_EXCHANGE_RATE_LIMIT`; anahtar `link:exchange:<token kimliği>` — gizli/kişisel değil). Satır yalnızca geçerli token'da oluşur (rastgele token'lar satır üretmez → kardinalite gerçek token sayısıyla sınırlı). Aşımda genel "erişilemiyor" ekranı. GET ara sayfası veritabanına gitmez (DB tabanlı sınır gereksiz). Geçersiz token denemeleri tek indeksli okumadır; hacimsel kötüye kullanım için istemci kimliği gerekir → hosting/edge koruması (PB-01 kapsamı; güvenilir proxy sözleşmesi doğrulanmadan IP tabanlı koruma tam güvenli sayılmaz).
+
+### D-151 — Kapasite değerlerinin production'da zorunlu olması
+- **Date:** 2026-11-27 (PHASE 12.1) · **Status:** **Proposed** · REVIEW-05, D-140, OD-26
+- **Decision:** `STORAGE_MAX_TOTAL_BYTES` ve `STORAGE_WARNING_BYTES` production/preview'da zorunlu (eksik → depolama yapılandırması reddedilir). Development'ta eksikse güvenli 9 GB / 8 GB (`STORAGE_SAFE_DEFAULT_*`). 100 GB kod tavanı hiçbir ortamda kendiliğinden etkinleşmez.
+
 
 ## C. Faz Onayları
 
@@ -999,7 +1040,8 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 | PHASE 09 — Document Review & Application Workflow (+ 09.1 kapanış) | **ACCEPTED** (PHASE 10 başlatıldı) | Product Owner | 2026-11-25 | D-108…D-114 Accepted; PHASE 09.1: migration 0006 (yorum idempotency), 19 adımlı ana senaryo E2E (Chrome + WebKit), eşzamanlılık kapsamı. Önceki koşullu onaylar (D-081, D-087, D-093, D-099, D-100, D-101, D-102, D-104, D-105) değişmedi; D-102 depolama ↔ DB silme tutarlılığı koşulu PHASE 10 kritik kabul kriteri. PB-01…PB-11 açık. |
 | PHASE 10 — Administration & Operations (+ 10.1, 10.2 kapanış) | **ACCEPTED** (PHASE 11 başlatıldı) | Product Owner | 2026-11-26 | D-115, D-116 (D-124 ile güncel), D-117 (D-125 ile genişletilmiş), D-118…D-122, D-124…D-126, D-128…D-130, D-133 Accepted; D-123 (gerçek B2 davranışı / listeleme-okuma tutarlılığı), D-127 (çözülemeyen yazımlar için teknik kurtarma prosedürü), D-131 (kurumsal filtre kök nedeni dolaylı kanıt; bağımsız ortam doğrulaması), D-132 (gerçek sağlayıcı/ağ doğrulaması) koşullu Accepted. D-116 zamana dayalı sonlandırması yeniden etkinleştirilmez. D-102 izole PASS; gerçek B2 doğrulaması açık. Neon TEST_EVENT (audit id 970) korunur; 155 audit satırı referans. migration 0007–0009. PB-01…PB-11 açık. |
 | PHASE 11 — UI/UX Polish & Performance Optimization (+ 11.1 depolama bütçesi kapanışı) | **ACCEPTED** (PHASE 12 başlatıldı) | Product Owner | 2026-11-27 | D-137, D-138, D-139 Accepted; D-134 (kayıp önce artifact'ları/kurtarılmış özet), D-135 (gerçek B2, rate limit, audit tekilleştirme), D-136 (aktif içerik, kaynak sınırları, worker izolasyonu, gerçek cihaz), D-140 (hesap hazırlığı, aktif kapasite onayı) koşullu Accepted. OD-26 ACCEPTED (B2 ~10 USD/yıl, 100/90 GB hedef). Aktif kapasite 9/8 GB. Neon audit 155 / id 970 korunur. PB-01…PB-11 açık. |
-| PHASE 12 — Testing & Security Audit | **Onay bekliyor** | — | — | Bkz. D-141+ (Proposed). |
+| PHASE 12 — Testing & Security Audit | **Değerlendirildi — nihai onay PHASE 12.1 sonrası** | Product Owner | 2026-11-27 | D-141, D-144 ACCEPTED; D-142, D-143, D-145 CONDITIONALLY ACCEPTED (koşullar ilgili kayıtlarda). PB-12, PB-13 production blocker olarak kabul edildi. Bağımsız kaynak kodu incelemesi (REVIEW-01…06) PHASE 12.1'e aktarıldı. |
+| PHASE 12.1 — Targeted Security Remediation & Final Verification | **Onay bekliyor** | — | — | D-146, D-147, D-149…D-151 Proposed; D-148 WITHDRAWN ve D-142 SUPERSEDED (OD-27 ACCEPTED — özel yedek/geri yükleme kapsam dışı). Migration 0011 yalnızca izole; Neon'a uygulanmadı. |
 
 ### Not — Canlı Backblaze B2 doğrulaması (2026-11-25, PHASE 08 onayı)
 Kullanıcı kendi terminalinde B2 anahtarını `pnpm env:b2` ile yapılandırıp `pnpm storage:verify` çalıştırdı: bucket erişimi (ListObjectVersions) PASS; başlangıç envanteri 0 nesne; sentetik PDF yazma PASS; SSE-B2 AES256 yanıtı PASS; sağlayıcı versiyon kimliği PASS; HEAD 400/400 bayt; GET SHA-256 PASS; imzasız erişim path-style / virtual-host / friendly URL → HTTP 401; versiyona özgü fiziksel silme PASS (1 versiyon). **Kapsam:** yalnızca kontrollü storage smoke testi. Doğrulanmış SAYILMAZ: müşteri tarayıcısından B2'ye kadar tam uygulama yükleme akışı, gerçek kota/cap aşımı davranışı, tüm sağlayıcı hata/kurtarma senaryoları, gerçek cihaz PDF görüntüleme, Object Lock/replikasyon, production deployment ve production veri izolasyonu.

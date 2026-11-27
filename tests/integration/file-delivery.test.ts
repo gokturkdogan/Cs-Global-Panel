@@ -25,7 +25,7 @@ import { createLocalPrivateAdapter } from "@/server/storage/local-private";
 import { instrumentStorage } from "../support/instrumented-storage";
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { multiPagePdf } from "../support/pdf-fixtures";
-import { seedApplication } from "../support/portal-seed";
+import { insertToken, seedApplication } from "../support/portal-seed";
 import { connectOwner, createRuntimePool, fileGet, testId } from "./helpers";
 
 /**
@@ -665,5 +665,130 @@ describe.runIf(isIsolatedTestDatabase())(`dosya teslimi (Range) — ${ISOLATION_
     await run({ rangeHeader: `bytes=-${MAX_RANGE_CHUNK_BYTES + 1}` });
     await run({ rangeHeader: `bytes=${pdfA.length - 10}-` });
     expect(seen).toEqual(["transfer", "chunk", "transfer", "chunk"]);
+  });
+  // ---------------------------------------------------------------- PHASE 12.1 (REVIEW-01)
+
+  /**
+   * Hata enjeksiyonu: YALNIZCA izole veritabanında, belirli bir dosyanın audit kaydını reddeden geçici
+   * tetikleyici (audit korumaları kapatılmaz; ek bir BEFORE INSERT kontrolüdür ve test sonunda kaldırılır).
+   */
+  async function failAuditFor(fileId: string): Promise<() => Promise<void>> {
+    const name = `test_fail_audit_${randomUUID().replaceAll("-", "")}`;
+    await owner.query(
+      `CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$
+       BEGIN
+         IF NEW.resource_id = '${fileId}' THEN RAISE EXCEPTION 'test audit hatası'; END IF;
+         RETURN NEW;
+       END $$`,
+    );
+    await owner.query(
+      `CREATE TRIGGER ${name} BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION ${name}()`,
+    );
+    return async () => {
+      await owner.query(`DROP TRIGGER ${name} ON audit_logs`);
+      await owner.query(`DROP FUNCTION ${name}()`);
+    };
+  }
+
+  async function marker(key: string) {
+    return (
+      await owner.query<{ count: number }>("SELECT count FROM rate_limit_buckets WHERE key = $1", [
+        key,
+      ])
+    ).rows[0]?.count;
+  }
+
+  it("REVIEW-01 A2/A3/A13: audit yazımı başarısız → teslim yok, sağlayıcı GET yok, tekilleştirme işareti kalmaz; tekrar denemede audit yazılır", async () => {
+    const { other } = await seedWithFiles();
+    const key = `files:viewed:user:${admin}:${other}:inline`;
+    const restore = await failAuditFor(other);
+    try {
+      await expect(
+        openDocumentFile(
+          deps(),
+          staff(),
+          fileGet(other, "inline", { rangeHeader: "bytes=0-1023" }),
+        ),
+      ).rejects.toThrow();
+      expect(meter.gets()).toHaveLength(0);
+      // İşaret audit ile aynı transaction'da: audit geri alındıysa işaret de yoktur.
+      expect(await marker(key)).toBeUndefined();
+    } finally {
+      await restore();
+    }
+    const retry = await openDocumentFile(
+      deps(),
+      staff(),
+      fileGet(other, "inline", { rangeHeader: "bytes=0-1023" }),
+    );
+    expect(retry.ok).toBe(true);
+    if (retry.ok) await bytesOf(retry.file.stream);
+    expect(await auditRows(other, "DOCUMENT_VIEWED")).toHaveLength(1);
+    expect(await marker(key)).toBe(1);
+  });
+
+  it("REVIEW-01 A5: audit reddedilirken eşzamanlı parça isteklerinin hiçbiri audit'siz başarılı olmaz; düzelince tam bir kayıt", async () => {
+    const { other } = await seedWithFiles();
+    const chunk = (i: number) =>
+      openDocumentFile(
+        deps(),
+        staff(),
+        fileGet(other, "inline", { rangeHeader: `bytes=${i * 1024}-${i * 1024 + 1023}` }),
+      );
+    const restore = await failAuditFor(other);
+    let failing: PromiseSettledResult<Awaited<ReturnType<typeof chunk>>>[];
+    try {
+      failing = await Promise.allSettled(Array.from({ length: 6 }, (_, i) => chunk(i)));
+    } finally {
+      await restore();
+    }
+    for (const result of failing) {
+      if (result.status === "fulfilled" && result.value.ok)
+        await result.value.file.stream?.cancel();
+    }
+    expect(failing.filter((r) => r.status === "fulfilled" && r.value.ok)).toHaveLength(0);
+    expect(meter.gets()).toHaveLength(0);
+    const ok = await Promise.all(Array.from({ length: 6 }, (_, i) => chunk(i)));
+    for (const result of ok) if (result.ok) await result.file.stream?.cancel();
+    expect(ok.every((r) => r.ok)).toBe(true);
+    expect(await auditRows(other, "DOCUMENT_VIEWED")).toHaveLength(1);
+  });
+
+  it("REVIEW-01 A7/A10: pencere sonunda yeni kayıt; yenilenen token (farklı müşteri aktörü) ayrı kayıt", async () => {
+    const { app, customer, other } = await seedWithFiles();
+    const chunk = { rangeHeader: "bytes=0-1023" };
+    const open = async (actor: FileActor) => {
+      const result = await openDocumentFile(deps(), actor, fileGet(other, "inline", chunk));
+      if (result.ok) await result.file.stream?.cancel();
+      return result.ok;
+    };
+    expect(await open(customer)).toBe(true);
+    expect(await open(customer)).toBe(true);
+    expect(await auditRows(other, "DOCUMENT_VIEWED")).toHaveLength(1);
+    // Pencere sınırı: işaretin süresi dolmuşsa aynı aktörün sonraki parça isteği yeniden kaydedilir.
+    const tokenId = customer.kind === "CUSTOMER" ? customer.tokenId : "";
+    await owner.query(
+      "UPDATE rate_limit_buckets SET window_started_at = now() - interval '11 minutes', expires_at = now() - interval '1 second' WHERE key = $1",
+      [`files:viewed:token:${tokenId}:${other}:inline`],
+    );
+    expect(await open(customer)).toBe(true);
+    expect(await auditRows(other, "DOCUMENT_VIEWED")).toHaveLength(2);
+    // Yenileme: eski token iptal, yeni token ayrı aktör → kendi kaydı (eski token artık erişemez).
+    await owner.query(
+      "UPDATE application_access_tokens SET revoked_at = now(), revoke_reason = 'ROTATED', revoked_by_user_id = $2 WHERE id = $1",
+      [tokenId, admin],
+    );
+    const rotated = await insertToken(owner, app.applicationId, admin);
+    const next: FileActor = {
+      kind: "CUSTOMER",
+      applicationId: app.applicationId,
+      tokenId: rotated.tokenId,
+      sessionExpiresAt: Math.floor(Date.now() / 1000) + 3600,
+    };
+    expect(await open(customer)).toBe(false);
+    expect(await open(next)).toBe(true);
+    const viewed = await auditRows(other, "DOCUMENT_VIEWED");
+    expect(viewed).toHaveLength(3);
+    expect(viewed.at(-1)!.actor_access_token_id).toBe(rotated.tokenId);
   });
 });

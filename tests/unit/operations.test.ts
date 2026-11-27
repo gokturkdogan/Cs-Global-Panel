@@ -236,7 +236,6 @@ describe("modül sınırları ve güvenlik (statik)", () => {
       ...filesUnder("src/features/customer-portal"),
       ...filesUnder("src/app/(customer)"),
       ...filesUnder("src/app/api/portal"),
-      ...filesUnder("src/app/b"),
     ];
     for (const file of customerFiles) {
       const text = readFileSync(file, "utf8");

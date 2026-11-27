@@ -1,4 +1,4 @@
-# Güvenlik Denetimi — PHASE 12 (Testing & Security Audit)
+# Güvenlik Denetimi — PHASE 12 (Testing & Security Audit) + PHASE 12.1 (Targeted Remediation)
 
 > Tarih: 2026-11-27 · Kapsam: kaynak kod (HEAD `30a44e0` + çalışma ağacı), izole test ortamı, salt okunur Neon/B2 doğrulamaları.
 > Bu belge bağımsız bir sızma testi sertifikası veya OWASP ASVS uyum beyanı **değildir**; ASVS Level 2 hedefli, kanıta dayalı bir iç denetimdir. Hukuki uyumluluk değerlendirmesi değildir.
@@ -98,12 +98,12 @@ Kod düzeyinde istismar edilebilir CRITICAL/HIGH açık bulunmadı. Production e
 | PB-05 | Antivirüssüz PDF yazılı risk kabulü | **RISK ACCEPTANCE REQUIRED** | Yapısal doğrulama testleri | Yazılı kabul + personel cihaz önlemleri | Product Owner | Evet | — |
 | PB-06 | Production ortam izolasyonu | **OPEN** | D-098 (prod geliştirme bucket'ını reddeder), D-129 | Ayrı prod DB/bucket/anahtarlar | Kullanıcı + PHASE 13 | Evet | Bağımlı |
 | PB-07 | Yetki/güvenlik testleri | **VERIFIED — ACCEPTANCE PENDING** | §3, §7 (izole tam paketler, iki E2E koşusu retry 0) | Gerçek cihaz/hosting HTTPS ayrı | Product Owner kabulü | Evet | — |
-| PB-08 | Yedek/geri yükleme | **PARTIALLY VERIFIED** | Sentetik tatbikat PASS; Neon Free 6 saat geri yükleme, 1 manuel snapshot, zamanlanmış yedek yok | Yedek politikası + nesne yedeği + SEC-03 | Product Owner + PHASE 13 | Evet | Bağımlı |
+| PB-08 | Yedek/geri yükleme (OD-27 ile kapsam: veri kaybı kalan riski) | **RESIDUAL RISK / USER ACCEPTANCE REQUIRED** (OD-27; önceki: PARTIALLY VERIFIED) | Sentetik tatbikat PASS; Neon Free 6 saat geri yükleme, 1 manuel snapshot, zamanlanmış yedek yok | Yedek politikası + nesne yedeği + SEC-03 | Product Owner + PHASE 13 | Evet | Bağımlı |
 | PB-09 | Bağımlılık taraması temiz | **VERIFIED — ACCEPTANCE PENDING** | `pnpm audit --audit-level=high` temiz; 1 moderate dev-only (SEC-10) | — | Product Owner kabulü | Evet | Yeniden tarama |
 | PB-10 | Better Auth kapalı uç noktalar, IP/UA yok | **VERIFIED — ACCEPTANCE PENDING** | `auth.spec.ts`, kod | IP başlık güvenilirliği hosting'de (kullanılmıyor) | Product Owner kabulü | Evet | — |
 | PB-11 | Gerçek iletişim bilgileri + katalog | **BLOCKED BY EXTERNAL ACTION** | Bekleyen girdi | Bilgiler | Product Owner | Evet | Bağımlı |
-| PB-12 (Proposed) | Geri yükleme sonrası silinmiş veri/iptal edilmiş token geri dönüşünün önlenmesi | **OPEN** | SEC-03 | Prosedürün production'da uygulanması / otomasyon kararı | Product Owner | Evet | Bağımlı |
-| PB-13 (Proposed) | En az yetkili B2 anahtarı + gerçek sağlayıcı doğrulaması (Range, versiyon silme, listeleme/mutabakat, cap davranışı) | **BLOCKED BY EXTERNAL ACTION** | SEC-01; Checkpoint B onayı yok | Anahtar yenileme + B2-01…B2-18 | Kullanıcı | Evet | Bağımlı |
+| PB-12 (**ACCEPTED** blocker, 2026-11-27) | Geri yükleme sonrası silinmiş veri/iptal edilmiş token geri dönüşü (OD-27 ile kapsam: sağlayıcı düzeyi geri yükleme kalan riski) | **RESIDUAL RISK / USER ACCEPTANCE REQUIRED** (OD-27 — özel araçlar kaldırıldı; manuel değerlendirme OPERATIONS_RUNBOOK §2) | SEC-03 | Prosedürün production'da uygulanması / otomasyon kararı | Product Owner | Evet | Bağımlı |
+| PB-13 (**ACCEPTED** blocker, 2026-11-27) | En az yetkili B2 anahtarı + gerçek sağlayıcı doğrulaması (Range, versiyon silme, listeleme/mutabakat, cap davranışı) | **BLOCKED BY EXTERNAL ACTION** | SEC-01; Checkpoint B onayı yok | Anahtar yenileme + B2-01…B2-18 | Kullanıcı | Evet | Bağımlı |
 
 ## 6. Production Hazırlık Kontrol Listesi
 
@@ -112,7 +112,7 @@ Kod düzeyinde istismar edilebilir CRITICAL/HIGH açık bulunmadı. Production e
 - [ ] En az yetkili B2 anahtarı (SEC-01) ve `pnpm storage:inspect` temiz
 - [ ] Gerçek B2 doğrulaması B2-01…B2-18 (Checkpoint B onayı) — PB-13
 - [ ] Ödeme yöntemi, cap'ler, uyarılar (kullanıcı) ve 100 GB etkinleştirme kapısı — PB-02, D-140
-- [ ] Yedek politikası (pg_dump sıklığı/saklama, nesne yedeği) + geri yükleme sonrası prosedür — PB-08, PB-12
+- [ ] Veri kaybı ve sağlayıcı düzeyi geri yükleme kalan riskinin yazılı kabulü (OD-27 — özel yedek yok) — PB-08, PB-12
 - [ ] KVKK: aydınlatma, yurt dışı aktarım, DPA, saklama/imha, VERBİS, ihlal prosedürü — PB-03
 - [ ] Yazılı risk kabulleri — PB-04 (bearer link), PB-05 (antivirüs)
 - [ ] HTTPS, `Secure`/`__Host-` cookie, HSTS doğrulaması (gerçek alan adında)
@@ -125,3 +125,72 @@ Kod düzeyinde istismar edilebilir CRITICAL/HIGH açık bulunmadı. Production e
 ## 7. Kalite Kapıları (son kod hâli, 2026-11-27)
 
 Tam tablo, ilk başarısızlıklar ve test sonrası kontroller: [PROJECT_STATE.md — Latest Verification Results (PHASE 12)](PROJECT_STATE.md). Özet: tüm kapılar exit 0; unit 495/495; integration `neondb` 58/0/17, izole 261/0/10 (varsayılan sıra + dosya karıştırma seed 11/22/33); E2E `neondb` 267/0/357; izole E2E #1 ve #2 507/0/117 (retry 0); `pnpm run audit` temiz (1 moderate dev-only). `neondb` parmak izi sabit (audit 155, son id 970).
+
+## 8. PHASE 12.1 — Hedefli Düzeltmeler ve Bağımsız İnceleme (2026-11-27)
+
+Kapsam: D-141…D-145 kullanıcı kararları, PB-12/PB-13 kabulü ve bağımsız kaynak kodu incelemesi (REVIEW-01…06). Önceki SEC-01…SEC-13 kayıtları ve geçmiş durumları yukarıda korunur; değişiklikler aşağıdadır. Tüm doğrulamalar izole Docker PostgreSQL + yerel/sahte sağlayıcı üzerinde; gerçek B2'de mutasyon yok.
+
+### 8.1 SEC durum değişiklikleri
+
+| Bulgu | PHASE 12 | PHASE 12.1 | Kanıt | Kalan risk |
+|---|---|---|---|---|
+| SEC-01 (MEDIUM) B2 anahtarı fazla yetkili | OPEN | **EXTERNAL ACTION REQUIRED** | `storage:inspect` (2026-11-27, salt okunur): 7 riskli + 6 gereksiz okuma yetkisi; asgari küme resmî tabloyla doğrulandı (`listFiles, readFiles, writeFiles, deleteFiles`); yeni anahtar prosedürü OPERATIONS_RUNBOOK §3.1 | Yeni anahtar oluşturulana kadar sızıntı etkisi geniş |
+| SEC-02 (MEDIUM) bağlantı önizleme verisi | RISK ACCEPTANCE REQUIRED | **PARTIAL** (D-141 uygulandı) | GET/HEAD oturum 0, cookie 0, kişisel veri 0; cookie saklayan + yönlendirme izleyen istemci portal verisine ulaşamaz (`security-audit.spec.ts`, `customer-link.spec.ts` C1–C17) | Bilinçli POST yapan/bağlantıyı ele geçiren istemci (PB-04); gerçek WhatsApp doğrulanmadı |
+| SEC-03 (MEDIUM) geri yükleme sonrası geri dönüş | OPEN | **PARTIAL** | `pnpm test:restore-drill` R-A…R-I + `pnpm ops:post-restore` (kilitleme + GO/NO-GO) | Başlamış-ama-nesnesi-silinmemiş silme tespit edilemez; bucket değişiminde eşleme uygulanamaz (D-148) → PB-12 OPEN |
+| SEC-04 (LOW) runtime users/accounts yazma | OPEN | **FIXED (izole) — Neon onay bekliyor** | migration 0011; `privileges.test.ts` matris + 10 negatif test; auth yaşam döngüsü sahip rolüyle | Neon'da 0011 uygulanana kadar açık |
+| SEC-05 (LOW) rate limit tablosu birikmesi | OPEN | **FIXED & VERIFIED** | `pnpm ops:rate-limit-cleanup` (dry-run/--apply, sınırlı); `rate-limit-cleanup.test.ts` (yalnızca süresi dolmuş satırlar; eşzamanlı artışta sınır aşılmaz) | Komut elle/planlı çalıştırılır (cron yok) |
+| SEC-06 (LOW) `/b` rate limit yok | OPEN | **PARTIAL** (D-150) | geçerli token başına 30/saat; geçersiz token satır üretmez (`customer-link.spec.ts` SEC-06) | Hacimsel kötüye kullanım için edge/hosting koruması (PB-01) |
+| SEC-07…SEC-13 | — | değişmedi (korundu; regresyon PASS) | son tam koşular | SEC-07 uzak CI doğrulanmadı |
+
+### 8.2 Bağımsız inceleme bulguları (REVIEW-01…06)
+
+| Bulgu | Önceki durum | Yeniden üretildi | Düzeltme | Test kanıtı | Güncel durum | Kalan risk |
+|---|---|---|---|---|---|---|
+| REVIEW-01 PDF audit tekilleştirme atomikliği → **SEC-14 (HIGH)** | Bilinmiyordu | **EVET** — audit reddedilirken 6 eşzamanlı parça isteğinden 5'i audit'siz teslim edildi; başarısız ilk istekten sonra işaret kaldı | İşaret + audit tek kısa transaction ([service.ts:904](../src/features/documents/service.ts#L904), çağrı :995); sağlayıcı okuması commit sonrası | `file-delivery.test.ts` REVIEW-01 A2/A3/A13, A5, A7/A10 + mevcut kilit/eşzamanlılık (22/22) | **FIXED & VERIFIED** | Audit "yetkili görüntüleme penceresi"dir, tam okuma kanıtı değildir |
+| REVIEW-02 worker temizliği (başlatma hatası) → **SEC-15 (MEDIUM)** | Bilinmiyordu | **EVET** — ilk aralık 500/429/404/ağ hatası ve erken kapatmada 1 worker kaldı (eski kodla) | Kaynak oluşturulduğu anda serbest bırakma listesi; tek, idempotent `release` ([pdf-viewer.tsx:65](../src/features/documents/components/pdf-viewer/pdf-viewer.tsx#L65)) | `viewer-lifecycle.spec.ts` W2–W7, W10, W13–W15 (4 proje); statik test | **FIXED & VERIFIED** | Worker sayısı tüm bellek kaynaklarının kanıtı değildir |
+| REVIEW-03 tuval kaynak sınırı → **SEC-16 (MEDIUM)** | Bilinmiyordu | **EVET** — 0,25 tabanı dev sayfada 56,25 MP (sınırın 3 katı); aşırı uzun sayfada güvenli hata yoktu | `computeCanvasSize` ([canvas-size.ts:30](../src/features/documents/components/pdf-viewer/canvas-size.ts#L30)): taban yok, kenar ≤ 8192, toplam ≤ 16 777 216, tamsayı yeniden doğrulama, okunaksız ölçekte güvenli hata | `canvas-size.test.ts` (10) + `viewer-lifecycle.spec.ts` REVIEW-03 (gerçek çizim yolu) | **FIXED & VERIFIED** | Ayrıştırıcı/çizici belleğinin mutlak sınırı değildir |
+| REVIEW-04 geri yükleme kimliği ve geri dönüş (SEC-03 ile aynı kök neden) | SEC-03 OPEN | **EVET** — tatbikat: iptal/yenilenmiş 2 token, kapatılmış oturum, 3 silinmiş/silinmekte başvuru geri döndü; kopyada 5/5 VersionId değişti | `ops:post-restore` kilitleme + rapor; tam eşleme planı (uygulanmaz) | `test:restore-drill` (phase121 bölümü) | **PARTIAL** | PB-12 OPEN (başlamış silme tespit edilemez; D-148 kararı) |
+| REVIEW-05 kapasite varsayılanı → **SEC-17 (MEDIUM)** | Bilinmiyordu | **EVET** — env yoksa 100 GB kod tavanı aktif oluyordu | production/preview'da zorunlu, development 9/8 GB ([config.ts:93](../src/server/storage/config.ts#L93)) | `tests/unit/documents.test.ts` REVIEW-05 (2 test) | **FIXED & VERIFIED** | Aktif değer yine kullanıcı onayıyla değişir |
+| REVIEW-06 sağlayıcı yanıtı / belirsiz yazım → **SEC-18 (MEDIUM)** | D-135 koşullu | **EVET** — eksik VersionId kabul ediliyordu; kodsuz 404 "yok" sayılıyordu; aynı boyutlu farklı içerik CONFIRMED olabiliyordu | Sıkı versiyon kimliği ([b2.ts:230](../src/server/storage/b2.ts#L230), servis :1025), kodlu "yok" sınıflandırması (b2.ts:105), sınırlı SHA-256 gözlem doğrulaması ([service.ts:855](../src/features/documents/service.ts#L855)); `settleStorageWrite` gerçekten kaydedip kaydetmediğini döndürür | `b2-range.test.ts` P1–P3, P8, P9 (11); `documents.test.ts` P10, P12, P13; mevcut A–K, R1–R7 | **FIXED & VERIFIED (izole)** | Gerçek B2 başlık/hata davranışı NOT VERIFIED (Checkpoint B); P11 tasarımla güvenli (girişime özgü anahtar + benzersizlik indeksi) |
+
+P14 (eşzamanlı gözlem/silme/temizlik) ve P15 (yetkisiz/HEAD sıfır GET) mevcut A–K, R1–R7 ve `file-delivery.test.ts` regresyonuyla korunur.
+
+### 8.3 Özet (PHASE 12.1 sonrası)
+
+| Önem | Bulunan (toplam) | Düzeltildi & doğrulandı | Açık | Risk kabulü gerekli |
+|---|---|---|---|---|
+| CRITICAL | 0 | 0 | 0 | 0 |
+| HIGH | 1 (SEC-14) | 1 | 0 | 0 |
+| MEDIUM | 7 (SEC-01…03, SEC-15…18) | 4 (SEC-15…18) | 3: SEC-01 harici işlem; SEC-02, SEC-03 kısmi | SEC-02 kalanı (PB-04) |
+| LOW | 7 | 5 (SEC-05, 08, 12, 13; SEC-04 izole) + SEC-07 uzak doğrulanmadı | SEC-04 (Neon onayı), SEC-06 kısmi | 0 |
+| INFORMATIONAL | 3 | 1 | 0 | 0 |
+
+Açık CRITICAL/HIGH: **0**. HIGH bulgu SEC-14 kod düzeyinde düzeltildi ve doğrulandı.
+
+### 8.4 Hazırlık ayrımı
+
+| Boyut | Durum |
+|---|---|
+| PHASE 12.1 mühendislik tamamlama | PARTIAL (yerel düzeltmeler tamam; Neon migration, gerçek sağlayıcı ve dış doğrulamalar bekliyor) |
+| İzole güvenlik doğrulaması | PASS (bkz. PROJECT_STATE — kapı tablosu) |
+| Gerçek sağlayıcı doğrulaması | NOT VERIFIED (Checkpoint B onaysız) |
+| Operasyonel kurtarma hazırlığı | KAPSAM DIŞI (OD-27) — kalan risk kullanıcı kabulü bekliyor (PB-08, PB-12) |
+| Hukuk/gizlilik hazırlığı | OPEN (PB-03) |
+| Production hosting hazırlığı | OPEN (PB-01) |
+| Production deployment | **NO-GO** |
+
+## 9. OD-27 — Özel Yedek/Geri Yükleme Altyapısının Kaldırılması (2026-11-27)
+
+Kullanıcı kararı OD-27 (ACCEPTED): uygulamaya özel yedekleme/geri yükleme/felaket kurtarma altyapısı kapsam dışı. Kaldırılanlar: `scripts/test/restore-drill.ts` (`pnpm test:restore-drill`), `scripts/ops/post-restore.ts` + `scripts/ops/post-restore-check.ts` (`pnpm ops:post-restore`: kilitleme, GO/NO-GO raporu, `planVersionMapping`). Ortak yardımcı veya çalışma zamanı kodu kaldırılmadı (bu dosyaları başka kod kullanmıyordu). Önceki kanıtlar (§3, §4, §8) tarihçe olarak korunur.
+
+| Kayıt | Önceki | OD-27 sonrası | Gerekçe |
+|---|---|---|---|
+| SEC-03 (MEDIUM) geri yükleme sonrası geri dönüş | PARTIAL (araçlarla azaltılmış) | **RISK ACCEPTANCE REQUIRED** — teknik olarak ÇÖZÜLMEDİ | Kök neden (eski nokta sonraki iptal/silmeleri bilmez; kopyada VersionId değişir) sağlayıcı düzeyi geri yüklemede geçerli; azaltma artık manuel değerlendirmedir (OPERATIONS_RUNBOOK §2) |
+| REVIEW-04 | PARTIAL | **RISK ACCEPTANCE REQUIRED** (SEC-03 ile aynı) | Aynı |
+| PB-08 | PARTIALLY VERIFIED | **RESIDUAL RISK / USER ACCEPTANCE REQUIRED** | Özel yedek uygulaması ve tatbikat artık kabul kapısı değil; veri kaybı kalan riski, sağlayıcı politikaları ve hukuki saklama yükümlülükleri kullanıcıca değerlendirilmeli |
+| PB-12 | OPEN | **RESIDUAL RISK / USER ACCEPTANCE REQUIRED** | Geri dönüş riski sağlayıcı düzeyi geri yüklemede sürer; otomatik koruma yok (kapatılmadı) |
+| D-142 | CONDITIONALLY ACCEPTED | SUPERSEDED (OD-27) | — |
+| D-148 | Proposed | WITHDRAWN (OD-27) | — |
+| TM-60 | Runbook + araç | Kalan risk, manuel prosedür | — |
+
+Güvenlik düzeltmeleri (D-141, SEC-05/06, SEC-14…18, migration 0011) ve veri bütünlüğü mekanizmaları (versiyon geçmişi, kalıcı silme, yazım girişimleri, mutabakat, kota, audit) değişmedi. Production: **NO-GO**.

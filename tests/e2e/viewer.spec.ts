@@ -4,6 +4,7 @@ import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolat
 import { MAX_PDF_SIZE_BYTES } from "../../src/config/constants";
 import { multiPagePdf, validPdfOfSize } from "../support/pdf-fixtures";
 import { seedApplication } from "../support/portal-seed";
+import { openCustomerLink } from "./customer-link";
 import { collectErrors } from "./console-errors";
 import { uploadAsCustomer as upload } from "./customer-upload";
 import { expect, sessionsAvailable, test } from "./fixtures";
@@ -136,7 +137,7 @@ test.describe("PDF görüntüleyici (izole veritabanı)", () => {
     await upload(page.context().browser()!, runtimeDb, baseURL!, app.token, requirement!.id, BIG);
 
     const traffic = trackFiles(page);
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page.getByTestId("portal-active-file")).toBeVisible();
     await page.waitForLoadState("networkidle");
     expect(traffic).toEqual([]);
@@ -294,7 +295,7 @@ test.describe("PDF görüntüleyici (izole veritabanı)", () => {
       )
     ).rows;
     await upload(page.context().browser()!, runtimeDb, baseURL!, app.token, requirement!.id, BIG);
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page.getByTestId("pdf-view-button")).toBeVisible();
     // Sayfa açıkken dosya değiştirilir (eski ACTIVE → SUPERSEDED): müşteri eski dosyayı göremez.
     await upload(

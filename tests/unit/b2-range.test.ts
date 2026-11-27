@@ -23,7 +23,13 @@ type Mode =
   | "wrong-version"
   | "invalid-range"
   | "cap"
-  | "slow";
+  | "slow"
+  | "missing-version"
+  | "no-such-key"
+  | "no-such-version"
+  | "no-such-bucket"
+  | "generic-404"
+  | "auth";
 
 let server: Server;
 let endpoint: string;
@@ -49,6 +55,15 @@ function handle(req: IncomingMessage, res: ServerResponse) {
     );
   };
   if (mode === "invalid-range") return xmlError(416, "InvalidRange", "range");
+  if (mode === "no-such-key") return xmlError(404, "NoSuchKey", "key");
+  if (mode === "no-such-version") return xmlError(404, "NoSuchVersion", "version");
+  if (mode === "no-such-bucket") return xmlError(404, "NoSuchBucket", "bucket");
+  if (mode === "auth") return xmlError(401, "InvalidAccessKeyId", "auth");
+  if (mode === "generic-404") {
+    // Yanlış uç nokta / ara katman hata sayfası: S3 hata kodu taşımayan 404.
+    res.writeHead(404, { "content-type": "text/html" });
+    return res.end("<html><body>Not Found</body></html>");
+  }
   if (mode === "cap")
     return xmlError(
       403,
@@ -74,8 +89,12 @@ function handle(req: IncomingMessage, res: ServerResponse) {
       mode === "bad-content-range"
         ? `bytes 0-1/${OBJECT.length}`
         : `bytes ${start}-${end}/${OBJECT.length}`,
-    "x-amz-version-id":
-      mode === "wrong-version" ? "v2" : (url.searchParams.get("versionId") ?? "v1"),
+    ...(mode === "missing-version"
+      ? {}
+      : {
+          "x-amz-version-id":
+            mode === "wrong-version" ? "v2" : (url.searchParams.get("versionId") ?? "v1"),
+        }),
     "content-type": "application/pdf",
   });
   if (mode === "slow") {
@@ -157,10 +176,11 @@ describe("B2 adapter — aralık okuması (sahte S3, 127.0.0.1)", () => {
     const bad = await adapter.getObject(KEY, "v1", { range: { start: 10, end: 19 } });
     expect(bad.contentRange).toEqual({ start: 0, end: 1, total: OBJECT.length });
     await bad.body.cancel();
+    // PHASE 12.1 (REVIEW-06): beklenmeyen versiyon artık adapter'da reddedilir (gövde aktarılmaz).
     mode = "wrong-version";
-    const other = await adapter.getObject(KEY, "v1", { range: { start: 10, end: 19 } });
-    expect(other.versionId).toBe("v2");
-    await other.body.cancel();
+    await expect(
+      adapter.getObject(KEY, "v1", { range: { start: 10, end: 19 } }),
+    ).rejects.toMatchObject({ kind: "INTEGRITY", code: "version-mismatch" });
   });
 
   it("sağlayıcı hataları sınıflandırılır (416 → UNAVAILABLE, cap → LIMIT); gövde/mesaj sızmaz", async () => {
@@ -196,5 +216,49 @@ describe("B2 adapter — aralık okuması (sahte S3, 127.0.0.1)", () => {
     await expect(
       adapter.getObject(KEY, "v1", { range: { start: 0, end: 9 }, signal: controller.signal }),
     ).rejects.toBeDefined();
+  });
+});
+
+describe("B2 adapter — yanıt kimliği ve yokluk sınıflandırması (REVIEW-06, sahte S3)", () => {
+  it("P1/P3: versiyona özgü istekte yanıt versiyonu eksikse INTEGRITY (version-missing); gövde iptal edilir", async () => {
+    mode = "missing-version";
+    await expect(
+      adapter.getObject(KEY, "v1", { range: { start: 0, end: 1023 } }),
+    ).rejects.toMatchObject({ kind: "INTEGRITY", code: "version-missing" });
+    mode = "honor";
+    const ok = await adapter.getObject(KEY, "v1", { range: { start: 0, end: 1023 } });
+    expect(ok.versionId).toBe("v1");
+    await ok.body.cancel();
+  });
+
+  it("P2: farklı versiyon bildiren yanıt INTEGRITY (version-mismatch)", async () => {
+    mode = "wrong-version";
+    await expect(
+      adapter.getObject(KEY, "v1", { range: { start: 0, end: 1023 } }),
+    ).rejects.toMatchObject({ kind: "INTEGRITY", code: "version-mismatch" });
+  });
+
+  it("P8: yalnızca adlandırılmış S3 yanıtları yokluk; ad taşımayan 404 ve NoSuchBucket yokluk DEĞİL", async () => {
+    for (const [m, kind] of [
+      ["no-such-key", "NOT_FOUND"],
+      ["no-such-version", "NOT_FOUND"],
+      ["no-such-bucket", "NOT_CONFIGURED"],
+      ["generic-404", "UNAVAILABLE"],
+    ] as const) {
+      mode = m;
+      await expect(adapter.getObject(KEY, "v1"), m).rejects.toMatchObject({ kind });
+    }
+  });
+
+  it("P9: kimlik/uç nokta hataları yokluk sayılmaz (FORBIDDEN); silme 'zaten yok' saymaz", async () => {
+    mode = "auth";
+    await expect(adapter.getObject(KEY, "v1")).rejects.toMatchObject({ kind: "FORBIDDEN" });
+    await expect(adapter.deleteObjectVersion(KEY, "v1")).rejects.toMatchObject({
+      kind: "FORBIDDEN",
+    });
+    mode = "generic-404";
+    await expect(adapter.deleteObjectVersion(KEY, "v1")).rejects.toMatchObject({
+      kind: "UNAVAILABLE",
+    });
   });
 });

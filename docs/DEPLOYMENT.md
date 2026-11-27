@@ -62,8 +62,8 @@ B2_APPLICATION_KEY=               # gizli; yerelde yalnızca pnpm env:b2 (yankı
 B2_BUCKET_NAME=                   # production'da geliştirme bucket'ı (cs-global-documents) reddedilir
 B2_ENDPOINT=                      # https://s3.<B2_REGION>.backblazeb2.com (birebir)
 B2_REGION=                        # ör. eu-central-003
-STORAGE_MAX_TOTAL_BYTES=100000000000  # hedef (OD-26); ≤ 1e11 kod tavanı — hesap hazır olana kadar 9000000000
-STORAGE_WARNING_BYTES=90000000000    # hedef; güvenli başlangıç 8000000000
+STORAGE_MAX_TOTAL_BYTES=9000000000   # ZORUNLU (production/preview — D-151); hedef 100000000000 yalnızca etkinleştirme kapısından sonra
+STORAGE_WARNING_BYTES=8000000000    # ZORUNLU (production/preview — D-151); hedef 90000000000 yalnızca etkinleştirme kapısından sonra
 
 # --- Zamanlanmış iş ---
 CRON_SECRET=
@@ -145,7 +145,7 @@ Harici servis yok: e-posta, SMS, antivirüs, Redis, kuyruk, APM, analytics, alan
 
 - Neon Free geri yükleme penceresi **6 saat** — veri kaybı/yanlış silme için çok kısa; production sağlayıcısında yedek yeteneği bir seçim kriteridir (PB-08).
 - Backblaze B2: bucket lifecycle "tüm versiyonları sakla"; uygulama yalnızca versiyona özgü siler (geri getirilemez). Replikasyon/Object Lock/ayrı yedek **yok ve doğrulanmadı**; tek kopya riski (PB-08). Gerçek müşteri verisinden önce yedekleme ve kurtarma stratejisi belirlenmelidir.
-- Geri yükleme provası production öncesi zorunlu (PHASE 13).
+- ~~Geri yükleme provası production öncesi zorunlu (PHASE 13).~~ **OD-27 (2026-11-27):** uygulamaya özel yedek/geri yükleme ve prova kapsam dışı; veri kaybı kalan riski kullanıcı kabulü gerektirir (PB-08); sağlayıcı düzeyi geri yükleme manuel değerlendirilir (OPERATIONS_RUNBOOK §2).
 - Ek uzun süreli yedek alınmaz (DATA_PRIVACY §4).
 
 ## 8. Alan Adı (OD-20)
@@ -223,4 +223,4 @@ Ek production gereksinimleri: HTTPS altında `__Host-` müşteri cookie'si ve `S
 
 ## 17. Yedekleme (PHASE 12 güncellemesi)
 
-Neon Free: 6 saat anlık geri yükleme penceresi ("up to 1 GB of changes"), 1 manuel snapshot, zamanlanmış yedek yok; uzun süreli koruma yalnızca `pg_dump` ile. Prosedürler: [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) §2. Sentetik tatbikat: `pnpm test:restore-drill`. B2 versiyon geçmişi bağımsız yedek değildir; nesne yedeği kararı açıktır (PB-08). Yedek depolamanın maliyeti B2'de tutulursa OD-26 bütçesine dahil olur (ör. 10 GB ek yedek ≈ 0,83 USD/yıl).
+Neon Free: 6 saat anlık geri yükleme penceresi ("up to 1 GB of changes"), 1 manuel snapshot, zamanlanmış yedek yok; uzun süreli koruma yalnızca `pg_dump` ile. Prosedürler: [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) §2. ~~Sentetik tatbikat: `pnpm test:restore-drill`.~~ (OD-27 ile kaldırıldı — özel yedek/geri yükleme kapsam dışı; yedek depolama maliyeti oluşturulmaz.) B2 versiyon geçmişi bağımsız yedek değildir; nesne yedeği kararı açıktır (PB-08). Yedek depolamanın maliyeti B2'de tutulursa OD-26 bütçesine dahil olur (ör. 10 GB ek yedek ≈ 0,83 USD/yıl).

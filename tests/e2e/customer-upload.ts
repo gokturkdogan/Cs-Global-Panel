@@ -1,6 +1,7 @@
 import type { Browser } from "@playwright/test";
 import type pg from "pg";
 
+import { openCustomerLink } from "./customer-link";
 import { expect } from "./fixtures";
 
 /**
@@ -26,7 +27,7 @@ export async function uploadAsCustomer(
   const customer = await browser.newContext({ baseURL });
   try {
     const page = await customer.newPage();
-    await page.goto(`/b/${token}`);
+    await openCustomerLink(page, token);
     await expect(page).toHaveURL(/\/portal\//);
     const context = new URL(page.url()).pathname.split("/portal/")[1]!;
     const response = await customer.request.post(

@@ -38,6 +38,7 @@ Eşit ve tam yetki şu anlama **gelmez**:
 ## 3. Customer (PHASE 07)
 
 - Müşteri oturumu tam olarak **bir** `application_id`'ye bağlıdır. Tüm müşteri sorguları oturumdan gelen `applicationId` ile kapsanır; istemciden gelen `applicationId` **kabul edilmez**.
+- Müşteri oturumu YALNIZCA ara sayfadaki açık giriş `POST /b/enter` ile açılır (PHASE 12.1, D-141); `GET /b/<token>` hiçbir yetki vermez.
 - Her müşteri isteğinde: oturum imzası + süresi + **URL bağlamının cookie bağlamına eşitliği** + bağlı bağlantının iptal edilmemiş olması + başvurunun silinme sürecinde olmaması kontrol edilir (BR-104, D-089, D-090). Tek giriş noktası `requireCustomerAccess(context)` — **PHASE 07'de uygulandı** (yalnızca okuma: panel görüntüleme).
 - PHASE 08 kapsamındaki müşteri yetkisi: görüntülemeye ek olarak kendi başvurusunda izinli statülerde PDF **yükleme/değiştirme** (`POST /api/portal/[context]/documents/[requirementId]/file`) ve yalnızca kendi `ACTIVE` dosyalarını **görüntüleme/indirme** (`GET /api/portal/[context]/files/[fileId]`). **PHASE 09:** incelemeye gönder/yeniden gönder ve izinli dosya kaldırma (`src/features/customer-portal/actions.ts` → `workflow/customer-entry.ts`; `requireCustomerAccess(contextId)` + kilit altında token/süre); yorumlar salt okunur (yazamaz — BR-122); evrak kararı ve statü geçişi yapamaz. (Önceki not: Yükleme, kaldırma, dosya görüntüleme ve gönderim PHASE 08/09'da (D-095 sözleşmesiyle).
 - Müşteri oturumu personel paneline, personel action'larına veya Better Auth oturumuna erişim sağlamaz; personel oturumu müşteri kapsamını belirlemez (E2E).
@@ -56,3 +57,9 @@ Eşit ve tam yetki şu anlama **gelmez**:
 
 ## 5. PHASE 12 Denetimi
 Giriş noktası envanteri ve aktör × işlem sonuçları [SECURITY_AUDIT.md](SECURITY_AUDIT.md) §3–§4'tedir. Dosya uç noktalarının (GET/HEAD/Range) anonim, çapraz müşteri, çapraz oturum türü ve iptal senaryoları `security-audit.spec.ts` ile 4 tarayıcı projesinde doğrulandı; yetkisiz isteklerde sağlayıcıya istek yapılmadığı `file-delivery.test.ts` ile kanıtlandı. Matris değişmedi (eşit iki hesap, RBAC yok).
+
+## 6. PHASE 12.1
+
+- **Çalışma zamanı rolü (D-144, migration 0011 — izole):** `users`, `accounts`, `verifications` yalnızca SELECT. Personel hesabı oluşturma/değiştirme/silme ve credential değişikliği yalnızca operatör (sahip) bağlantısıyla yerel CLI'dan. Negatif testler: `privileges.test.ts`.
+- **Müşteri girişi (D-141):** `GET /b/<token>` → yetki yok (genel sayfa); `POST /b/enter` → aynı köken + geçerli token → müşteri oturumu. Personel cookie'si müşteri kapsamını genişletmez; müşteri oturumu personel yetkisi vermez (`customer-link.spec.ts` C11).
+- **Operatör komutları:** `ops:rate-limit-cleanup` (runtime, yalnızca süresi dolmuş satırlar) — uygulama içinde karşılığı yoktur. (`ops:post-restore` OD-27 ile kaldırıldı.)

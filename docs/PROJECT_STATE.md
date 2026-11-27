@@ -1,10 +1,10 @@
 # Proje Durumu
 
-> Her faz sonunda güncellenir. Son güncelleme: **2026-11-27** (PHASE 12 sonu)
+> Her faz sonunda güncellenir. Son güncelleme: **2026-11-27** (PHASE 12.1 sonu)
 
 ## Current Phase
-**PHASE 12 — Testing & Security Audit**
-Phase Status: **PHASE 12 COMPLETED (mühendislik — kısmi; harici doğrulamalar bekliyor) — kullanıcı onayı bekleniyor** (2026-11-27). Rapor: [SECURITY_AUDIT.md](SECURITY_AUDIT.md). Production: **NO-GO**. PHASE 11 + 11.1 Product Owner tarafından onaylandı (D-137…D-139 Accepted; D-134, D-135, D-136, D-140 koşullu; OD-26 ACCEPTED). PHASE 13 başlatılmadı.
+**PHASE 12.1 — Targeted Security Remediation & Final Verification**
+Phase Status: **PHASE 12.1 COMPLETED (mühendislik — kısmi; Neon migration onayı, gerçek sağlayıcı ve dış doğrulamalar bekliyor) — kullanıcı onayı bekleniyor** (2026-11-27). Rapor: [SECURITY_AUDIT.md](SECURITY_AUDIT.md) §8. Production: **NO-GO**. PHASE 12 değerlendirildi; nihai onay PHASE 12.1 sonrası. D-141, D-144 ACCEPTED; D-143, D-145 CONDITIONALLY ACCEPTED; PB-12, PB-13 kabul edilmiş blocker. **OD-27 ACCEPTED (2026-11-27):** uygulamaya özel yedek/geri yükleme altyapısı kapsam dışı — D-142 SUPERSEDED, D-148 WITHDRAWN, `test:restore-drill` ve `ops:post-restore` kaldırıldı; PB-08 ve PB-12 kalan risk / kullanıcı kabulü. PHASE 13 başlatılmadı.
 
 ## Completed Phases
 - PHASE 00 — Project Foundation & Architecture (+ revizyon) — Product Owner onayı 2026-11-24.
@@ -24,6 +24,8 @@ Phase Status: **PHASE 12 COMPLETED (mühendislik — kısmi; harici doğrulamala
 > Faz onayları production güvenliği veya KVKK uyumluluğu onayı değildir; PB-01…PB-11 açıktır.
 
 ## Project Status
+**PHASE 12.1:** D-141 müşteri bağlantısı ara sayfası (GET veritabanısız/oturumsuz; açık `POST /b/enter`), SEC-05 temizlik komutu (`pnpm ops:rate-limit-cleanup`), SEC-06 geçerli token başına sınır, bağımsız inceleme REVIEW-01…06 → SEC-14 (HIGH, audit atomikliği), SEC-15…18 (MEDIUM: worker temizliği, tuval sınırı, kapasite varsayılanı, sağlayıcı yanıtı/belirsiz yazım) düzeltildi ve doğrulandı; migration **0011** (runtime rolü users/accounts/verifications yazma yetkisi geri alındı) **yalnızca izole** ortamda. Geri yükleme tatbikatı ve geri yükleme sonrası kilitleme/rapor araçları **OD-27 ile kaldırıldı** (uygulamaya özel yedek/geri yükleme kapsam dışı; veri kaybı ve sağlayıcı düzeyi geri yükleme kalan riskleri belgelendi — OPERATIONS_RUNBOOK §2; PB-08/PB-12 kalan risk / kullanıcı kabulü). Yeni bağımlılık yok. Neon ve Backblaze'de değişiklik yok.
+
 **PHASE 12:** güvenlik denetimi (bulgular SEC-01…SEC-13; CRITICAL/HIGH yok; MEDIUM 3: B2 anahtarı fazla yetkili, bağlantı önizleme verisi, geri yükleme sonrası geri dönüş), yeni testler (`security-audit.spec.ts`, `accessibility.spec.ts`, audit tekilleştirme/kilit testleri), salt okunur B2 denetimi (`pnpm storage:inspect`), yedek/geri yükleme tatbikatı (`pnpm test:restore-drill`), operasyon runbook'u, doğrulama planları, hosting karşılaştırması, KVKK kontrol listesi, CI izole işi. Uygulama kodu değişikliği (yalnızca sınıf düzeyi): atlama bağlantısı `sr-only` düzeltmesi (SEC-08); boşluksuz uzun adlarda yatay taşma — `wrap-anywhere` / `min-w-0` (SEC-12). Test bütünlüğü: izole integration dosya sırası bağımlılığı giderildi (SEC-13). Yeni bağımlılık/migration yok. Sağlayıcı/Neon'da değişiklik yok.
 
 **PHASE 11.1:** OD-26 (Backblaze B2 yıllık ~10 USD bütçe; diğer altyapılarda hedef 0) kaydedildi; kapasite kod tavanı 100 GB / uyarı 90 GB (D-140; şema değişikliği yok); aktif `.env.local` hesap hazırlığı doğrulanana kadar 9 GB / 8 GB; Backblaze fiyatları resmî sayfadan doğrulandı (100 GB ortalamada ~7,51 USD/yıl); görüntüleyicide sayfaya git + klavye gezinmesi; başvuru detayında evrak statü özeti; PDF dizi benchmark'ları (ilk 3 sayfa, son sayfa, tüm sayfalar, iptal); rate limit değerlendirmesi (değişiklik yok). Yeni bağımlılık yok. Sağlayıcı hesabında değişiklik yapılmadı.
@@ -70,7 +72,7 @@ OD-26 — Backblaze B2 bütçesi ~10 USD/yıl ve 100 GB / 90 GB kapasite hedefi 
 
 ## Technical Decisions
 
-D-042…D-058, D-060…D-064, D-066, D-069…D-080, D-082…D-086, D-088…D-092, D-094…D-098, D-103, D-106…D-114 **Accepted**; D-067, D-068, D-081, D-087, D-093, D-099…D-102, D-104, D-105 **Conditionally Accepted**; D-063, D-065, D-035 **Partially Superseded**; D-017, D-040 **Superseded** (OD-25). PHASE 10/10.1/10.2 kararları (2026-11-26 onay): **D-115…D-122, D-124…D-126, D-128…D-130, D-133 Accepted** (D-116 D-124 ile güncel; D-117 D-125 ile genişletilmiş); **D-123, D-127, D-131, D-132 Conditionally Accepted**. PHASE 11 kararları (2026-11-27 onay): **D-137…D-139 Accepted**; **D-134, D-135, D-136, D-140 Conditionally Accepted**. **OD-26 ACCEPTED**. PHASE 12 kararları **D-141…D-145 Proposed**.
+D-042…D-058, D-060…D-064, D-066, D-069…D-080, D-082…D-086, D-088…D-092, D-094…D-098, D-103, D-106…D-114 **Accepted**; D-067, D-068, D-081, D-087, D-093, D-099…D-102, D-104, D-105 **Conditionally Accepted**; D-063, D-065, D-035 **Partially Superseded**; D-017, D-040 **Superseded** (OD-25). PHASE 10/10.1/10.2 kararları (2026-11-26 onay): **D-115…D-122, D-124…D-126, D-128…D-130, D-133 Accepted** (D-116 D-124 ile güncel; D-117 D-125 ile genişletilmiş); **D-123, D-127, D-131, D-132 Conditionally Accepted**. PHASE 11 kararları (2026-11-27 onay): **D-137…D-139 Accepted**; **D-134, D-135, D-136, D-140 Conditionally Accepted**. **OD-26 ACCEPTED**. PHASE 12 kararları (2026-11-27): **D-141, D-144 Accepted**; **D-143, D-145 Conditionally Accepted**; **D-142 Superseded** (OD-27). PHASE 12.1 kararları **D-146, D-147, D-149…D-151 Proposed**; **D-148 Withdrawn** (OD-27). **OD-27 ACCEPTED**.
 
 | ID | Konu | Öneri | Gerekli faz |
 |---|---|---|---|
@@ -167,7 +169,46 @@ Ayrıntı: [SECURITY.md](SECURITY.md) §11.
 
 **Geliştirmeyi engelleyen:** yok (yalnızca faz onayları). PB-01…PB-11 açık; hiçbiri çözülmüş sayılmaz. PHASE 00/01 onayları production güvenliği veya KVKK uyumluluğu onayı değildir.
 
-## Latest Verification Results (2026-11-27, PHASE 12)
+## Latest Verification Results (2026-11-27, PHASE 12.1 — OD-27 sonrası)
+Yalnızca yedek/geri yükleme betikleri ve dokümanlar değişti (çalışma zamanı kodu değişmedi). install, lint, typecheck, format:check, `db:check`, `db:verify` (`neondb` 21 tablo, 11 uygulanmış migration) → exit 0; unit **513/513**; izole integration **279 geçti / 10 atlandı / 0**; build + bundle (40 dosya, yasaklı ifade yok) → 0; izole E2E (retry 0) **568 / 0 / 120** (19 adımlı ana senaryo, T1–T12, A–K, R1–R7, kalıcı silme, PDF güvenliği dahil); `pnpm run audit` → 0 (1 moderate dev-only). `neondb` parmak izi aynı (audit 155, id 970); gerçek B2 mutasyonu yok; container/geçici dizin/süreç 0. Neon integration çalıştırılmadı (bekleyen 0011 — D-149).
+
+## Previous Verification Results (2026-11-27, PHASE 12.1)
+Son kod hâli; ilk başarısızlıklar gizlenmeden (ayrıntı SECURITY_AUDIT §8).
+
+| Kapı | Exit | Geçti | Başarısız | Atlandı | Atlama / not |
+|---|---|---|---|---|---|
+| `install --frozen-lockfile` | 0 | — | — | — | — |
+| lint / typecheck / format:check | 0 / 0 / 0 | — | — | — | — |
+| `test` (unit) | 0 | 513 | 0 | 0 | — |
+| `db:check` | 0 | — | — | — | 12 migration dosyası tutarlı |
+| `db:verify` (`neondb`, salt okunur) | 0 | 21 tablo, **11** uygulanmış migration, TLS doğrulandı | — | — | 0011 bekliyor (onay) |
+| `test:integration` (`neondb`) | 1 | 0 | — | — | **BLOCKED — beklenen:** "1 bekleyen migration"; testler Neon'a migration uygulamaz (D-149). Onay + `pnpm db:migrate` sonrası çalıştırılmalı |
+| `test:integration:isolated` (varsayılan sıra) | 0 | 279 | 0 | 10 | izole DB'de gerçek hesap yok → gerçek hesap modu bloğu |
+| dosya karıştırma seed 11 / 22 / 33 | 0 / 0 / 0 | 279 | 0 | 10 | aynı |
+| `test:restore-drill` | 0 | envanter eşit, parmak izi farkı yok; phase121 senaryoları | — | — | sentetik, geçici container'lar — **OD-27 ile kaldırıldı** (artık kapı değil) |
+| `build` / `check:bundle` | 0 / 0 | 39 dosya, yasaklı ifade yok | — | — | — |
+| `test:e2e` (`neondb`, retry 0) | 0 | 287 | 0 | 401 | commit eden testler yalnızca izole (D-086) + proje kapsamı |
+| `test:e2e:isolated` #1 (retry 0, son kod) | 0 | 568 | 0 | 120 | proje kapsamı (masaüstü/mobil/tek proje yeterli) |
+| `test:e2e:isolated` #2 (retry 0, son kod) | 0 | 568 | 0 | 120 | aynı |
+| `pnpm run audit` | 0 | — | — | — | 1 moderate (esbuild, drizzle-kit dev — SEC-10) |
+
+**İlk başarısızlıklar (sırasıyla, hepsi kök nedeniyle giderildi):** (1) D-141 ilk tam E2E: form POST 403 — `no-referrer` altında `Origin: null` (D-146); (2) uzun token yansıtma iddiası Next.js RSC yükü nedeniyle yanlıştı (iddia belgeye çevrildi; yönlendirme ve cookie iddiaları korunur); (3) `/b/:token` başlık kuralı `/b/enter`'i de kapsıyordu (dar desen); (4) ana senaryo ve WebKit kuyruğu (eski giriş varsayımı; ~9,8 dk worker takılması) — ana senaryo yardımcıya taşındı; (5) WebKit yorum çift tıklama testi bir kez düştü (paralel integration yükü altında hidrasyon öncesi yazım — sonraki tüm koşularda geçti; ürün kodu değişmedi); (6) REVIEW-01/02/03 testleri eski kodla düştü (yeniden üretim, beklenen); (7) `b2-range` eski "yanlış versiyon iletilir" iddiası daha sıkı davranışa güncellendi; (8) GRANT negatif testi yanlıştı (PostgreSQL uyarı verir, hata değil → etki doğrulanır); (9) D-144 sonrası testlerin geçici hesap kurulumları (createUser, services, dashboard) runtime ile yazıyordu → sahip rolü; dashboard REPEATABLE READ anlık görüntüsü; (10) izole E2E #2 (ilk tur) Mobile Safari XSS testi: test kaynaklı gezinmede uçuştaki ön-getirme — D-139 beklemesi `openCustomerLink`'e eklendi (D-131 genişletilmedi). Son iki tam izole E2E bu düzeltmelerden sonra 568/0/120.
+
+**Test sonrası:** `neondb` parmak izi başlangıçla aynı (users 2, services 3, templates 12, applications 0, files 0, sessions 0, audit 155, son id 970 `TEST_EVENT`; hesap/kota hash'leri değişmedi; hesap kayıtları son güncelleme 2026-11-24). Yetkisiz kalıcı Neon mutasyonu 0; gerçek B2 mutasyonu 0 (yalnızca salt okunur `storage:inspect`: 0 nesne). Docker container 0, geçici dizin 0, açık test süreci 0. Git index boş; commit/push yok.
+
+## Kullanıcı İşlemleri (PHASE 12.1 — tek sıralı liste)
+1. **Neon migration 0011 onayı (D-144):** değişiklik — `REVOKE INSERT, UPDATE ON users, accounts FROM cs_app_runtime; REVOKE INSERT, UPDATE, DELETE ON verifications FROM cs_app_runtime;` (veri/şema değişmez). Etki: uygulama girişi/oturum/çıkış etkilenmez (izole tam regresyon); `pnpm auth:bootstrap` / `auth:reset-password` sahip bağlantısını kullanır (zaten taşındı). Uygulama sırası (onay sonrası): parmak izi → `pnpm db:migrate` → `pnpm db:verify` (12) → `pnpm test:integration` (privileges matrisi) → `pnpm test:e2e` → parmak izi. Geri alma: `GRANT INSERT, UPDATE ON users, accounts TO cs_app_runtime; GRANT INSERT, UPDATE, DELETE ON verifications TO cs_app_runtime;` (yeni migration ile).
+2. **Yeni en az yetkili B2 anahtarı** (OPERATIONS_RUNBOOK §3.1; `b2_create_key` — panel özel yetki seçtirmez) → `pnpm env:b2` → `pnpm storage:inspect` temiz → eski anahtarı silme.
+3. **Checkpoint B onayı** (VERIFICATION_PLANS §1.3 — tek talep; ≤ 100 MB depolama, ≤ 100 MB egress, ≤ 500 istek, ~0 USD).
+4. **B2 ödeme/cap hazırlığı** (panel) ve ardından **100 GB etkinleştirme onayı** (VERIFICATION_PLANS §1.5).
+5. **Gerçek cihaz + WhatsApp** kontrol listesi (VERIFICATION_PLANS §2; ara sayfa adımı dahil).
+6. **Hosting kararı** (PB-01).
+7. **Hukuk/gizlilik ve saklama kararları** (PB-03; yedek saklama dahil).
+8. **Risk kabulleri:** PB-04 bearer link kalan riski (ara sayfa ikinci faktör değildir), PB-05 antivirüssüz PDF, **PB-08 / PB-12 (OD-27):** uygulamaya özel yedek olmadan veri kaybı kalan riski ve sağlayıcı düzeyi geri yüklemede silinmiş veri/eski erişimin geri dönme riski (manuel değerlendirme — OPERATIONS_RUNBOOK §2; hukuki saklama yükümlülükleriyle birlikte, PB-03).
+9. **D-146, D-147, D-149…D-151** kararları (özellikle D-146 `strict-origin` sapması). D-148 OD-27 ile geri çekildi.
+10. **Uzak GitHub CI** çalıştırılması (commit/push kullanıcı kararı).
+
+## Previous Verification Results (2026-11-27, PHASE 12)
 Tüm kapılar son kod hâliyle; ilk başarısızlıklar gizlenmeden (ayrıntı SECURITY_AUDIT.md).
 
 | Kapı | Exit | Geçti | Başarısız | Atlandı | Atlama nedeni |
@@ -215,4 +256,7 @@ Tüm kapılar son kod hâliyle; ilk başarısızlıklar gizlenmeden (ayrıntı S
 - `neondb` veri parmak izi tüm çalıştırmalar boyunca sabit: `users 2, accounts c4a8, gerçek oturum 0, services 3, şablon 12, başvuru 0, token 0, dosya 0, audit 155` (en son audit kaydı hâlâ id 970 — yeni kalıcı test yazımı 0). Açık Docker container'ı 0, geçici depolama dizini 0. Canlı B2 smoke testi çalıştırılmadı.
 
 ## Next Phase
+**PHASE 13** — başlatılmadı; yalnızca kullanıcı onayıyla. Ön koşullar: yukarıdaki "Kullanıcı İşlemleri" (özellikle Neon 0011, yeni B2 anahtarı + Checkpoint B, hosting kararı), PB-01…PB-13 açık. Production NO-GO.
+
+### Önceki "Next Phase" notu (PHASE 12)
 **PHASE 13 — Production Readiness / Deployment** — kullanıcı açıkça onaylamadan başlanmaz. Ön koşullar (kullanıcı): hosting kararı (PB-01), en az yetkili B2 anahtarı + Checkpoint B onayı (PB-13), ödeme/cap hazırlığı (PB-02), yedek politikası (PB-08/PB-12), KVKK değerlendirmesi (PB-03), yazılı risk kabulleri (PB-04, PB-05), D-141/D-144 kararları, gerçek cihaz kontrol listesi.

@@ -35,6 +35,12 @@ export async function connectOwner(): Promise<pg.Client> {
   return guardClient(await connect(urls.owner, "cs-global-test-owner"));
 }
 
+/** Operatör (sahip) bağlantı havuzu — yalnızca CLI eşdeğeri hesap işlemleri için (D-144). */
+export function createOwnerPool(max: number): pg.Pool {
+  const pool = new pg.Pool({ connectionString: urls.owner.connectionString, max });
+  return shared ? guardSharedDatabasePool(pool) : pool;
+}
+
 export function createRuntimePool(max: number): pg.Pool {
   const pool = new pg.Pool({ connectionString: urls.runtime.connectionString, max });
   return shared ? guardSharedDatabasePool(pool) : pool;
@@ -103,10 +109,17 @@ export async function createUser(client: pg.ClientBase, created: Created): Promi
   const existing = await client.query<{ id: string }>("SELECT id FROM users ORDER BY role LIMIT 1");
   if (existing.rows[0] !== undefined) return existing.rows[0].id;
   const id = testId();
-  await client.query(
-    "INSERT INTO users (id, name, email, username, role) VALUES ($1, 'Test Personel', $1 || '@staff.invalid', $2, 'employee')",
-    [id, `t_${shortId()}`],
-  );
+  // PHASE 12.1 (D-144): çalışma zamanı rolü personel hesabı oluşturamaz → geçici hesap sahip rolüyle
+  // (yalnızca hiç hesap yokken, yani izole veritabanında; `cleanup`/global teardown siler).
+  const owner = await connectOwner();
+  try {
+    await owner.query(
+      "INSERT INTO users (id, name, email, username, role) VALUES ($1, 'Test Personel', $1 || '@staff.invalid', $2, 'employee')",
+      [id, `t_${shortId()}`],
+    );
+  } finally {
+    await owner.end();
+  }
   created.users.push(id);
   return id;
 }

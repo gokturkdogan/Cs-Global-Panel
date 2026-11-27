@@ -29,7 +29,7 @@ import {
 import {
   connectOwner,
   connectRuntime,
-  createRuntimePool,
+  createOwnerPool,
   createTestDatabase,
   expectPgError,
   TEST_ID_PREFIX,
@@ -139,7 +139,8 @@ describe.skipIf(hasRealAccounts)(
 
     describe("hesap modeli", () => {
       it("eşzamanlı iki bootstrap: tam olarak bir ADMIN + bir EMPLOYEE oluşur, karışık hesap oluşmaz", async () => {
-        const pool = createRuntimePool(2);
+        // D-144: CLI ile aynı — hesap oluşturma yalnızca sahip rolüyle.
+        const pool = createOwnerPool(2);
         const [first, second] = [credentialsSet("ta"), credentialsSet("tb")];
         const [c1, c2] = await Promise.all([pool.connect(), pool.connect()]);
         try {
@@ -346,16 +347,24 @@ describe.skipIf(hasRealAccounts)(
           credentials.employee.password,
         );
 
+        // D-144: şifre sıfırlama CLI ile aynı — yalnızca sahip rolüyle; çalışma zamanı rolü reddedilir.
         const runtime = await connectRuntime();
+        const operator = await connectOwner();
         const newPassword = randomPassword();
         try {
           await expect(
-            resetAccountPassword(runtime, "employee", credentials.admin.password),
+            resetAccountPassword(runtime, "employee", newPassword),
+          ).rejects.toMatchObject({
+            code: "42501",
+          });
+          await expect(
+            resetAccountPassword(operator, "employee", credentials.admin.password),
           ).rejects.toThrow(AccountError);
-          const result = await resetAccountPassword(runtime, "employee", newPassword);
+          const result = await resetAccountPassword(operator, "employee", newPassword);
           expect(result.revokedSessions).toBeGreaterThanOrEqual(2);
         } finally {
           await runtime.end();
+          await operator.end();
         }
 
         expect(await sessionFor(employeeA.cookie!)).toBeNull();
@@ -475,7 +484,7 @@ describe.runIf(hasRealAccounts)(
     });
 
     it("bootstrap (eşzamanlı dahil) yeni hesap oluşturmaz, mevcutların üzerine yazmaz", async () => {
-      const pool = createRuntimePool(2);
+      const pool = createOwnerPool(2);
       const [c1, c2] = await Promise.all([pool.connect(), pool.connect()]);
       try {
         const results = await Promise.all([
@@ -494,7 +503,7 @@ describe.runIf(hasRealAccounts)(
     });
 
     it("politikaya aykırı şifre sıfırlama yazmadan reddedilir", async () => {
-      await expect(resetAccountPassword(runtime, "employee", "kisa")).rejects.toThrow(AccountError);
+      await expect(resetAccountPassword(owner, "employee", "kisa")).rejects.toThrow(AccountError);
       expect((await owner.query(fingerprintSql)).rows).toEqual(fingerprint);
     });
 

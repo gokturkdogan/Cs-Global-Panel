@@ -11,6 +11,7 @@ import {
   seedApplication,
   signCustomerSession,
 } from "../support/portal-seed";
+import { openCustomerLink } from "./customer-link";
 import { expect, sessionsAvailable, test } from "./fixtures";
 
 /**
@@ -58,24 +59,98 @@ async function shot(
 const portalUrl = /\/portal\/[A-Za-z0-9_-]{22}$/;
 
 test.describe("müşteri bağlantısı — geçersiz girişler (her ortam, salt okunur)", () => {
+  // PHASE 12.1 (D-141): GET yalnızca genel ara sayfayı gösterir (veritabanı yok, cookie yok, varlık kahini
+  // yok); oturum yalnızca açık POST ile açılır. Geçersiz POST'lar yalnızca okuma yapar (sayaç satırı yok).
   for (const [name, path] of [
     ["biçimsiz", "/b/gecersiz-baglanti"],
     ["aşırı uzun", `/b/${"A".repeat(400)}`],
-    ["bilinmeyen kanonik token", `/b/${randomBytes(32).toString("base64url")}`],
     ["kodlanmış özel karakter", "/b/%2e%2e%2f%2e%2e%2fetc"],
   ] as const) {
-    test(`${name} → 303 /link-invalid; no-store, no-referrer, noindex; cookie yok`, async ({
+    test(`${name} → GET veritabanısız genel geçersiz ekrana yönlenir; no-store, noindex; cookie yok`, async ({
       request,
     }) => {
       const response = await request.get(path, { maxRedirects: 0 });
+      expect([303, 307, 308]).toContain(response.status());
+      expect(new URL(response.headers().location!, "http://x").pathname).toBe("/link-invalid");
+      expect(response.headers()["cache-control"]).toContain("no-store");
+      expect(response.headers()["x-robots-tag"]).toContain("noindex");
+      expect(response.headers()["set-cookie"] ?? "").not.toContain(CUSTOMER_COOKIE);
+      // Not: Next.js yönlendirme gövdesi rota parametresini kaçışlı RSC yükünde taşıyabilir (no-store,
+      // görünür içerik değil); veritabanı sorgusu ve cookie yoktur.
+    });
+  }
+
+  test("bilinmeyen kanonik token → GET genel ara sayfa (200, geçerli bağlantıyla aynı); Referer yalnızca köken; no-store, noindex; cookie yok", async ({
+    request,
+  }) => {
+    const response = await request.get(`/b/${randomBytes(32).toString("base64url")}`, {
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(200);
+    expect(response.headers()["cache-control"]).toContain("no-store");
+    expect(response.headers()["referrer-policy"]).toBe("strict-origin");
+    expect(response.headers()["x-robots-tag"]).toContain("noindex");
+    expect(response.headers()["set-cookie"] ?? "").not.toContain(CUSTOMER_COOKIE);
+    const body = await response.text();
+    expect(body).toContain("Başvuru Takip Paneli");
+    expect(body).toContain('content="strict-origin"');
+  });
+
+  for (const [name, form] of [
+    ["boş token", { token: "" }],
+    ["kısa token", { token: "abc" }],
+    ["bilinmeyen kanonik token", { token: randomBytes(32).toString("base64url") }],
+    ["fazladan alan", { token: randomBytes(32).toString("base64url"), next: "/dashboard" }],
+  ] as const) {
+    test(`POST ${name} → 303 /link-invalid; cookie yok`, async ({ request, baseURL }) => {
+      const response = await request.post("/b/enter", {
+        form,
+        headers: { origin: baseURL! },
+        maxRedirects: 0,
+      });
       expect(response.status()).toBe(303);
       expect(new URL(response.headers().location!, "http://x").pathname).toBe("/link-invalid");
       expect(response.headers()["cache-control"]).toContain("no-store");
-      expect(response.headers()["referrer-policy"]).toBe("no-referrer");
-      expect(response.headers()["x-robots-tag"]).toContain("noindex");
       expect(response.headers()["set-cookie"] ?? "").not.toContain(CUSTOMER_COOKIE);
     });
   }
+
+  test("POST: yabancı/eksik köken 403; yanlış içerik türü ve büyük gövde reddedilir; GET/HEAD /b/enter oturum açmaz", async ({
+    request,
+    baseURL,
+  }) => {
+    const token = randomBytes(32).toString("base64url");
+    for (const headers of [
+      { origin: "https://evil.example" },
+      {} as Record<string, string>,
+      { origin: "null" },
+    ]) {
+      const response = await request.post("/b/enter", {
+        form: { token },
+        headers,
+        maxRedirects: 0,
+      });
+      expect(response.status()).toBe(403);
+      expect(response.headers()["set-cookie"] ?? "").not.toContain(CUSTOMER_COOKIE);
+    }
+    const json = await request.post("/b/enter", {
+      data: { token },
+      headers: { origin: baseURL! },
+      maxRedirects: 0,
+    });
+    expect(new URL(json.headers().location!, "http://x").pathname).toBe("/link-invalid");
+    const big = await request.post("/b/enter", {
+      form: { token, pad: "x".repeat(2000) },
+      headers: { origin: baseURL! },
+      maxRedirects: 0,
+    });
+    expect(new URL(big.headers().location!, "http://x").pathname).toBe("/link-invalid");
+    for (const method of ["get", "head"] as const) {
+      const response = await request[method](`/b/enter?token=${token}`, { maxRedirects: 0 });
+      expect(response.status()).toBe(405);
+      expect(response.headers()["set-cookie"] ?? "").not.toContain(CUSTOMER_COOKIE);
+    }
+  });
 
   test("geçersiz bağlantı ekranı: genel mesaj, müşteri verisi yok, CSP, harici istek ve konsol hatası yok", async ({
     page,
@@ -135,11 +210,12 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       )
     ).rows[0];
 
-  test("geçerli bağlantı: 303 + güvenli cookie → token'sız portal; gerçek veri; GET hiçbir şeyi değiştirmez; sızıntı yok", async ({
+  test("geçerli bağlantı: GET ara sayfa (oturum yok) → açık POST 303 + güvenli cookie → token'sız portal; gerçek veri; giriş hiçbir başvuru verisini değiştirmez; sızıntı yok", async ({
     page,
     context,
     runtimeDb,
     request,
+    baseURL,
   }, testInfo) => {
     const app = await seedApplication(runtimeDb, userId, {
       documents: [
@@ -156,8 +232,16 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     });
     const before = await dbState(runtimeDb, app.applicationId);
 
-    // Doğrudan istek: yönlendirme ve cookie öznitelikleri (değer yazdırılmaz).
-    const entry = await request.get(`/b/${app.token}`, { maxRedirects: 0 });
+    // Doğrudan istekler (değer yazdırılmaz): GET oturum açmaz; açık POST yönlendirir ve cookie yazar.
+    const preview = await request.get(`/b/${app.token}`, { maxRedirects: 0 });
+    expect(preview.status()).toBe(200);
+    expect(preview.headers()["set-cookie"] ?? "").not.toContain(CUSTOMER_COOKIE);
+    expect(await preview.text()).not.toContain(app.lastName);
+    const entry = await request.post("/b/enter", {
+      form: { token: app.token },
+      headers: { origin: baseURL! },
+      maxRedirects: 0,
+    });
     expect(entry.status()).toBe(303);
     const location = entry.headers().location!;
     expect(location).toMatch(portalUrl);
@@ -179,11 +263,15 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       dialogs.push(dialog.message());
       await dialog.dismiss();
     });
-    const response = await page.goto(`/b/${app.token}`);
+    const portalResponse = page.waitForResponse((r) =>
+      new URL(r.url()).pathname.startsWith("/portal/"),
+    );
+    await openCustomerLink(page, app.token);
     await expect(page).toHaveURL(portalUrl);
     expect(page.url()).not.toContain(app.token);
-    expect(response?.headers()["cache-control"]).toContain("no-store");
-    expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
+    const response = await portalResponse;
+    expect(response.headers()["cache-control"]).toContain("no-store");
+    expect(response.headers()["referrer-policy"]).toBe("no-referrer");
 
     await expect(
       page.getByRole("heading", { level: 1, name: `Merhaba, ${app.firstName} ${app.lastName}` }),
@@ -254,7 +342,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
 
     await page.reload();
     await expect(page.getByTestId("portal-summary")).toContainText(app.number); // yenileme oturumu korur
-    expect(await dbState(runtimeDb, app.applicationId)).toEqual(before); // BR-105: GET yan etkisiz
+    expect(await dbState(runtimeDb, app.applicationId)).toEqual(before); // BR-105: bağlantı girişi (GET + POST) başvuru verisini değiştirmez
     expect(dialogs).toEqual([]);
     await page.waitForLoadState("networkidle");
     expect(errors).toEqual([]);
@@ -266,7 +354,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     runtimeDb,
   }) => {
     const app = await seedApplication(runtimeDb, userId);
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page.getByTestId("portal-summary")).toContainText(app.number);
     await runtimeDb.query(
       "UPDATE application_access_tokens SET revoked_at = now(), revoke_reason = 'REVOKED', revoked_by_user_id = $2 WHERE id = $1",
@@ -277,10 +365,10 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       page.getByRole("heading", { level: 1, name: "Bağlantınız kullanılamıyor" }),
     ).toBeVisible();
     await expect(page.getByText(app.number)).toHaveCount(0);
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page).toHaveURL(/\/link-invalid$/);
     const fresh = await insertToken(runtimeDb, app.applicationId, userId);
-    await page.goto(`/b/${fresh.token}`);
+    await openCustomerLink(page, fresh.token);
     await expect(page.getByTestId("portal-summary")).toContainText(app.number);
   });
 
@@ -293,8 +381,8 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     const otherBrowser = await browser.newContext();
     try {
       const other = await otherBrowser.newPage();
-      await page.goto(`/b/${app.token}`);
-      await other.goto(`/b/${app.token}`);
+      await openCustomerLink(page, app.token);
+      await openCustomerLink(other, app.token);
       await expect(other.getByTestId("portal-summary")).toContainText(app.number);
       await runtimeDb.query(
         "UPDATE application_access_tokens SET revoked_at = now(), revoke_reason = 'ROTATED', revoked_by_user_id = $2 WHERE id = $1",
@@ -307,9 +395,9 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
           tab.getByRole("heading", { level: 1, name: "Bağlantınız kullanılamıyor" }),
         ).toBeVisible();
       }
-      await page.goto(`/b/${app.token}`);
+      await openCustomerLink(page, app.token);
       await expect(page).toHaveURL(/\/link-invalid$/);
-      await page.goto(`/b/${fresh.token}`);
+      await openCustomerLink(page, fresh.token);
       await expect(page.getByTestId("portal-summary")).toContainText(app.number);
     } finally {
       await otherBrowser.close();
@@ -323,7 +411,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     baseURL,
   }, testInfo) => {
     const app = await seedApplication(runtimeDb, userId);
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page).toHaveURL(portalUrl);
     const contextId = page.url().split("/portal/")[1]!;
 
@@ -368,7 +456,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     ).toBeVisible();
 
     // Silme talebi.
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page.getByTestId("portal-summary")).toBeVisible();
     await runtimeDb.query(
       "UPDATE applications SET deletion_requested_at = now(), deletion_requested_by_user_id = $2 WHERE id = $1",
@@ -378,7 +466,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Bağlantınız kullanılamıyor" }),
     ).toBeVisible();
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await expect(page).toHaveURL(/\/link-invalid$/);
   });
 
@@ -390,13 +478,13 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     const b = await seedApplication(runtimeDb, userId, { firstName: "Burcu", lastName: "Bal" });
     const tabA = await context.newPage();
     const tabB = await context.newPage();
-    await tabA.goto(`/b/${a.token}`);
+    await openCustomerLink(tabA, a.token);
     await expect(tabA.getByTestId("portal-summary")).toContainText(a.number);
     await tabA.goto("/link-invalid"); // geri/ileri geçmişi için
     await tabA.goBack();
     await expect(tabA.getByTestId("portal-summary")).toContainText(a.number);
 
-    await tabB.goto(`/b/${b.token}`);
+    await openCustomerLink(tabB, b.token);
     await expect(tabB.getByTestId("portal-summary")).toContainText(b.number);
 
     // A sekmesi: görünürlük değişince sunucuda yeniden doğrulanır → uyuşmazlık, B verisi YOK.
@@ -422,7 +510,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     expect(await tabA.content()).not.toContain(b.number);
 
     // A'nın bağlantısını yeniden açmak A'yı geri getirir; bu kez B sekmesi uyuşmazlık gösterir.
-    await tabA.goto(`/b/${a.token}`);
+    await openCustomerLink(tabA, a.token);
     await expect(tabA.getByTestId("portal-summary")).toContainText(a.number);
     await tabB.reload();
     await expect(
@@ -447,7 +535,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       const a = await seedApplication(runtimeDb, userId, { firstName: "Ece" });
       const b = await seedApplication(runtimeDb, userId, { firstName: "Fırat" });
       const [tabA, tabB] = [await context.newPage(), await context.newPage()];
-      await Promise.all([tabA.goto(`/b/${a.token}`), tabB.goto(`/b/${b.token}`)]);
+      await Promise.all([openCustomerLink(tabA, a.token), openCustomerLink(tabB, b.token)]);
       for (const [tab, own, foreign] of [
         [tabA, a, b],
         [tabB, b, a],
@@ -472,9 +560,9 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     const app = await seedApplication(runtimeDb, userId);
     const first = await context.newPage();
     const second = await context.newPage();
-    await first.goto(`/b/${app.token}`);
+    await openCustomerLink(first, app.token);
     await expect(first.getByTestId("portal-summary")).toContainText(app.number);
-    await second.goto(`/b/${app.token}`);
+    await openCustomerLink(second, app.token);
     await expect(second.getByTestId("portal-summary")).toContainText(app.number);
     expect(new URL(second.url()).pathname).toBe(new URL(first.url()).pathname);
     await first.reload();
@@ -486,7 +574,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       [app.tokenId, userId],
     );
     const fresh = await insertToken(runtimeDb, app.applicationId, userId);
-    await second.goto(`/b/${fresh.token}`);
+    await openCustomerLink(second, fresh.token);
     await expect(second.getByTestId("portal-summary")).toContainText(app.number);
     expect(new URL(second.url()).pathname).not.toBe(new URL(first.url()).pathname);
     await first.reload();
@@ -507,7 +595,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     try {
       await signInAs("admin", shared);
       const page = await shared.newPage();
-      await page.goto(`/b/${app.token}`);
+      await openCustomerLink(page, app.token);
       await expect(page.getByTestId("portal-summary")).toContainText(app.number);
       await expect(page.getByRole("navigation")).toHaveCount(0); // portal personel menüsü göstermez
       await page.goto("/dashboard");
@@ -516,7 +604,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       expect(cookies).toEqual(expect.arrayContaining([CUSTOMER_COOKIE, "cs.session_token"]));
 
       const customer = await customerOnly.newPage();
-      await customer.goto(`/b/${app.token}`);
+      await openCustomerLink(customer, app.token);
       await expect(customer.getByTestId("portal-summary")).toBeVisible();
       for (const path of [
         "/dashboard",
@@ -549,7 +637,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
         { title: "Fotoğraf", required: false },
       ],
     });
-    await page.goto(`/b/${revision.token}`);
+    await openCustomerLink(page, revision.token);
     await expect(page.getByTestId("portal-status-message")).toHaveText(
       "Bazı evraklarınızın düzeltilmesi gerekiyor.",
     );
@@ -572,7 +660,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
       status: "COMPLETED",
       documents: [{ title: "Pasaport", status: "APPROVED" }],
     });
-    await page.goto(`/b/${completed.token}`);
+    await openCustomerLink(page, completed.token);
     await expect(page.getByTestId("portal-status-message")).toContainText(
       "CS Global danışmanlık süreciniz tamamlandı. (Resmî vize sonucu değildir.)",
     );
@@ -582,7 +670,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     await shot(page, testInfo, "status-completed");
 
     const cancelled = await seedApplication(runtimeDb, userId, { status: "CANCELLED" });
-    await page.goto(`/b/${cancelled.token}`);
+    await openCustomerLink(page, cancelled.token);
     await expect(page.getByTestId("process-cancelled")).toContainText(
       "Bu başvuru iptal edilmiştir.",
     );
@@ -594,7 +682,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
     const optionalOnly = await seedApplication(runtimeDb, userId, {
       documents: [{ title: "Ek Belge", required: false }],
     });
-    await page.goto(`/b/${optionalOnly.token}`);
+    await openCustomerLink(page, optionalOnly.token);
     await expect(page.getByTestId("document-progress")).toContainText("Zorunlu evrak bulunmuyor.");
     await expect(page.getByRole("progressbar")).toHaveCount(0);
   });
@@ -621,7 +709,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
         ],
       });
       await page.setViewportSize({ width, height: 900 });
-      await page.goto(`/b/${app.token}`);
+      await openCustomerLink(page, app.token);
       await expect(page.getByTestId("portal-summary")).toBeVisible();
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
@@ -638,7 +726,7 @@ test.describe("müşteri portalı (izole veritabanı)", () => {
 
   test("klavye: odak görünür, ayrıntı aç/kapa klavyeyle çalışır", async ({ page, runtimeDb }) => {
     const app = await seedApplication(runtimeDb, userId);
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     const summary = page.locator("summary").first();
     // Akışla gelen içerik yerine yerleşene kadar (gizli kapsayıcıdan taşınma odağı düşürür).
     await expect(summary).toBeVisible();

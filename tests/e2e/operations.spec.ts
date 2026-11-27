@@ -5,6 +5,7 @@ import type { Browser, Page, TestInfo } from "@playwright/test";
 
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { seedActiveFile, seedApplication } from "../support/portal-seed";
+import { openCustomerLink } from "./customer-link";
 import { expect, sessionsAvailable, test } from "./fixtures";
 
 /**
@@ -77,7 +78,7 @@ test.describe("PHASE 10 operasyonlar (izole veritabanı)", () => {
         // yönlendirme yanıtlarının gövdesi yoktur
       }
     });
-    await customer.page.goto(`/b/${app.token}`);
+    await openCustomerLink(customer.page, app.token);
     await expect(customer.page.getByRole("heading", { level: 1 })).toBeVisible();
     await customer.page.reload();
     await customer.page.waitForLoadState("networkidle");
@@ -156,6 +157,7 @@ test.describe("PHASE 10 operasyonlar (izole veritabanı)", () => {
   test("E5: EMPLOYEE başvuruyu numara yazarak kalıcı siler → listede yok; bağlantı ve dosya URL'leri geçersiz", async ({
     page,
     request,
+    baseURL,
     runtimeDb,
     signInAs,
   }, testInfo) => {
@@ -223,7 +225,11 @@ test.describe("PHASE 10 operasyonlar (izole veritabanı)", () => {
     ).toEqual([{ actor_user_id: employee.userId }]);
 
     // Eski bağlantı ve dosya URL'leri geçersiz.
-    const link = await request.get(`/b/${app.token}`, { maxRedirects: 0 });
+    const link = await request.post("/b/enter", {
+      form: { token: app.token },
+      headers: { origin: baseURL! },
+      maxRedirects: 0,
+    });
     expect(link.headers()["location"] ?? "").toContain("/link-invalid");
     const file = await page.request.get(`/api/files/${fileId}`);
     expect(file.status()).toBe(404);
@@ -288,7 +294,7 @@ test.describe("PHASE 10 operasyonlar (izole veritabanı)", () => {
 
     // Müşteri erişimi anında kapalı.
     const customer = await newPage(browser, testInfo);
-    await customer.page.goto(`/b/${app.token}`);
+    await openCustomerLink(customer.page, app.token);
     await expect(customer.page).toHaveURL(/link-invalid/);
     await customer.context.close();
 
@@ -327,7 +333,7 @@ test.describe("PHASE 10 operasyonlar (izole veritabanı)", () => {
       documents: [{ title: "Pasaport" }],
     });
     const customer = await newPage(browser, testInfo);
-    await customer.page.goto(`/b/${app.token}`);
+    await openCustomerLink(customer.page, app.token);
     await expect(customer.page.getByRole("heading", { level: 1 })).toBeVisible();
     for (const path of ["/dashboard/audit-logs", `/dashboard/applications/${app.applicationId}`]) {
       await customer.page.goto(path);

@@ -134,10 +134,13 @@
 - **Acceptance:** Açık yüksek/kritik bulgu yok; PB-04/PB-05 için Product Owner yazılı risk kabulü (veya alternatif önlem kararı).
 - **DoD:** Ortak DoD.
 
+
+## PHASE 12.1 — Targeted Security Remediation & Final Verification
+- **Durum (2026-11-27):** mühendislik çalışması tamamlandı — kullanıcı onayı bekleniyor. D-141 ara sayfa, SEC-05/06, REVIEW-01…06 (SEC-14…18), migration 0011 (izole), geri yükleme araçları OD-27 ile kaldırıldı. **Açık:** Neon'a 0011 (onay), yeni en az yetkili B2 anahtarı + Checkpoint B (onay), gerçek cihaz/WhatsApp, hosting, KVKK, uzak CI. Production NO-GO.
 ## PHASE 13 — Production Deployment
-- **Scope:** Ticari kullanıma uygun ücretsiz (veya kullanıcının açıkça onayladığı) hosting/DB/storage değerlendirmesi ve seçimi (DEPLOYMENT §6.3), production ortamı, env/secrets, sağlayıcı alt alan adı (`APP_URL`), GitHub branch koruma + secret scanning, migration, iki hesap bootstrap'ı (`pnpm auth:bootstrap`, production'da ayrı ve güçlü şifrelerle), günlük temizlik zamanlaması, yedek/geri yükleme provası, izleme, olay müdahale planı, smoke test.
-- **Dependencies:** PHASE 12; PB-01, PB-02, PB-03, PB-06, PB-08, PB-11 kapalı.
+- **Scope:** Ticari kullanıma uygun ücretsiz (veya kullanıcının açıkça onayladığı) hosting/DB/storage değerlendirmesi ve seçimi (DEPLOYMENT §6.3), production ortamı, env/secrets, sağlayıcı alt alan adı (`APP_URL`), GitHub branch koruma + secret scanning, migration, iki hesap bootstrap'ı (`pnpm auth:bootstrap`, production'da ayrı ve güçlü şifrelerle), günlük temizlik zamanlaması, izleme, olay müdahale planı, smoke test.
+- **Dependencies:** PHASE 12/12.1; PB-01, PB-02, PB-03, PB-06, PB-11 kapalı; PB-08 ve PB-12 kalan risklerinin yazılı kabulü (OD-27 — özel yedek/geri yükleme kapsam dışı).
 - **Security checks:** MFA, en az yetki, izolasyon, rotasyon prosedürü, sağlayıcı log politikası incelemesi (TM-15).
-- **Test requirements:** Production smoke test (sahte başvuru, sonra silinir), geri yükleme provası.
+- **Test requirements:** Production smoke test (sahte başvuru, sonra silinir). (Geri yükleme provası OD-27 ile kaldırıldı.)
 - **Acceptance:** Tüm production blocker'ları kapalı; smoke test yeşil.
 - **DoD:** Ortak DoD + PROJECT_STATE "Production".

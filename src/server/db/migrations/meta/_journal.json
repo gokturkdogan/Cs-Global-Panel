@@ -78,6 +78,13 @@
       "when": 1795709327566,
       "tag": "0010_audit_logs_keyset_index",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795797858018,
+      "tag": "0011_runtime_auth_least_privilege",
+      "breakpoints": true
     }
   ]
 }

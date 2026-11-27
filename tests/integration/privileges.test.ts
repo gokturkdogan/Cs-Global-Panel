@@ -10,12 +10,15 @@ import { connectOwner, connectRuntime, expectPgError, urls } from "./helpers";
 
 type Privilege = "SELECT" | "INSERT" | "UPDATE" | "DELETE";
 
-/** Runtime rolünün beklenen tablo yetkileri (migration 0002). TRUNCATE/REFERENCES/TRIGGER hiçbirinde yok. */
+/**
+ * Runtime rolünün beklenen tablo yetkileri (migration 0002; PHASE 12.1 migration 0011 — D-144: personel
+ * hesap/credential tabloları ve verifications yalnızca okunur). TRUNCATE/REFERENCES/TRIGGER hiçbirinde yok.
+ */
 const EXPECTED_PRIVILEGES: Record<string, Privilege[]> = {
-  users: ["SELECT", "INSERT", "UPDATE"],
+  users: ["SELECT"],
   sessions: ["SELECT", "INSERT", "UPDATE", "DELETE"],
-  accounts: ["SELECT", "INSERT", "UPDATE"],
-  verifications: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+  accounts: ["SELECT"],
+  verifications: ["SELECT"],
   services: ["SELECT", "INSERT", "UPDATE"],
   service_document_requirements: ["SELECT", "INSERT", "UPDATE"],
   application_number_counters: ["SELECT", "INSERT", "UPDATE"],
@@ -178,8 +181,41 @@ describe("runtime rolü — en az yetki (D-054)", () => {
       "42501",
     ],
     ["geçici tablo oluşturamaz", "CREATE TEMP TABLE intruder (id int)", "42501"],
+    // PHASE 12.1 (D-144): personel hesabı/credential'ı çalışma zamanı rolüyle oluşturulamaz/değiştirilemez.
+    [
+      "personel hesabı oluşturamaz",
+      "INSERT INTO users (id, name, email, username, role) VALUES ('x', 'x', 'x@staff.invalid', 'x', 'employee')",
+      "42501",
+    ],
+    ["personel hesabını değiştiremez", "UPDATE users SET username = username WHERE false", "42501"],
+    ["personel rolünü değiştiremez", "UPDATE users SET role = role WHERE false", "42501"],
+    [
+      "credential kaydı oluşturamaz",
+      "INSERT INTO accounts (id, account_id, provider_id, user_id, password) VALUES ('x', 'x', 'credential', 'x', 'x')",
+      "42501",
+    ],
+    ["şifre hash'ini değiştiremez", "UPDATE accounts SET password = password WHERE false", "42501"],
+    ["personel hesabını silemez", "DELETE FROM users WHERE false", "42501"],
+    ["credential kaydını silemez", "DELETE FROM accounts WHERE false", "42501"],
+    [
+      "doğrulama kaydı yazamaz",
+      "INSERT INTO verifications (id, identifier, value, expires_at) VALUES ('x', 'x', 'x', now())",
+      "42501",
+    ],
+    ["rol özniteliğini değiştiremez", "ALTER ROLE cs_app_runtime CREATEROLE", "42501"],
   ])("%s", async (_label, statement, code) => {
     await expectPgError(runtime.query(statement), code);
+  });
+
+  it("D-144: kendine yetki veremez — GRANT etkisizdir (PostgreSQL uyarı verir, yetki eklenmez)", async () => {
+    await runtime
+      .query("GRANT INSERT, UPDATE ON users, accounts TO cs_app_runtime")
+      .catch(() => undefined);
+    const rows = await runtime.query<{ t: string; p: string; has: boolean }>(
+      `SELECT t, p, has_table_privilege('cs_app_runtime', t, p) AS has
+         FROM unnest(ARRAY['users', 'accounts']) t, unnest(ARRAY['INSERT', 'UPDATE']) p`,
+    );
+    expect(rows.rows.every((row) => !row.has)).toBe(true);
   });
 
   it("audit kaydı ekleyebilir ve okuyabilir (geri alınan transaction — kalıcı test kaydı yok)", async () => {

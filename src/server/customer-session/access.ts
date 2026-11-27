@@ -25,6 +25,14 @@ type Reader = Pick<Database, "select">;
 
 export type ActiveAccess = { readonly applicationId: string; readonly tokenId: string };
 
+/**
+ * Yalnızca BİÇİM kontrolü (veritabanı yok; varlık hakkında bilgi vermez). Müşteri yolu token kripto
+ * modülünü doğrudan içe aktarmaz (ESLint sınırı); ara sayfa ve giriş route'u bunu kullanır (D-141).
+ */
+export function isAccessTokenShape(token: string): boolean {
+  return isCanonicalAccessToken(token);
+}
+
 /** HMAC ile token kaydını bulur (şifreli kopya çözülmez). Biçim önce, veritabanı sonra. */
 export async function resolveAccessToken(
   db: Reader,

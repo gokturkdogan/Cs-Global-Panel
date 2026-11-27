@@ -95,6 +95,11 @@ export const messages = {
       "Başvuru paneliniz geçici olarak görüntülenemiyor. Lütfen biraz sonra tekrar deneyiniz veya size gönderilen bağlantıyı yeniden açınız.",
     contactSoon: "İletişim bilgisi yakında eklenecek.",
     privateLink: "Bu bağlantı size özeldir, başkalarıyla paylaşmayınız.",
+    entryTitle: "Başvuru Takip Paneli",
+    entryDescription:
+      "Başvurunuzun güncel durumunu takip etmek ve gerekli belgelerinizi yüklemek için devam edin.",
+    entryButton: "Başvurumu Görüntüle",
+    entryPending: "Açılıyor…",
     progressDisclaimer:
       "Bu gösterge danışmanlık sürecinin aşamasını gösterir; vize sonucu veya süre hakkında bilgi vermez.",
     completedNote: "Resmî vize sonucu değildir.",

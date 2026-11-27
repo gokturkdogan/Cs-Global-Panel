@@ -34,6 +34,14 @@ export const LOGIN_RATE_LIMIT_PER_USERNAME = { max: 10, windowSeconds: 15 * 60 }
 export const LOGIN_RATE_LIMIT_UNKNOWN_USERNAMES = { max: 50, windowSeconds: 15 * 60 } as const;
 
 /**
+ * PHASE 12.1 (D-141, SEC-06): müşteri bağlantısının açık POST ile oturuma çevrilmesi, GEÇERLİ token
+ * başına saatte en fazla bu kadar. Gerçek kullanım günde birkaç açılıştır; sınır çalınan bağlantıyla
+ * tekrarlanan oturum üretimini ve yazım yükünü keser. Satır yalnızca geçerli token için oluşur (rastgele
+ * token'lar sayaç satırı üretmez → tablo kardinalitesi gerçek token sayısıyla sınırlı).
+ */
+export const CUSTOMER_LINK_EXCHANGE_RATE_LIMIT = { max: 30, windowSeconds: 60 * 60 } as const;
+
+/**
  * Hizmet ve evrak şablonu metin sınırları (DATABASE_SCHEMA §4.1–4.2 CHECK kısıtlarıyla aynı).
  * Dosya tipi/boyutu/sayısı şablon alanı değildir (OD-16).
  */
@@ -62,6 +70,13 @@ export const SEARCH_QUERY_MAX_LENGTH = 100;
  */
 export const STORAGE_HARD_MAX_TOTAL_BYTES = 100_000_000_000;
 export const STORAGE_DEFAULT_WARNING_BYTES = 90_000_000_000;
+/**
+ * PHASE 12.1 (REVIEW-05, D-140): kod tavanı (100 GB) bir HEDEFTİR, aktif değer değildir. Ortam değişkeni
+ * yoksa: production/preview yapılandırması REDDEDİLİR (fail-closed — sınır ve uyarı açıkça verilmeli);
+ * development yalnızca bu güvenli değerlere düşer (100 GB kendiliğinden etkinleşmez).
+ */
+export const STORAGE_SAFE_DEFAULT_MAX_TOTAL_BYTES = 9_000_000_000;
+export const STORAGE_SAFE_DEFAULT_WARNING_BYTES = 8_000_000_000;
 
 /** Yükleme isteği (D-100): ham PDF gövdesi; süre, eşzamanlılık ve dosya adı sınırları. */
 export const UPLOAD_REQUEST_TIMEOUT_MS = 120_000;

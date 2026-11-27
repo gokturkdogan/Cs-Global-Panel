@@ -21,8 +21,14 @@ import {
 
 import { loadLocalEnv } from "../db/lib.ts";
 
-/** Uygulamanın gerçekten kullandığı yetkiler (S3 uyumlu API üzerinden). */
-const REQUIRED = ["listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles"] as const;
+/**
+ * Uygulamanın gerçekten kullandığı yetkiler (S3 uyumlu API — Backblaze "S3-Compatible App Key Capabilities":
+ * GetObject/HeadObject → readFiles, PutObject → writeFiles, versiyona özgü DeleteObject → deleteFiles,
+ * ListObjectVersions → listFiles). PHASE 12.1: uygulama ListBuckets/HeadBucket çağırmaz → `listBuckets`
+ * zorunlu DEĞİL; yalnızca bu denetimin HeadBucket kontrolü için isteğe bağlıdır.
+ */
+const REQUIRED = ["listFiles", "readFiles", "writeFiles", "deleteFiles"] as const;
+const OPTIONAL = ["listBuckets"] as const;
 /** Sızıntı durumunda zararı büyüten yetkiler (bucket'ı public yapma, lifecycle/replikasyon, paylaşım). */
 const RISKY = [
   "writeBuckets",
@@ -80,6 +86,12 @@ if (auth.ok) {
     capabilities,
     missingRequired: REQUIRED.filter((c) => !capabilities.includes(c)),
     excessRisky: RISKY.filter((c) => capabilities.includes(c)),
+    unexpected: capabilities.filter(
+      (c) =>
+        !(REQUIRED as readonly string[]).includes(c) &&
+        !(OPTIONAL as readonly string[]).includes(c) &&
+        !RISKY.includes(c),
+    ),
   };
 } else {
   report.key = `yetkilendirme başarısız (HTTP ${auth.status})`;
@@ -142,8 +154,12 @@ report.anonymousList = anonymous.status;
 await anonymous.body?.cancel();
 
 console.log(JSON.stringify(report, null, 2));
-const key = report.key as { excessRisky?: string[]; missingRequired?: string[] } | string;
-if (typeof key !== "string" && (key.excessRisky?.length || key.missingRequired?.length)) {
+const key = report.key as
+  { excessRisky?: string[]; missingRequired?: string[]; unexpected?: string[] } | string;
+if (
+  typeof key !== "string" &&
+  (key.excessRisky?.length || key.missingRequired?.length || key.unexpected?.length)
+) {
   console.log(
     "UYARI: anahtar yetkileri en az yetki ilkesine uymuyor (bkz. docs/OPERATIONS_RUNBOOK.md — B2 anahtar yenileme).",
   );

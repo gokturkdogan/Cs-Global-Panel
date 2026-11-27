@@ -77,10 +77,10 @@ export async function requireStaff() { const s = await getCurrentStaff(); if (!s
 Tek aktif bağlantı: DB partial unique index + `applications FOR UPDATE` (OD-18).
 
 ### 3.4 Bağlantının açılması ve müşteri oturumu
-1. `GET /b/[token]`: token biçim kontrolü (uzunluk veritabanından önce) → `HMAC(token)` ile arama → `revoked_at IS NULL` ve başvuru silinme sürecinde değil. *IP bazlı rate limit (IP başına 10 dk'da 30) TD-04 çözülene kadar uygulanmaz — PHASE 13 / hosting edge koruması (D-093).*
+1. PHASE 12.1 (D-141): `GET /b/[token]` yalnızca veritabanısız genel ara sayfadır (oturum yok). Açık giriş `POST /b/enter`: köken kontrolü → token biçim kontrolü (veritabanından önce) → `HMAC(token)` ile arama → `revoked_at IS NULL` ve başvuru silinme sürecinde değil → geçerli token başına 30/saat (D-150; geçersiz token sayaç satırı üretmez). *İstemci kimliğine (IP) dayalı sınır TD-04 çözülene kadar uygulanmaz — hosting edge koruması (D-093, PB-01).*
 2. Geçerliyse: **müşteri oturum cookie'si** set edilir ve `303 → APP_URL/portal/<bağlam>` (D-087, D-090). Token adres çubuğunda kalmaz (ilk URL tarayıcı geçmişinde kalabilir). Geçici yapılandırma/veritabanı hatası → `303 /link-unavailable`.
 3. Geçersizse: `303 → /link-invalid` — "Bu bağlantı geçerli değil. Lütfen CS Global ile iletişime geçin." Geçersiz/iptal/silinmiş arasında ayrım yapılmaz; token hata mesajında yer almaz.
-4. GET hiçbir başvuru verisini değiştirmez ve audit kaydı oluşturmaz (BR-105) — link önizleme botları için güvenli.
+4. GET/HEAD veritabanına erişmez, oturum açmaz, hiçbir veriyi değiştirmez ve audit kaydı oluşturmaz (BR-105) — cookie saklayan önizleme botları da müşteri verisine ulaşamaz (D-141). Ara sayfa ikinci faktör değildir: bağlantıyı ele geçiren ve bilinçli POST yapan istemci erişir (PB-04).
 
 **Müşteri oturumu (D-032, D-088 — PHASE 07'de uygulandı):** `__Host-cs_portal` cookie'si (yerel http'de `cs_portal`, `Secure` yok); değer = `base64url(payload).base64url(HMAC-SHA256(CUSTOMER_SESSION_SECRET, payloadPart))`; `payload = { v:1, typ:"cs-portal", aid: applicationId, tid: accessTokenId, ctx: bağlamKimliği, iat, exp: iat + 7 gün }`. `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`. **Uzatılmaz.**
 - Her müşteri isteğinde (`requireCustomerAccess(context)`): imza (timing-safe) → şema + `exp` (sunucuda) → URL bağlamı = `ctx` → DB'den `tid` ile token: `revoked_at IS NULL`, `application_id = aid`, başvurunun `deletion_requested_at IS NULL`. Bu sunucu tarafı doğrulama, iptal/yenileme/silmenin **anında** etkili olmasını sağlar (BR-104).
@@ -231,14 +231,16 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 | PB-05 | Antivirüs taraması olmadan PDF kabulünün **yazılı risk kabulü** ve personel cihaz önlemleri | THREAT_MODEL TM-16 |
 | PB-06 | Ortam izolasyonu (production DB/storage/secret'ların ayrılması). D-059 (tek veritabanı) nedeniyle gerçek müşteri verisi girmeden önce ayrı production veritabanı veya yazılı risk kabulü gerekir (TM-43). | DEPLOYMENT §1, §12.4 |
 | PB-07 | Tüm yetkilendirme negatif testleri ve güvenlik E2E senaryolarının geçmesi | TESTING_STRATEGY |
-| PB-08 | Yedek/geri yükleme yeteneğinin seçilen ücretsiz planda doğrulanması | DEPLOYMENT §7 |
+| PB-08 | Yedek/geri yükleme yeteneğinin seçilen ücretsiz planda doğrulanması — **OD-27 (2026-11-27):** özel yedek kapsam dışı; kapsam = veri kaybı kalan riskinin yazılı kabulü (RESIDUAL RISK / USER ACCEPTANCE REQUIRED) | DEPLOYMENT §7, OPERATIONS_RUNBOOK §2 |
 | PB-09 | Bağımlılık taraması temiz | |
 | PB-10 | Better Auth IP/UA saklamama ve kapalı uç noktaların testle doğrulanması — **PHASE 03'te testle doğrulandı** (IP header güvenilirliği hosting'de, TD-04) | TD-04 |
 | PB-11 | Gerçek şirket iletişim bilgileri ve hizmet/evrak kataloğu | Pending input |
-| PB-12 (Proposed, PHASE 12) | Geri yükleme sonrası silinmiş veri / iptal edilmiş erişimin geri dönmesinin önlenmesi (SEC-03, TM-60) | OPERATIONS_RUNBOOK §2.4 |
-| PB-13 (Proposed, PHASE 12) | En az yetkili B2 anahtarı (SEC-01) + gerçek sağlayıcı doğrulaması (Range, versiyon silme, listeleme/mutabakat, cap davranışı) | VERIFICATION_PLANS §1 |
+| PB-12 (**ACCEPTED** blocker — Product Owner, 2026-11-27) | Geri yükleme sonrası silinmiş veri / iptal edilmiş erişimin geri dönmesinin önlenmesi (SEC-03, TM-60) — **OD-27:** sağlayıcı düzeyi geri yükleme kalan riski; manuel değerlendirme (RESIDUAL RISK / USER ACCEPTANCE REQUIRED) | OPERATIONS_RUNBOOK §2 |
+| PB-13 (**ACCEPTED** blocker — Product Owner, 2026-11-27) | En az yetkili B2 anahtarı (SEC-01) + gerçek sağlayıcı doğrulaması (Range, versiyon silme, listeleme/mutabakat, cap davranışı) | VERIFICATION_PLANS §1 |
 
 > **PHASE 12 durumları (2026-11-27):** PB-01 OPEN; PB-02 BLOCKED BY EXTERNAL ACTION; PB-03 OPEN; PB-04, PB-05 RISK ACCEPTANCE REQUIRED; PB-06 OPEN; PB-07, PB-09, PB-10 VERIFIED — ACCEPTANCE PENDING; PB-08 PARTIALLY VERIFIED; PB-11 BLOCKED BY EXTERNAL ACTION; PB-12 OPEN; PB-13 BLOCKED BY EXTERNAL ACTION. Ayrıntı ve kanıt: [SECURITY_AUDIT.md](SECURITY_AUDIT.md) §5. Hiçbiri kapatılmadı.
+>
+> **PHASE 12.1 (2026-11-27):** PB-12 ve PB-13 kullanıcı tarafından production blocker olarak kabul edildi. Durum değişiklikleri: PB-04 — D-141 otomatik önizleme riskini azalttı, kalan risk (bearer link) açık; PB-12 OPEN (kilitleme + karantina raporu eklendi, başlamış silme tespit edilemez); PB-13 BLOCKED BY EXTERNAL ACTION (yeni anahtar + Checkpoint B). Diğerleri değişmedi; hiçbiri kapatılmadı ([SECURITY_AUDIT.md](SECURITY_AUDIT.md) §8).
 
 ## 12. PHASE 04 Güvenlik Notları
 - **Panel veri erişimi:** Genel Bakış yalnızca runtime rolüyle, salt okunur transaction'da, izinli kolonlarla okunur (telefon, e-posta, arama metni, token, iç not okunmaz — unit testle kolon listesi sabitlenmiş; integration ile DTO doğrulanmış). Silme talepli başvurular gösterilmez (BR-153). Hata mesajı Türkçe ve geneldir; log'da yalnızca hata türü/kodu.
@@ -266,7 +268,7 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 - **Açık:** müşteri tarafı token doğrulaması ve oturum invalidation'ı PHASE 07; şifreleme anahtarı rotasyon betiği yok (PHASE 13 öncesi); bearer link riskleri (TM-13…TM-15, PB-04) aynen açık.
 
 ## 15. PHASE 07 Güvenlik Notları (müşteri paneli)
-- **Giriş:** `GET /b/[token]` (D-087) — biçim kontrolü veritabanından önce; HMAC ile tek sorgu; yan etkisiz (veri/audit değişmez — integration + E2E); geçersiz/iptal/yenilenmiş/silinmekte ayrımsız `/link-invalid`; geçici hata `/link-unavailable`; yönlendirme `APP_URL`'den; token log/hata/yönlendirme hedefinde yok.
+- **Giriş (PHASE 12.1 güncel — D-141):** `GET /b/[token]` genel ara sayfa (veritabanı/oturum yok) + `POST /b/enter` açık giriş. Önceki `GET` girişi (D-087) için: biçim kontrolü veritabanından önce; HMAC ile tek sorgu; yan etkisiz (veri/audit değişmez — integration + E2E); geçersiz/iptal/yenilenmiş/silinmekte ayrımsız `/link-invalid`; geçici hata `/link-unavailable`; yönlendirme `APP_URL`'den; token log/hata/yönlendirme hedefinde yok.
 - **Oturum:** D-088/D-089 — imzalı, 7 gün sabit, kayan süre yok; ayrı `CUSTOMER_SESSION_SECRET` (diğer anahtarlardan farklı olması doğrulanır); her istekte token aktifliği ve başvuru silinme durumu veritabanından → iptal/yenileme/silme tüm oturumları bir sonraki istekte kapatır (farklı tarayıcıdaki oturum dahil — E2E).
 - **Çoklu sekme (TM-40):** D-090 — URL bağlamı = cookie bağlamı; başka başvuru açıldığında eski sekme veri göstermez (yenileme, geri/ileri, sekmeye dönüş, eşzamanlı açılış — E2E). Mutasyon tarafı D-095 sözleşmesiyle PHASE 08/09'da.
 - **Personel/müşteri ayrımı:** müşteri yolları personel oturumunu okumaz; müşteri cookie'si personel paneline erişim vermez (E2E); ESLint sınırı (D-091) iç not/audit/token/auth modüllerini engeller.

@@ -425,6 +425,88 @@ describe.runIf(isIsolatedTestDatabase())(`evrak dosyaları — ${ISOLATION_SKIP_
     expect(file!.storage_version_id).not.toBeNull();
   });
 
+  async function attemptOf(requirementId: string) {
+    return (
+      await owner.query<{ state: string; outcome: string; version_id: string | null }>(
+        `SELECT w.state, w.outcome, w.version_id FROM storage_write_attempts w
+           JOIN application_document_files f ON f.id = w.file_id
+          WHERE f.requirement_id = $1 ORDER BY w.admitted_at DESC LIMIT 1`,
+        [requirementId],
+      )
+    ).rows[0]!;
+  }
+
+  it("REVIEW-06 P13: belirsiz yazım — gözlenen versiyon SHA-256 ile birebir doğrulanırsa CONFIRMED (OBSERVED)", async () => {
+    const app = await seed();
+    let gets = 0;
+    const lost: StorageAdapter = {
+      ...storage,
+      putObject: async (input) => {
+        await storage.putObject(input);
+        throw new StorageError("AMBIGUOUS", "test");
+      },
+      getObject: async (...args) => {
+        gets += 1;
+        return storage.getObject(...args);
+      },
+    };
+    expect(await upload(staff(), app.requirementId, pdf, { storage: lost })).toMatchObject({
+      ok: true,
+    });
+    expect(gets).toBe(1); // yalnızca tek sınırlı bütünlük okuması
+    expect(await attemptOf(app.requirementId)).toMatchObject({
+      state: "CONFIRMED",
+      outcome: "OBSERVED",
+    });
+  });
+
+  it("REVIEW-06 P10: belirsiz yazım — aynı boyutta FARKLI içerik gözlenirse aktive edilmez, UNKNOWN korunur", async () => {
+    const app = await seed();
+    const lost: StorageAdapter = {
+      ...storage,
+      putObject: async (input) => {
+        const other = Buffer.from(input.body as Uint8Array);
+        other[other.length - 2] = other[other.length - 2]! ^ 0xff; // aynı boyut, farklı içerik
+        const md5Hex = createHash("md5").update(other).digest("hex");
+        await storage.putObject({ ...input, body: other, md5Hex });
+        throw new StorageError("AMBIGUOUS", "test");
+      },
+    };
+    expect(await upload(staff(), app.requirementId, pdf, { storage: lost })).toEqual({
+      ok: false,
+      code: "STORAGE_UNAVAILABLE",
+    });
+    expect(await attemptOf(app.requirementId)).toMatchObject({
+      state: "UNKNOWN",
+      outcome: "RESPONSE_LOST",
+      version_id: null,
+    });
+    expect((await filesOf(app.requirementId)).map((f) => f.status)).toEqual(["EXPIRED"]);
+  });
+
+  it("REVIEW-06 P12: belirsiz yazım — bütünlük okuması yapılamaz (sağlayıcı hatası / kimlik doğrulanamaz) → UNKNOWN", async () => {
+    for (const failure of ["unavailable", "version-missing"] as const) {
+      const app = await seed();
+      const lost: StorageAdapter = {
+        ...storage,
+        putObject: async (input) => {
+          await storage.putObject(input);
+          throw new StorageError("AMBIGUOUS", "test");
+        },
+        getObject: async (key, versionId, options) => {
+          if (failure === "unavailable") throw new StorageError("UNAVAILABLE", "test");
+          const object = await storage.getObject(key, versionId, options);
+          return { ...object, versionId: null };
+        },
+      };
+      expect(await upload(staff(), app.requirementId, pdf, { storage: lost })).toEqual({
+        ok: false,
+        code: "STORAGE_UNAVAILABLE",
+      });
+      expect(await attemptOf(app.requirementId), failure).toMatchObject({ state: "UNKNOWN" });
+    }
+  });
+
   it("belirsiz yazma + nesne yok → EXPIRED; önceki aktif korunur", async () => {
     const app = await seed();
     await upload(staff(), app.requirementId);

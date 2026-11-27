@@ -6,6 +6,7 @@ import { devices, type Browser, type Locator, type Page, type TestInfo } from "@
 import { connect, resolveDatabaseUrls } from "../../scripts/db/lib";
 import { fixtures } from "../support/pdf-fixtures";
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
+import { openCustomerLink } from "./customer-link";
 import { expect, test } from "./fixtures";
 
 /**
@@ -158,11 +159,13 @@ test.describe("ana senaryo — 19 adım (TESTING_STRATEGY §5.1)", () => {
     await expect(page).toHaveURL(/\/dashboard\/applications\/[0-9a-f-]{36}$/);
     const applicationId = page.url().split("/").at(-1)!;
 
-    // 8. Müşteri (mobil, ayrı bağlam) bağlantıyı açar → doğrudan portal; adres çubuğunda token yok.
+    // 8. Müşteri (mobil, ayrı bağlam) bağlantıyı açar → genel ara sayfa (D-141) → "Başvurumu Görüntüle"
+    // → portal; adres çubuğunda token yok.
     const customerCtx = await customerContext(browser, testInfo);
     const customer = await customerCtx.newPage();
     const token = link.split("/b/")[1]!;
-    await customer.goto(new URL(link).pathname);
+    expect(new URL(link).pathname).toBe(`/b/${token}`);
+    await openCustomerLink(customer, token);
     await expect(customer).toHaveURL(/\/portal\/[A-Za-z0-9_-]{22}$/);
     expect(customer.url()).not.toContain(token);
     await expect(customer.getByRole("heading", { level: 1 })).toContainText("Ece Kaya");
@@ -232,7 +235,7 @@ test.describe("ana senaryo — 19 adım (TESTING_STRATEGY §5.1)", () => {
     await shot(page, testInfo, "staff-completed");
 
     // 19. Müşteri güncel süreci salt okunur görür; bağlantı hâlâ geçerli.
-    await customer.goto(new URL(link).pathname);
+    await openCustomerLink(customer, token);
     await expect(customer).toHaveURL(/\/portal\/[A-Za-z0-9_-]{22}$/);
     await expect(customer.getByTestId("portal-status-message")).toContainText(
       "CS Global danışmanlık süreciniz tamamlandı.",

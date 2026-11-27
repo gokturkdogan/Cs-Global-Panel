@@ -291,11 +291,7 @@ describe("müşteri yolu statik güvenceleri", () => {
       const path = join(dir, name);
       return statSync(path).isDirectory() ? files(path) : [path];
     });
-  const customerFiles = [
-    ...files("src/features/customer-portal"),
-    ...files("src/app/(customer)"),
-    ...files("src/app/b"),
-  ];
+  const customerFiles = [...files("src/features/customer-portal"), ...files("src/app/(customer)")];
 
   it("personel kimlik doğrulaması, staff action/servisleri, iç not/audit tabloları kullanılmaz", () => {
     for (const file of customerFiles) {
@@ -306,14 +302,36 @@ describe("müşteri yolu statik güvenceleri", () => {
     }
   });
 
-  it("giriş rotası token'ı loglamaz; yönlendirme APP_URL'den, 303; sayfa render etmez", () => {
-    const source = readFileSync("src/app/b/[token]/route.ts", "utf8");
+  it("giriş rotası (D-141 POST /b/enter) token'ı loglamaz; yönlendirme APP_URL'den, 303; kimlik/IP başlığı okumaz; GET yok", () => {
+    const source = readFileSync("src/app/(customer)/b/enter/route.ts", "utf8");
     for (const call of source.matchAll(/console\.\w+\(([^;]*)\);/g))
-      expect(call[1]).not.toMatch(/token\b|params|request\.url/);
+      expect(call[1]).not.toMatch(/token\b|params|request\.url|body/);
     expect(source).toContain("new URL(appUrl).origin");
     expect(source).toContain("303");
-    expect(source).not.toMatch(/request\.headers|x-forwarded/i);
+    expect(source).toContain("isSameOriginRequest(request)");
+    // PHASE 12.1: yalnızca Content-Type/Content-Length okunur; IP/UA/forwarded kimlik başlıkları yok.
+    expect(source).not.toMatch(
+      /x-forwarded-for|x-real-ip|user-agent|cf-connecting-ip|request\.ip/i,
+    );
     expect(source).not.toMatch(/\.insert\(|\.update\(|\.delete\(|writeAuditLog/);
+    expect(source).not.toMatch(/export async function (GET|HEAD)/);
+    expect(source).toMatch(/export async function POST/);
+  });
+
+  it("ara sayfa (D-141 GET /b/[token]) veritabanına, oturuma, cookie'ye dokunmaz; otomatik gönderim yok", () => {
+    const page = readFileSync("src/app/(customer)/b/[token]/page.tsx", "utf8");
+    expect(page).not.toMatch(
+      /getDb|resolveAccessToken|cookies\(|createSessionValue|requireCustomerAccess/,
+    );
+    const form = readFileSync(
+      "src/features/customer-portal/components/link-entry-form.tsx",
+      "utf8",
+    );
+    expect(form).toContain('method="post"');
+    expect(form).toContain('action="/b/enter"');
+    expect(form).not.toMatch(
+      /\.submit\(|requestSubmit|localStorage|sessionStorage|indexedDB|fetch\(/,
+    );
   });
 
   it("portal DTO'sunda telefon, e-posta, token, storage anahtarı/versiyonu, SHA-256, yükleyen bilgisi yok", () => {

@@ -15,6 +15,8 @@ const expectations: [FixtureName, string][] = [
   ["openActionDestination", "OK"],
   ["compressedBenign", "OK"],
   ["externalLinkAndForm", "OK"],
+  ["extremeTallPage", "OK"],
+  ["veryWidePage", "OK"],
   ["javascriptOpenAction", "ACTIVE_CONTENT"],
   ["hexEscapedJavascript", "ACTIVE_CONTENT"],
   ["compressedJavascript", "ACTIVE_CONTENT"],

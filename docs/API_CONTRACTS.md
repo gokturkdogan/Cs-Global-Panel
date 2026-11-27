@@ -163,14 +163,12 @@ Better Auth HTTP route'u yoktur; tüm `/api/auth/*` istekleri 404 döner. Person
 - Yanıt başlıkları: `Accept-Ranges: bytes`, `ETag` (opak güçlü doğrulayıcı), `Content-Length`, `Cache-Control: private, no-store, max-age=0`, `nosniff`, `no-referrer`, CORP `same-origin`; CORS başlığı yok.
 - `HEAD`: aynı yetki ve başlıklar, gövde yok; sağlayıcıya istek ve audit yok.
 
-### 4.4 `GET /b/[token]`
-| Durum | Yanıt |
-|---|---|
-| Geçerli | `303 → APP_URL/portal/<bağlam>` + `Set-Cookie: __Host-cs_portal` (yerel http: `cs_portal`) |
-| Geçersiz biçim / bilinmeyen / iptal / yenilenmiş / silinmekte | `303 → /link-invalid` (ayrım yok; mevcut oturuma dokunulmaz) |
-| Yapılandırma / veritabanı hatası | `303 → /link-unavailable` |
-| Rate limit | **Uygulanmadı** — TD-04 (PHASE 13); `429` yok (D-093) |
-Her yanıt: `Cache-Control: private, no-store, max-age=0`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow, noarchive`. Hiçbir veri değiştirilmez, audit yazılmaz (BR-105). **PHASE 07'de uygulandı (D-087).**
+### 4.4 Müşteri bağlantısı girişi — `GET /b/[token]` + `POST /b/enter` (PHASE 12.1, D-141; önceki D-087 akışının yerine)
+
+- `GET /b/[token]` (sayfa): **veritabanına erişmez**, oturum/cookie oluşturmaz veya değiştirmez. Kanonik biçimdeki her token için aynı genel ara sayfa (logo, "Başvuru Takip Paneli", açıklama, "Başvurumu Görüntüle"); geçerli/geçersiz ayrımı yok. Biçimsiz girdi → `/link-invalid` (veritabanısız). Başlıklar: `no-store`, `noindex`, `Referrer-Policy: strict-origin` (D-146 — Referer en fazla köken). HEAD/prefetch/RSC istekleri de oturum açmaz.
+- `POST /b/enter` (route handler; GET/HEAD tanımsız → 405): gövde `application/x-www-form-urlencoded`, yalnızca `token` alanı, ≤ 512 bayt. Sıra: köken (proxy + route; yabancı/eksik/`null` → 403) → gövde biçimi → HMAC arama + iptal/silme kontrolü → geçerli token başına sınır (30/saat, D-150) → imzalı müşteri oturumu cookie'si (`__Host-` https, HttpOnly, SameSite=Lax, 7 gün) → **303** `/portal/<bağlam>` (APP_URL'den). Geçersiz/iptal/yenilenmiş/silinmekte → 303 `/link-invalid` (cookie yok); sınır aşımı veya geçici hata → 303 `/link-unavailable`. Yanıt: `no-store`, `no-referrer`, `noindex`.
+- Tek bağlam (D-090): aynı başvuru + aynı token → bağlam korunur; başka bağlantının açık girişi yeni bağlam açar (eski sekme "güncel değil"). Yalnızca GET başka bağlamı etkinleştirmez.
+- Hiçbir başvuru verisi değiştirilmez, audit yazılmaz (BR-105). Token URL'ye (POST), log'a, hata mesajına, yönlendirme hedefine yazılmaz. **PHASE 12.1'de uygulandı.**
 
 ### 4.4a Müşteri sayfaları (PHASE 07)
 | Yol | Davranış |

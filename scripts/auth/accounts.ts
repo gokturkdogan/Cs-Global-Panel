@@ -5,7 +5,8 @@
  *   Auth'un `verify` mantığıyla aynı formatı doğrular. Düz şifre hiçbir yere yazılmaz/loglanmaz.
  * - Mevcut hesapların üzerine yazılmaz. Hesap türü başına tek hesap veritabanı kısıtıyla garanti
  *   edilir (`users_one_account_per_role`); eşzamanlı çalıştırmada kısıt ihlali tüm işlemi geri alır.
- * - Uygulamanın en az yetkili `cs_app_runtime` rolüyle çalışır (sahip rol gerekmez).
+ * - PHASE 12.1 (D-144): yalnızca SAHİP (owner/operatör) bağlantısıyla çalışır. Çalışma zamanı rolünün
+ *   `users`/`accounts` yazma yetkisi yoktur (migration 0011) → uygulama hesabı oluşturamaz/değiştiremez.
  */
 import { generateId } from "better-auth";
 import { hashPassword, verifyPassword } from "better-auth/crypto";

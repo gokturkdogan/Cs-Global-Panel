@@ -21,8 +21,9 @@ const LABEL: Record<StaffRole, string> = { admin: "ADMIN", employee: "EMPLOYEE" 
 await runCli("auth:bootstrap", async () => {
   assertInteractiveTerminal();
   loadLocalEnv();
-  const { runtime } = resolveDatabaseUrls();
-  const client = await connect(runtime, "cs-global-auth-bootstrap");
+  // D-144: hesap oluşturma yalnızca operatör (sahip) rolüyle; çalışma zamanı rolünün yazma yetkisi yok.
+  const { owner } = resolveDatabaseUrls();
+  const client = await connect(owner, "cs-global-auth-bootstrap");
   try {
     await assertAccountModelReady(client);
     const existing = await listAccounts(client);

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { MAX_RANGE_CHUNK_BYTES, PDF_VIEWER_CHUNK_BYTES } from "@/config/constants";
 import { messages } from "@/lib/messages";
 
+import { computeCanvasSize, MAX_CANVAS_PIXELS } from "./canvas-size";
 import { createRangeFetcher, createWindowedReader, RangeFetchError } from "./range-fetch";
 
 /**
@@ -25,8 +26,6 @@ const WINDOWING = {
   window: MAX_RANGE_CHUNK_BYTES,
   maxChunk: MAX_RANGE_CHUNK_BYTES,
 } as const;
-/** Tuval başına en fazla piksel (bellek sınırı; yüksek DPI ekranlarda çıktı ölçeği düşürülür). */
-const MAX_CANVAS_PIXELS = 4096 * 4096;
 
 type Status = "loading" | "ready" | "error";
 
@@ -50,32 +49,49 @@ export default function PdfViewer({ url, sizeBytes, downloadUrl, title }: Props)
   const [pageInput, setPageInput] = useState("");
 
   // Belge yükleme: aralık taşıyıcısı + yerel worker; kapanışta her şey iptal edilir.
+  // PHASE 12.1 (REVIEW-02): her kaynak OLUŞTURULDUĞU anda serbest bırakma listesine girer (worker, ilk
+  // aralık isteğinden ÖNCE). Hata, iptal, kapanış ve eski (stale) tamamlanma yollarının hepsi aynı,
+  // bir kez çalışan `release`'i kullanır. pdf.js dışarıdan verilen worker'ın sahibi değildir: yükleme
+  // görevi onu yok etmez, `PDFWorker.destroy()` port olarak verilen Worker'ı sonlandırmaz → açık
+  // `terminate` gerekir (pdfjs-dist 6.5 `getDocument` / `PDFWorker.destroy`).
   useEffect(() => {
     const controller = new AbortController();
     let disposed = false;
-    let cleanup: (() => void) | null = null;
+    let released = false;
+    let worker: Worker | null = null;
+    let pdfWorker: { destroy(): void } | null = null;
+    let task: { destroy(): Promise<void> } | null = null;
+    let reader: { clear(): void } | null = null;
+    const release = () => {
+      if (released) return;
+      released = true;
+      controller.abort();
+      reader?.clear();
+      if (task !== null) void task.destroy().catch(() => undefined);
+      pdfWorker?.destroy();
+      worker?.terminate();
+    };
 
     (async () => {
       const pdfjs = await import("pdfjs-dist");
       if (disposed) return;
-      const worker = new Worker(new URL("./pdf.worker.ts", import.meta.url), { type: "module" });
-      const pdfWorker = pdfjs.PDFWorker.create({ port: worker });
+      worker = new Worker(new URL("./pdf.worker.ts", import.meta.url), { type: "module" });
+      const created = pdfjs.PDFWorker.create({ port: worker });
+      pdfWorker = created;
       const fetchRange = createRangeFetcher(url, sizeBytes, controller.signal);
       // Küçük dosya (≤ 1 MiB): tek istekte tamamı (sağlayıcı işlem sayısı artmaz); büyük dosya: ilk parça.
       const initialEnd =
         (sizeBytes <= MAX_RANGE_CHUNK_BYTES ? sizeBytes : PDF_VIEWER_CHUNK_BYTES) - 1;
       const initial = await fetchRange(0, initialEnd);
-      if (disposed) {
-        worker.terminate();
-        return;
-      }
+      if (disposed) return;
       const transport = new pdfjs.PDFDataRangeTransport(sizeBytes, initial);
-      const reader = createWindowedReader(fetchRange, sizeBytes, WINDOWING);
+      const windowed = createWindowedReader(fetchRange, sizeBytes, WINDOWING);
+      reader = windowed;
       transport.requestDataRange = (begin: number, end: number) => {
-        reader
+        windowed
           .read(begin, end)
           .then((bytes) => {
-            if (!disposed) transport.onDataRange(begin, bytes);
+            if (!released) transport.onDataRange(begin, bytes);
           })
           .catch(() => {
             if (!disposed) {
@@ -84,9 +100,9 @@ export default function PdfViewer({ url, sizeBytes, downloadUrl, title }: Props)
             }
           });
       };
-      const task = pdfjs.getDocument({
+      const loading = pdfjs.getDocument({
         range: transport,
-        worker: pdfWorker,
+        worker: created,
         rangeChunkSize: PDF_VIEWER_CHUNK_BYTES,
         disableAutoFetch: true,
         disableStream: true,
@@ -97,22 +113,15 @@ export default function PdfViewer({ url, sizeBytes, downloadUrl, title }: Props)
         maxImageSize: MAX_CANVAS_PIXELS,
         canvasMaxAreaInBytes: MAX_CANVAS_PIXELS * 4,
       });
-      cleanup = () => {
-        reader.clear();
-        void task.destroy();
-        pdfWorker.destroy();
-        worker.terminate();
-      };
-      if (disposed) {
-        cleanup();
-        return;
-      }
-      const doc = await task.promise;
+      task = loading;
+      const doc = await loading.promise;
       if (disposed) return;
       docRef.current = doc;
       setPageCount(doc.numPages);
       setStatus("ready");
     })().catch((error: unknown) => {
+      // Yükleme başarısız: görüntüleyici bu belgeyle devam edemez → kaynaklar hemen serbest.
+      release();
       if (disposed) return;
       setErrorMessage(
         error instanceof RangeFetchError && error.status === 429
@@ -126,10 +135,9 @@ export default function PdfViewer({ url, sizeBytes, downloadUrl, title }: Props)
 
     return () => {
       disposed = true;
-      controller.abort();
       renderRef.current?.cancel();
       docRef.current = null;
-      cleanup?.();
+      release();
     };
   }, [url, sizeBytes]);
 
@@ -150,11 +158,16 @@ export default function PdfViewer({ url, sizeBytes, downloadUrl, title }: Props)
       const base = pdfPage.getViewport({ scale: 1 });
       const fit = Math.max(0.1, (frame.clientWidth - 16) / base.width);
       const viewport = pdfPage.getViewport({ scale: fit * ZOOM_LEVELS[zoomIndex]! });
-      const wanted = Math.min(window.devicePixelRatio || 1, 3);
-      const area = viewport.width * viewport.height;
-      const ratio = Math.max(0.25, Math.min(wanted, Math.sqrt(MAX_CANVAS_PIXELS / area)));
-      canvas.width = Math.floor(viewport.width * ratio);
-      canvas.height = Math.floor(viewport.height * ratio);
+      // REVIEW-03: tuval belleği ayrılmadan önce kesin boyut/piksel sınırı (taban ölçek yok).
+      const size = computeCanvasSize(viewport.width, viewport.height, window.devicePixelRatio);
+      if (size === null) {
+        setErrorMessage(messages.viewer.renderFailed);
+        setStatus("error");
+        return;
+      }
+      const { ratio } = size;
+      canvas.width = size.width;
+      canvas.height = size.height;
       canvas.style.width = `${Math.floor(viewport.width)}px`;
       canvas.style.height = `${Math.floor(viewport.height)}px`;
       const task = pdfPage.render({

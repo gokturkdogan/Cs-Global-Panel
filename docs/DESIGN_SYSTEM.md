@@ -281,3 +281,9 @@ Doğrulama: 320, 360, 375, 390, 414, 430, 768, 1024, 1440 px'te uzun boşluksuz 
 ## 17. PHASE 11.1 Ekleri
 - **Görüntüleyici:** "Sayfa" sayı alanı + "Git" (ilk/son sınırına kırpılır; 3+ sayfalı belgelerde); klavye: ←/PageUp önceki, →/PageDown sonraki, Home/End ilk/son sayfa (görüntüleyici açıkken pencere düzeyinde; metin alanında yazarken devre dışı); ekran okuyucu ipucu (`aria-describedby`).
 - **Başvuru detayı — evrak statü özeti** (`RequirementSummary`): "N evrak" + sıfır olmayan statü rozetleri ve sayıları; erişilebilir tek cümlelik özet etiketi; ek sorgu yok.
+
+## PHASE 12.1 — Müşteri bağlantısı ara sayfası (D-141)
+
+- `PortalShell` içinde (CS Global metin logosu, gizlilik altbilgisi "Bu bağlantı size özeldir…"); kart: ikon (ShieldCheck), `h1` "Başvuru Takip Paneli", açıklama "Başvurunuzun güncel durumunu takip etmek ve gerekli belgelerinizi yüklemek için devam edin.", birincil düğme "Başvurumu Görüntüle" (`lg`, ≥ 44 px, mobilde tam genişlik).
+- Müşteri bilgisi yok; yeni logo/çerçeve yok. Bekleme durumu gerçek gezinmeye bağlı ("Açılıyor…", `aria-disabled`, ikinci tıklama yeni istek göndermez); geri tuşuyla dönüşte düğme yeniden etkin.
+- 320 px'de taşma yok; klavye (Tab + Enter) ile gönderilir; JavaScript olmadan da çalışır (yerel form POST).

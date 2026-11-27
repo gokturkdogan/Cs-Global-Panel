@@ -24,7 +24,6 @@
     "test:integration:isolated": "node scripts/test/isolated-db.ts pnpm exec vitest run --config vitest.integration.config.ts",
     "perf:isolated": "node scripts/test/isolated-db.ts pnpm exec playwright test -c playwright.perf.config.ts",
     "perf:db:isolated": "node scripts/test/isolated-db.ts pnpm exec vitest run --config vitest.perf.config.ts",
-    "test:restore-drill": "node scripts/test/restore-drill.ts",
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test",
     "check:bundle": "node scripts/check-client-bundle.mjs",
     "audit": "pnpm audit --audit-level=high",
@@ -41,6 +40,7 @@
     "env:b2": "node scripts/env/configure-b2.ts",
     "storage:verify": "node scripts/storage/verify.ts",
     "storage:inspect": "node scripts/storage/inspect.ts",
+    "ops:rate-limit-cleanup": "node scripts/ops/rate-limit-cleanup.ts",
     "storage:reconcile": "node scripts/storage/reconcile.ts",
     "storage:cleanup": "node scripts/storage/cleanup.ts"
   },

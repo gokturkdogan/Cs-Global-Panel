@@ -5,6 +5,7 @@ import type { Page } from "@playwright/test";
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { fixtures } from "../support/pdf-fixtures";
 import { seedApplication } from "../support/portal-seed";
+import { openCustomerLink } from "./customer-link";
 import { uploadAsCustomer } from "./customer-upload";
 import { expect, sessionsAvailable, test } from "./fixtures";
 
@@ -170,7 +171,7 @@ test.describe("PHASE 12 erişilebilirlik (izole)", () => {
     ).toBe(true);
     await page.keyboard.press("Escape");
 
-    await page.goto(`/b/${app.token}`);
+    await openCustomerLink(page, app.token);
     await check("portal");
     await page.setViewportSize({ width: 320, height: 720 });
     await page.reload();

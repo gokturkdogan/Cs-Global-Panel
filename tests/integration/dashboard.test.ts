@@ -35,12 +35,13 @@ describe("dashboard genel bakış sorguları", () => {
   beforeAll(async () => {
     client = await connectRuntime();
     const db = drizzle({ client, schema });
+    // FK hedefi: mevcut hesap (salt okunur) ya da hesap yoksa (yalnızca izole veritabanı) geçici hesap.
+    // PHASE 12.1 (D-144): geçici hesap sahip rolüyle ve transaction'dan ÖNCE oluşturulur (REPEATABLE READ
+    // anlık görüntüsü sonradan commit edilen satırı görmez); global teardown siler.
+    const userId = await createUser(client, newCreated());
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
     before = await queryDashboardOverview(db);
 
-    // FK hedefi: mevcut hesap (salt okunur) ya da hesap yoksa bu transaction'da geçici hesap
-    // (geri alınır). `createUser` yalnızca hesap yokken ekler.
-    const userId = await createUser(client, newCreated());
     const { serviceId } = await createService(client, newCreated(), userId);
 
     // Benzersiz, sentetik başvuru numaraları (2097 yılı — gerçek numaralarla çakışmaz).

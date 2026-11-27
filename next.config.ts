@@ -53,6 +53,13 @@ const nextConfig: NextConfig = {
       { source: "/:path*", headers: securityHeaders },
       // Aynı anahtar için sonraki kayıt öncekini geçersiz kılar.
       ...CUSTOMER_PATHS.map((source) => ({ source, headers: customerHeaders })),
+      // D-141/D-146: bağlantı ara sayfası — Referer en fazla köken (yol/token asla); `no-referrer` form
+      // POST'unda `Origin: null` ürettiği için köken kontrolü meşru girişi reddederdi. `/b/enter` yanıtı
+      // kendi `no-referrer` başlığını ayarlar; portal sayfaları `no-referrer` kalır.
+      {
+        source: "/b/:token([A-Za-z0-9_-]{43})",
+        headers: [{ key: "Referrer-Policy", value: "strict-origin" }],
+      },
     ];
   },
 };

@@ -12,78 +12,38 @@
 - Şüphede dur: kanıt yoksa silme, kalıcı değişiklik veya "zorla tamamlama" yapılmaz (fail-closed).
 - Olaylar `INCIDENT-YYYYMMDD-N` kimliğiyle yerel olay kaydına yazılır (kişisel veri içermez; başvuru numarası yeterli).
 
-## 2. Yedekleme ve geri yükleme
+## 2. Veri kaybı ve sağlayıcı düzeyi geri yükleme (OD-27 — uygulamaya özel yedek YOK)
 
-### 2.1 Kapsam
+**Kapsam kararı (OD-27, 2026-11-27):** uygulama özel yedekleme, geri yükleme veya felaket kurtarma altyapısı sunmaz. Neon PostgreSQL ve Backblaze B2 birincil veri kaynaklarıdır. PHASE 12/12.1'de eklenen geri yükleme tatbikatı (`test:restore-drill`), geri yükleme sonrası kilitleme/rapor (`ops:post-restore`) ve VersionId eşleme planı kaldırıldı (tarihçe: CHANGELOG, SECURITY_AUDIT §9).
 
-| Bileşen | Kaynak | Yedek yöntemi | Not |
-|---|---|---|---|
-| Şema, tüm tablolar (başvuru, evrak, dosya metadata'sı, token hash + şifreli kopya, yorum, iç not, inceleme, statü geçmişi, audit, yazım girişimleri, silme işlemleri, kota durumu) | Neon `neondb` | `pg_dump -Fc` (owner URL) | Rol/şifre dump'a girmez; `db:init` ile yeniden kurulur |
-| Fiziksel PDF versiyonları | B2 `cs-global-documents` | Ayrı hesap/bucket'a kopya (karar bekliyor) | B2 versiyon geçmişi **bağımsız yedek değildir** (aynı anahtar/hesap ele geçirilirse etkilenir) |
-| Ortam değişkenleri / anahtarlar | Hosting env + yetkili kişinin parola yöneticisi | Şifreli, çevrimdışı kopya | `ACCESS_TOKEN_*` kaybı = mevcut bağlantılar kullanılamaz (§3.4) |
-| Operasyon belgeleri | Repo `docs/` | Git | — |
+**Kalan risk (kullanıcı kabulü gerekir — PB-08, PB-12):**
+- Veritabanında veya depolamada geri dönüşü olmayan veri kaybında uygulamaya özel kurtarma garantisi **yoktur**.
+- Sağlayıcıların yerleşik özellikleri (ör. Neon'un sınırlı geri yükleme penceresi; B2 bucket versiyon geçmişi) sağlayıcı politikasına tabidir, uygulama tarafından yönetilmez ve bağımsız/garantili yedek değildir. B2 versiyon geçmişi aynı bucket'tadır; uygulamanın versiyona özgü silmesi geri getirilemez.
+- Sağlayıcı düzeyinde eski bir noktaya dönülürse, o noktadan sonra yapılan bağlantı iptali/yenilemesi, oturum kapatma ve kalıcı başvuru silmeleri geri gelebilir (PHASE 12 bulgusu SEC-03); sağlayıcının farklı bir bucket'a kopyası VersionId'leri değiştirir.
 
-**Neon Free (resmî plan sayfası, 2026-11-27):** "Instant restore — up to 6 hours" ve "History window — 6 hours, up to 1 GB of changes"; Free'de "1 manual snapshot", "scheduled backups are not available on the Free plan"; dışa aktarma `pg_dump` ile (compute askıdaysa `pg_dump` dahil bağlantılar SQLSTATE 53000 ile başarısız olur). → **6 saatten eski veri kaybı için tek koruma, düzenli `pg_dump`'tır.** Sıklık ve saklama süresi Product Owner kararıdır (önerilmez, belirlenmez).
-
-### 2.2 Veritabanı yedeği (yetkili kişi, kendi makinesinde/şifreli depoda)
-
-1. `pnpm db:verify` → TLS ve migration sayısı.
-2. `pg_dump --format=custom --no-owner --dbname "$DATABASE_URL_UNPOOLED" --file cs-global-YYYYMMDD.dump` (değişken değeri ekrana yazdırılmaz).
-3. Dosyayı hemen şifreleyin (ör. parola yöneticisi/age/7z AES); şifresiz kopyayı silin.
-4. Kayıt: dosya adı, boyut, SHA-256, migration sayısı, audit satır sayısı ve son audit id (parmak izi).
-
-### 2.3 Geri yükleme (temiz hedefe)
-
-1. Hedef: **yeni** boş Neon projesi/branch veya izole PostgreSQL (mevcut veritabanının üzerine yazılmaz).
-2. `DATABASE_URL*` hedefi gösterecek şekilde `pnpm db:init` (yalnızca runtime rolü + zaman aşımları).
-3. `pg_restore --no-owner --exit-on-error --dbname "$HEDEF_OWNER_URL" cs-global-YYYYMMDD.dump`.
-4. `pnpm db:verify` → 21 tablo, 11 migration, runtime yetkileri.
-5. Parmak izi karşılaştırması (yedek kaydıyla).
-6. **Müşteri erişimini açmadan önce §2.4 ve §2.5 tamamlanır.**
-
-### 2.4 Silinmiş/iptal edilmiş verinin geri dönüşünün önlenmesi (SEC-03, PB-12)
-
-Yedek, yedekten **sonra** yapılan iptal/silme işlemlerini içermez (tatbikatta kanıtlandı). Bu nedenle:
-
-1. Geri yükleme noktasından sonraki dönem için kalıcı silme ve bağlantı iptali kayıtları belirlenir. Kaynaklar: mümkünse olay anındaki audit dışa aktarımı (`APPLICATION_DELETION_REQUESTED`, `APPLICATION_DELETED`, `ACCESS_LINK_REVOKED`, `ACCESS_LINK_ROTATED`), personel olay kaydı.
-2. **Varsayılan güvenli adım:** müşteri erişimi açılmadan önce tüm aktif bağlantılar iptal edilir. Owner ile, tek transaction, `revoke_reason = 'REVOKED'`, `revoked_by_user_id` = işlemi yapan personel. Müşterilere personel yeni bağlantı gönderir ("Bağlantıyı Yenile"). Bu, geri dönen tüm iptal edilmiş token'ları etkisiz kılar.
-3. Yedekten sonra kalıcı silinmiş başvurular, uygulamanın normal kalıcı silme akışıyla **yeniden** silinir (gerekçe: "geri yükleme sonrası yeniden uygulama", olay kimliği). Bu akış B2'de nesne bulamazsa yokluk kanıtıyla tamamlanır.
-4. Doğrulama tamamlanana kadar uygulama yalnızca personele açılır.
-5. Otomatik koruma yoktur (ör. veritabanı dışında tutulan silme defteri) → PB-12 kararı.
-
-### 2.5 Nesne deposu kurtarma ve VersionId eşlemesi
-
-- Başka bir bucket'a/sağlayıcıya kopyalanan nesnelerin `VersionId`'leri **değişir** (tatbikat: 3/3 değişti, veritabanındaki kimlikler yeni depoda 0/3 çözüldü). Aynı anahtar korunur.
-- Eşleme: her dosya kaydı için yeni depodaki ilgili anahtarın versiyonları listelenir. Gövdenin SHA-256'sı `application_document_files.sha256` ile karşılaştırılır. Tek eşleşen versiyon `storage_version_id` olarak güncellenir (owner, tek transaction, değişiklik listesi kaydedilir).
-- Eşleşme yoksa veya birden fazla eşleşme varsa kayıt değiştirilmez; dosya "bütünlük hatası" (502) verir ve olay açılır.
-- Veritabanı ve nesne yedekleri farklı zamanlardaysa: veritabanında olup nesnesi olmayan kayıt → bütünlük hatası (müşteriye 503/502; veri kaybı olarak raporlanır); nesnesi olup kaydı olmayan nesne → `storage:reconcile` raporunda "kayıt dışı" (silinmez, kotada sayılır).
-
-### 2.6 Sentetik tatbikat (`pnpm test:restore-drill`, 2026-11-27)
-
-Geçici iki Docker PostgreSQL + yerel depolama, sentetik veri (20 başvuru, 3 gerçek nesne):
-- Şema envanteri birebir: 21 tablo, 309 kısıt, 73 indeks, 15 trigger, runtime yetki hash'i aynı, 11 migration; 21 tablo veri parmak izinde fark yok.
-- Süreler (küçük veri, yerel): `pg_dump` 102 ms, `pg_restore` 155 ms, hedef hazırlığı toplam ~1,1 sn. Gerçek RTO; veri boyutu, ağ ve Neon proje oluşturma süresine bağlıdır (**ölçülmedi**).
-- Hedefte runtime: audit UPDATE/DELETE reddedildi (42501), kanıtsız başvuru silme reddedildi (55000), okuma/yazma çalışıyor.
-- Resurrection: yedekten sonra iptal edilen token geri yüklemede yeniden etkin (→ §2.4).
-- Nesne kopyası: SHA-256 3/3 eşleşti; VersionId 3/3 değişti (→ §2.5).
-
-RPO: Neon Free'de son 6 saat anlık geri yükleme; daha eskisi için son `pg_dump` zamanı. RTO: ölçülmedi (prosedür ~30–60 dk tahmini; tahmin, ölçüm değil).
+**Olağanüstü sağlayıcı düzeyi geri yükleme gerekirse (manuel, yeni otomasyon yok):**
+1. Karar kullanıcı ve yetkili operatör tarafından ayrıca verilir; sağlayıcı panelindeki işlem onların sorumluluğundadır.
+2. Geri yüklenen ortam doğrudan müşterilere ve normal personel kullanımına AÇILMAZ (uygulama trafiğe kapalı tutulur).
+3. Değerlendirilecekler: geri dönen eski bağlantılar ve oturumlar (gerekirse tüm bağlantılar personel tarafından yenilenir, `BETTER_AUTH_SECRET` / `CUSTOMER_SESSION_SECRET` yenilenir — §3.4–3.5), geri yükleme noktasından sonra kalıcı silinmiş başvurular (geri gelmiş olabilir — hukuki silme yükümlülüğü, DATA_PRIVACY), dosya kayıtlarının işaret ettiği versiyonların depoda bulunup bulunmadığı (`pnpm storage:reconcile` dry-run raporu: kayıtlı-ama-bulunmayan / kayıt-dışı versiyonlar).
+4. Veri bütünlüğü doğrulanmadan normal erişim başlatılmaz; belirsiz durumlar Product Owner'a sunulur. Tahminle kayıt veya nesne SİLİNMEZ.
+5. Yedek veya sağlayıcı kopyaları kişisel veri taşıyabilir; saklama/imha kararı kullanıcıdadır (PB-03).
 
 ## 3. Anahtar ve kimlik bilgisi yenileme
 
 Genel ön koşullar: yetkili kişi; güncel şifreli yedek (§2.2); bakım penceresi duyurusu (iki personel); eski değer, doğrulama bitene kadar parola yöneticisinde saklanır; sonra güvenli silinir.
 
-### 3.1 Backblaze uygulama anahtarı (SEC-01 düzeltmesi dahil)
+### 3.1 Backblaze uygulama anahtarı (SEC-01 düzeltmesi dahil — PHASE 12.1 güncel)
 
-1. B2 panelinde **yeni** anahtar oluşturulur:
-   - Bucket: yalnızca `cs-global-documents`; önek yok.
-   - Yetkiler yalnızca `listBuckets`, `listFiles`, `readFiles`, `writeFiles`, `deleteFiles`.
-   - Oluşturulmayacak yetkiler: `writeBuckets`, `writeBucket*`, `shareFiles`, `*Keys`.
-2. Yerelde `pnpm env:b2` (gizli girdi; mevcut anahtarı değiştir onayı), production'da hosting env güncellenir.
-3. `pnpm storage:inspect` → `excessRisky: []`, `missingRequired: []`, `headBucket: OK`.
-4. Uygulamada personel bir PDF görüntüler (okuma) ve test başvurusuna sentetik yükleme yapar (yazma; yalnızca geliştirme ortamında).
-5. Eski anahtar panelde silinir. Etki: oturum/bağlantılar etkilenmez. Geri alma: eski anahtar silinmeden önce env eski değere döndürülür.
-6. Ele geçirilme şüphesinde: önce eski anahtar silinir (yazma/okuma durur → dosya işlemleri 503), sonra yeni anahtar; §4.4.
+Asgari runtime yetkileri (Backblaze "S3-Compatible App Key Capabilities"): `listFiles` (ListObjectVersions), `readFiles` (GetObject/HeadObject), `writeFiles` (PutObject), `deleteFiles` (versiyona özgü DeleteObject). `listBuckets` uygulama için gerekmez (ListBuckets/HeadBucket çağrılmaz); yalnızca `storage:inspect` HeadBucket kontrolü için isteğe bağlıdır. Bucket'a kısıtlı anahtarda `listAllBucketNames` gerekmez. Panel yalnızca "Read and Write / Read Only / Write Only" sunar — "Read and Write" mevcut 7 riskli + 6 gereksiz okuma yetkisini verir. **Özel yetki kümesi yalnızca `b2_create_key` API ile** oluşturulur (`writeKeys` yetkili bir anahtar, ör. ana anahtar, gerekir).
+
+Kullanıcı adımları (asistan anahtar oluşturmaz/iptal etmez; anahtar sohbete, rapora veya depoya yazılmaz):
+1. Kendi terminalinizde ana anahtarla `b2_authorize_account` (v3/v4) → `apiUrl`, `authorizationToken`, `accountId`.
+2. `b2_create_key`: `capabilities: ["listFiles","readFiles","writeFiles","deleteFiles"]` (isteğe bağlı `"listBuckets"`), `bucketIds: ["<mevcut private bucket kimliği>"]`, `keyName: "cs-global-runtime-<tarih>"`; önek ve süre boş (uygulama `applications/` altında yazar; süreli anahtar kesinti riski). Yanıttaki `applicationKey` yalnızca bir kez görünür.
+3. `pnpm env:b2` ile yeni keyID ve gizli anahtarı girin (yankısız). Eski anahtar henüz İPTAL EDİLMEZ.
+4. `pnpm storage:inspect` → `missingRequired: []`, `excessRisky: []`, `unexpected: []` (yalnızca `listBuckets` isteğe bağlı) olmalı.
+5. Onaylanırsa Checkpoint B (VERIFICATION_PLANS §1.3) yeni anahtarla çalıştırılır; yoksa en azından uygulama yeniden başlatılıp mevcut (0 nesneli) bucket'ta salt okunur denetim tekrarlanır.
+6. Doğrulama geçince eski anahtar Backblaze panelinden silinir (geçiş süresi kısa tutulur); `storage:inspect` tekrar.
+7. Hata/kurtarma: yeni anahtar çalışmazsa `.env.local` önceki değerlere döndürülür (eski anahtar silinmediği için), olay kaydedilir; eski anahtar silindikten sonra sorun çıkarsa yeni bir asgari anahtar aynı adımlarla oluşturulur.
 
 ### 3.2 Veritabanı runtime şifresi
 1. Yeni şifre üretilir; `DATABASE_URL` env'de güncellenir.
@@ -184,3 +144,8 @@ Verilmeyecekler: müşteri adı/iletişim, dosya içeriği, token, uygulama anah
 - DB işaretini değiştirme.
 
 Bu runbook sağlayıcının garanti vermediği senaryolarda çözüm **garantisi vermez**. D-127 koşulu açık kalır: prosedür tanımlıdır ancak gerçek sağlayıcıda denenmemiştir.
+
+## 6. Bakım komutları (PHASE 12.1)
+
+- `pnpm ops:rate-limit-cleanup` — süresi DOLMUŞ `rate_limit_buckets` satırlarını sayar (dry-run); `--apply` 1000'lik partilerle (en fazla 50) siler. Etkin pencerelere dokunmaz; eşzamanlı artışta sınır aşılmaz (SEC-05 testi). Elle/planlı bakımda; ücretli cron/worker yok. Gerçek ortamda ayrı onayla.
+- Hesap işlemleri (`pnpm auth:bootstrap`, `pnpm auth:reset-password`) PHASE 12.1'den itibaren **sahip (owner) bağlantısıyla** çalışır (D-144): çalışma zamanı rolü personel hesabı/credential yazamaz. Neon'da migration 0011 uygulanmadan önce de bu komutlar sahip bağlantısıyla çalışır (davranış aynı).

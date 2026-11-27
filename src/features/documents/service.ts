@@ -284,16 +284,17 @@ type WriteSettlement =
 /**
  * Girişim sonucunu kaydeder (koşullu; DB trigger'ı geçişleri ayrıca kısıtlar). Silme iş akışı versiyonu
  * daha önce gözleyip girişimi çözmüşse güncelleme yan etkisizdir. Kayıt yazılamazsa girişim
- * `IN_PROGRESS` kalır = çözülmemiş (güvenli taraf).
+ * `IN_PROGRESS` kalır = çözülmemiş (güvenli taraf). PHASE 12.1: sonuç gerçekten kaydedildiyse `true`
+ * (ör. aynı fiziksel versiyon başka girişime atanmışsa benzersizlik ihlali → `false`).
  */
 export async function settleStorageWrite(
   db: Database,
   attemptId: string,
   settlement: WriteSettlement,
-): Promise<void> {
+): Promise<boolean> {
   const from = settlement.state === "CONFIRMED" ? ["IN_PROGRESS", "UNKNOWN"] : ["IN_PROGRESS"];
   try {
-    await db
+    const result = await db
       .update(attempts)
       .set({
         state: settlement.state,
@@ -307,10 +308,12 @@ export async function settleStorageWrite(
           inArray(attempts.state, from as ("IN_PROGRESS" | "UNKNOWN")[]),
         ),
       );
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error("[files] Yazım sonucu kaydedilemedi (girişim çözülmemiş kalır)", {
       code: pgErrorCode(error) ?? "unknown",
     });
+    return false;
   }
 }
 
@@ -662,19 +665,32 @@ export async function uploadDocumentFile(
     }
     if (isStorageError(error, "AMBIGUOUS")) {
       // Yanıt kayboldu: yazma gerçekleşmiş olabilir → kör yeniden yazma yok; nesne kimliğiyle mutabakat.
-      // Anahtar bu girişime özgü ve tek girişim olduğundan gözlenen versiyon bu girişimindir.
+      // Anahtar bu girişime özgü ve tek girişim olduğundan gözlenen versiyon bu girişimindir. PHASE 12.1
+      // (REVIEW-06): HEAD'deki boyut/versiyon içeriği kanıtlamaz → o TEK versiyonun sınırlı bütünlük okuması
+      // (SHA-256). Kanıt yoksa veya versiyon başka girişime atanmışsa UNKNOWN korunur.
       const head = await deps.storage.headObject(reserved.key, null).catch(() => null);
-      if (
+      const observed =
         head !== null &&
         head.versionId !== null &&
-        head.contentLength === input.bytes.byteLength
-      ) {
-        versionId = head.versionId;
-        await settleStorageWrite(deps.db, reserved.attemptId, {
+        head.contentLength === input.bytes.byteLength &&
+        (await observedVersionMatches(
+          deps.storage,
+          reserved.key,
+          head.versionId,
+          input.bytes.byteLength,
+          sha256,
+        ));
+      // Onay ancak gerçekten kaydedildiyse geçerlidir (aynı versiyon başka girişime atanmışsa benzersizlik
+      // reddeder → false → UNKNOWN denemesi).
+      const settled =
+        observed &&
+        (await settleStorageWrite(deps.db, reserved.attemptId, {
           state: "CONFIRMED",
           outcome: "OBSERVED",
-          versionId,
-        });
+          versionId: head.versionId!,
+        }));
+      if (settled) {
+        versionId = head!.versionId;
       } else {
         await settleStorageWrite(deps.db, reserved.attemptId, {
           state: "UNKNOWN",
@@ -831,23 +847,80 @@ function classify(decision: RangeDecision, method: FileRequest["method"]): FileR
 }
 
 /**
+ * PHASE 12.1 (REVIEW-06): belirsiz yazımın gözlenen versiyonu beklenen içerikle birebir mi? Yalnızca o
+ * değişmez versiyon okunur (en fazla beklenen boyut kadar; fazlası okunmadan reddedilir) ve SHA-256
+ * karşılaştırılır. Normal görüntüleme/indirme akışında KULLANILMAZ (yalnızca nadir kurtarma yolu).
+ * Her hata, uyuşmazlık veya doğrulanmamış kimlik `false` → çağıran UNKNOWN'ı korur.
+ */
+async function observedVersionMatches(
+  storage: StorageAdapter,
+  key: string,
+  versionId: string,
+  expectedSize: number,
+  expectedSha256: string,
+): Promise<boolean> {
+  let object;
+  try {
+    object = await storage.getObject(key, versionId);
+  } catch {
+    return false;
+  }
+  if (object.versionId !== versionId || object.contentLength !== expectedSize) {
+    await object.body.cancel().catch(() => undefined);
+    return false;
+  }
+  const reader = object.body.getReader();
+  const hash = createHash("sha256");
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > expectedSize) {
+        await reader.cancel().catch(() => undefined);
+        return false;
+      }
+      hash.update(value);
+    }
+  } catch {
+    await reader.cancel().catch(() => undefined);
+    return false;
+  }
+  return total === expectedSize && hash.digest("hex") === expectedSha256;
+}
+
+/**
  * Parça isteklerinde görüntüleme audit'i aktör + dosya + biçim başına pencere içinde bir kez (D-135):
  * pdf.js bir görüntülemede birkaç aralık ister; her biri ayrı kayıt olsaydı audit gürültüye boğulurdu.
  * Tam/uzun istekler her seferinde kaydedilir. Pencere işareti kısa ömürlü teknik anahtardır (kişisel veri yok).
+ *
+ * PHASE 12.1 (REVIEW-01): işaret ve audit kaydı AYNI kısa transaction'dadır (ağ çağrısı yok). Audit
+ * yazılamazsa işaret de geri alınır → sonraki deneme "pencerede zaten kaydedildi" sayılıp audit'siz teslim
+ * edilemez. Eşzamanlı istekler işaret satırının kilidinde sıralanır: ilk istek commit edene kadar diğerleri
+ * bekler; ilk istek geri alınırsa sıradaki kendi kaydını yazar. Bir istek ancak commit edilmiş bir audit
+ * kaydına dayanarak tekilleştirilir.
  */
-async function chunkAuditDue(
+async function recordFileAccessAudit(
   db: Database,
   actor: FileActor,
   fileId: string,
   disposition: FileDisposition,
-) {
-  const who = actor.kind === "STAFF" ? `user:${actor.userId}` : `token:${actor.tokenId}`;
-  const count = await hitRateLimitCounter(
-    db,
-    `files:viewed:${who}:${fileId}:${disposition}`,
-    FILE_VIEW_AUDIT_WINDOW_SECONDS,
-  );
-  return count === 1;
+  windowed: boolean,
+  entry: Parameters<typeof writeAuditLog>[1],
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    if (windowed) {
+      const who = actor.kind === "STAFF" ? `user:${actor.userId}` : `token:${actor.tokenId}`;
+      const count = await hitRateLimitCounter(
+        tx,
+        `files:viewed:${who}:${fileId}:${disposition}`,
+        FILE_VIEW_AUDIT_WINDOW_SECONDS,
+      );
+      if (count !== 1) return;
+    }
+    await writeAuditLog(tx, entry);
+  });
 }
 
 /**
@@ -918,20 +991,22 @@ export async function openDocumentFile(
   }
   const range = decision.kind === "partial" ? decision.range : null;
 
-  if (
-    range === null ||
-    rangeLength(range) > MAX_RANGE_CHUNK_BYTES ||
-    (await chunkAuditDue(deps.db, actor, request.fileId, request.disposition))
-  ) {
-    await writeAuditLog(deps.db, {
+  // Audit fail-closed ve sağlayıcı okumasından ÖNCE commit edilir (hata → teslim yok, GET yok).
+  await recordFileAccessAudit(
+    deps.db,
+    actor,
+    request.fileId,
+    request.disposition,
+    range !== null && rangeLength(range) <= MAX_RANGE_CHUNK_BYTES,
+    {
       action: request.disposition === "inline" ? "DOCUMENT_VIEWED" : "DOCUMENT_DOWNLOADED",
       ...auditActor(actor),
       resourceType: "file",
       resourceId: request.fileId,
       applicationId: row.applicationId,
       metadata: { fileId: request.fileId, requirementId: row.requirementId },
-    });
-  }
+    },
+  );
 
   try {
     const storage = await deps.storage();
@@ -947,11 +1022,7 @@ export async function openDocumentFile(
           object.contentRange.start === range.start &&
           object.contentRange.end === range.end &&
           object.contentRange.total === size;
-    if (
-      object.contentLength !== expectedLength ||
-      !rangeOk ||
-      (object.versionId !== null && object.versionId !== row.versionId)
-    ) {
+    if (object.contentLength !== expectedLength || !rangeOk || object.versionId !== row.versionId) {
       await object.body.cancel().catch(() => undefined);
       console.error("[files] Storage bütünlük uyuşmazlığı", { fileId: request.fileId });
       return { ok: false, code: "INTEGRITY" };

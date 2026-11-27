@@ -11,6 +11,7 @@ import {
   seedApplication,
   signCustomerSession,
 } from "../support/portal-seed";
+import { openCustomerLink } from "./customer-link";
 import { expect, sessionsAvailable, test } from "./fixtures";
 
 /**
@@ -34,7 +35,7 @@ async function customerPage(browser: Browser, testInfo: TestInfo, token: string)
     baseURL: testInfo.project.use.baseURL,
   });
   const page = await context.newPage();
-  await page.goto(`/b/${token}`);
+  await openCustomerLink(page, token);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   return page;
 }
@@ -316,10 +317,10 @@ test.describe("iş akışı (izole veritabanı)", () => {
     }
     const context = await browser.newContext({ ...testInfo.project.use });
     const tabA = await context.newPage();
-    await tabA.goto(`/b/${a.token}`);
+    await openCustomerLink(tabA, a.token);
     await expect(tabA.getByRole("heading", { level: 1 })).toContainText("Ada");
     const tabB = await context.newPage();
-    await tabB.goto(`/b/${b.token}`);
+    await openCustomerLink(tabB, b.token);
     await expect(tabB.getByRole("heading", { level: 1 })).toContainText("Bora");
     await tabA.getByRole("button", { name: "İncelemeye Gönder" }).click();
     await tabA
@@ -367,12 +368,12 @@ test.describe("iş akışı (izole veritabanı)", () => {
     const b = await seedRevision("Bora");
     const context = await browser.newContext({ ...testInfo.project.use });
     const tabA = await context.newPage();
-    await tabA.goto(`/b/${a.token}`);
+    await openCustomerLink(tabA, a.token);
     await expect(tabA.getByRole("button", { name: "Yeniden İncelemeye Gönder" })).toBeEnabled();
     const tabA2 = await context.newPage(); // aynı bağlantı ikinci sekme (aynı bağlam — D-090)
-    await tabA2.goto(`/b/${a.token}`);
+    await openCustomerLink(tabA2, a.token);
     const tabB = await context.newPage();
-    await tabB.goto(`/b/${b.token}`);
+    await openCustomerLink(tabB, b.token);
     await expect(tabB.getByRole("heading", { level: 1 })).toContainText("Bora");
 
     // Eski sekmeden yeniden gönderim ve kaldırma → reddedilir; hiçbir başvuruda değişiklik yok.
@@ -406,8 +407,8 @@ test.describe("iş akışı (izole veritabanı)", () => {
     expect(removed.rowCount).toBe(0);
 
     // A bağlantısı yeniden açılır (bağlam A); A2 sekmesi eski formu taşır. A gönderir → A2'den tekrar: yan etkisiz.
-    await tabA.goto(`/b/${a.token}`);
-    await tabA2.goto(`/b/${a.token}`);
+    await openCustomerLink(tabA, a.token);
+    await openCustomerLink(tabA2, a.token);
     await tabA.getByRole("button", { name: "Yeniden İncelemeye Gönder" }).click();
     await tabA
       .getByRole("alertdialog")
@@ -457,7 +458,7 @@ test.describe("iş akışı (izole veritabanı)", () => {
     for (const reason of ["REVOKED", "ROTATED"] as const) {
       const app = await seedRevision(reason === "REVOKED" ? "Cem" : "Deniz");
       const tab = await context.newPage();
-      await tab.goto(`/b/${app.token}`);
+      await openCustomerLink(tab, app.token);
       await expect(tab.getByRole("button", { name: "Yeniden İncelemeye Gönder" })).toBeEnabled();
       await runtimeDb.query(
         "UPDATE application_access_tokens SET revoked_at = now(), revoke_reason = $1, revoked_by_user_id = $2 WHERE id = $3",

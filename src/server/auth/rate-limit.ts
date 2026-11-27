@@ -10,6 +10,7 @@ import {
 } from "@/config/constants";
 import type { Database } from "@/server/db/client";
 import { hitRateLimitCounter } from "@/server/security/rate-limit-counter";
+import { deleteExpiredRateLimitBuckets } from "@/server/security/rate-limit-maintenance";
 
 /**
  * Personel girişi rate limiting (D-063). Postgres `rate_limit_buckets` üzerinde atomik sayaçlar:
@@ -45,10 +46,8 @@ export async function consumeLoginAttempt(
   username: string,
 ): Promise<LoginAttemptDecision> {
   return db.transaction(async (tx) => {
-    // Süresi dolmuş anahtarların sınırlı temizliği (tablo sınırsız büyümez).
-    await tx.execute(sql`
-      DELETE FROM rate_limit_buckets WHERE key IN (
-        SELECT key FROM rate_limit_buckets WHERE expires_at < now() LIMIT 100)`);
+    // Süresi dolmuş anahtarların sınırlı temizliği (tablo sınırsız büyümez; operatör komutu: SEC-05).
+    await deleteExpiredRateLimitBuckets(tx, 100);
     const known = await tx.execute(sql`SELECT 1 FROM users WHERE username = ${username}`);
     if (known.rows.length === 0) {
       const unknownCount = await hitRateLimitCounter(
