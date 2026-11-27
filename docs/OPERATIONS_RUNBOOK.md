@@ -36,14 +36,45 @@ Genel ön koşullar: yetkili kişi; güncel şifreli yedek (§2.2); bakım pence
 
 Asgari runtime yetkileri (Backblaze "S3-Compatible App Key Capabilities"): `listFiles` (ListObjectVersions), `readFiles` (GetObject/HeadObject), `writeFiles` (PutObject), `deleteFiles` (versiyona özgü DeleteObject). `listBuckets` uygulama için gerekmez (ListBuckets/HeadBucket çağrılmaz); yalnızca `storage:inspect` HeadBucket kontrolü için isteğe bağlıdır. Bucket'a kısıtlı anahtarda `listAllBucketNames` gerekmez. Panel yalnızca "Read and Write / Read Only / Write Only" sunar — "Read and Write" mevcut 7 riskli + 6 gereksiz okuma yetkisini verir. **Özel yetki kümesi yalnızca `b2_create_key` API ile** oluşturulur (`writeKeys` yetkili bir anahtar, ör. ana anahtar, gerekir).
 
-Kullanıcı adımları (asistan anahtar oluşturmaz/iptal etmez; anahtar sohbete, rapora veya depoya yazılmaz):
-1. Kendi terminalinizde ana anahtarla `b2_authorize_account` (v3/v4) → `apiUrl`, `authorizationToken`, `accountId`.
-2. `b2_create_key`: `capabilities: ["listFiles","readFiles","writeFiles","deleteFiles"]` (isteğe bağlı `"listBuckets"`), `bucketIds: ["<mevcut private bucket kimliği>"]`, `keyName: "cs-global-runtime-<tarih>"`; önek ve süre boş (uygulama `applications/` altında yazar; süreli anahtar kesinti riski). Yanıttaki `applicationKey` yalnızca bir kez görünür.
-3. `pnpm env:b2` ile yeni keyID ve gizli anahtarı girin (yankısız). Eski anahtar henüz İPTAL EDİLMEZ.
-4. `pnpm storage:inspect` → `missingRequired: []`, `excessRisky: []`, `unexpected: []` (yalnızca `listBuckets` isteğe bağlı) olmalı.
-5. Onaylanırsa Checkpoint B (VERIFICATION_PLANS §1.3) yeni anahtarla çalıştırılır; yoksa en azından uygulama yeniden başlatılıp mevcut (0 nesneli) bucket'ta salt okunur denetim tekrarlanır.
-6. Doğrulama geçince eski anahtar Backblaze panelinden silinir (geçiş süresi kısa tutulur); `storage:inspect` tekrar.
-7. Hata/kurtarma: yeni anahtar çalışmazsa `.env.local` önceki değerlere döndürülür (eski anahtar silinmediği için), olay kaydedilir; eski anahtar silindikten sonra sorun çıkarsa yeni bir asgari anahtar aynı adımlarla oluşturulur.
+Kullanıcı adımları (asistan anahtar oluşturmaz/iptal etmez; anahtar sohbete, rapora veya depoya yazılmaz). Yöntem tek seferlik ve etkileşimlidir; kalıcı betik yoktur. Ana anahtar ve yetkilendirme token'ı ekrana, log'a, shell geçmişine veya süreç argümanlarına yazılmaz (`read -s`, `printf` yerleşik komutu + `curl -K -` ile stdin'den yapılandırma; JSON yalnızca bellekte ayrıştırılır). Yeni Application Key ekranda gösterilmez, panoya kopyalanır.
+
+**A. Hazırlık (proje dizininde, normal terminal):**
+```bash
+cp .env.local .env.local.bak-b2 && chmod 600 .env.local.bak-b2   # geri dönüş için; .gitignore kapsamında
+```
+
+**B. Tek seferlik anahtar oluşturma (geçmişi kapalı, profil yüklemeyen bash alt kabuğu):**
+```bash
+/bin/bash --norc --noprofile
+set +o history; unset HISTFILE; umask 077
+read -r -p "Master keyID: " MID
+read -r -s -p "Master applicationKey (gizli): " MKEY; echo
+AUTH=$(printf 'user = "%s:%s"\n' "$MID" "$MKEY" | curl -sS -K - https://api.backblazeb2.com/b2api/v4/b2_authorize_account); unset MKEY MID
+J='let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const v=process.argv[1].split(".").reduce((o,k)=>o?.[k],j);if(v==null)process.exit(1);process.stdout.write(String(v))})'
+TOKEN=$(printf '%s' "$AUTH" | node -e "$J" authorizationToken) || echo "Yetkilendirme başarısız — DURUN"
+API=$(printf '%s' "$AUTH" | node -e "$J" apiInfo.storageApi.apiUrl); ACC=$(printf '%s' "$AUTH" | node -e "$J" accountId); unset AUTH
+BUCKETS=$(printf 'header = "Authorization: %s"\n' "$TOKEN" | curl -sS -K - -H 'Content-Type: application/json' \
+  -d "{\"accountId\":\"$ACC\",\"bucketName\":\"cs-global-documents\"}" "$API/b2api/v4/b2_list_buckets")
+BID=$(printf '%s' "$BUCKETS" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const b=JSON.parse(s).buckets||[];if(b.length!==1||b[0].bucketType!=="allPrivate")process.exit(1);process.stdout.write(b[0].bucketId)})') \
+  || echo "Bucket bulunamadı veya private değil — DURUN"
+NEWKEY=$(printf 'header = "Authorization: %s"\n' "$TOKEN" | curl -sS -K - -H 'Content-Type: application/json' \
+  -d "{\"accountId\":\"$ACC\",\"keyName\":\"cs-global-runtime-2026-11\",\"capabilities\":[\"listFiles\",\"readFiles\",\"writeFiles\",\"deleteFiles\"],\"bucketIds\":[\"$BID\"]}" \
+  "$API/b2api/v4/b2_create_key"); unset TOKEN
+printf '%s' "$NEWKEY" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const k=JSON.parse(s);if(!k.applicationKeyId){console.log("Anahtar OLUŞTURULMADI:",k.status,k.code);process.exit(2)}const caps=[...(k.capabilities||[])].sort().join(",");const ids=k.bucketIds??(k.bucketId?[k.bucketId]:[]);const ok={caps:caps==="deleteFiles,listFiles,readFiles,writeFiles",bucket:ids.length===1&&ids[0]===process.argv[1],prefix:k.namePrefix==null};console.log(JSON.stringify({keyName:k.keyName,applicationKeyId:k.applicationKeyId,capabilities:caps,bucketRestricted:ok.bucket,namePrefix:ok.prefix?"yok":"VAR",expires:k.expirationTimestamp?"var":"yok"}));if(!(ok.caps&&ok.bucket&&ok.prefix)){console.log("UYARI: beklenen kapsam DEĞİL — bu anahtarı panelden hemen silin, env:b2 ile girmeyin.");process.exit(3)}})' "$BID" \
+  && printf '%s' "$NEWKEY" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).applicationKey))' | pbcopy \
+  && echo "Yeni Application Key panoya kopyalandı (ekranda gösterilmedi)."
+unset NEWKEY ACC API BID BUCKETS J
+exit
+```
+Beklenen çıktı yalnızca anahtar adı, `applicationKeyId` (gizli değil), `capabilities: deleteFiles,listFiles,readFiles,writeFiles`, `bucketRestricted: true`, `namePrefix: yok`, `expires: yok`. Başka bir çıktı/uyarı varsa durun.
+
+**C. Uygulamaya tanımlama (normal terminal, proje dizini):** `pnpm env:b2` → "DEĞİŞTİRMEK istiyor musunuz?" → `evet` → keyID'yi yazın → gizli istemde panodan yapıştırın. Ardından panoyu temizleyin: `pbcopy < /dev/null`. Komutun sonunda önerilen `pnpm storage:verify` **çalıştırılmaz** (canlı PUT/DELETE — ayrı onay, adım E).
+
+**D. Salt okunur doğrulama:** `pnpm storage:inspect` → `missingRequired: []`, `excessRisky: []`, `unexpected: []`. `listBuckets` olmadığı için `headBucket` satırının 403 göstermesi beklenir (uygulama HeadBucket/ListBuckets çağırmaz). Salt okunur başarı eski anahtarı iptal etmek için YETERLİ DEĞİLDİR.
+
+**E. Gerçek dosya işlemleri doğrulaması (ayrı kullanıcı onayı — "runtime anahtar doğrulaması"):** yeni anahtarla mevcut bucket'ta `pnpm storage:verify` — tek sentetik nesne (`_verification/<rastgele>.pdf`, birkaç KB), yaklaşık 10 istek: listeleme, PUT, HEAD, GET (SHA-256), imzasız erişim reddi, yalnızca bu nesnenin versiyonlarının versiyona özgü silinmesi ve yokluk doğrulaması. Checkpoint B'den (ayrı test bucket'ı) BAĞIMSIZDIR.
+
+**F. Eski anahtarın iptali (kullanıcı):** yalnızca E başarılı olduktan sonra Backblaze panelinden; ardından `pnpm storage:inspect`. Sorun olursa `.env.local.bak-b2` değerleri geri yüklenir (eski anahtar iptal edilmediyse çalışır). Başarı sonrası `.env.local.bak-b2` silinir.
 
 ### 3.2 Veritabanı runtime şifresi
 1. Yeni şifre üretilir; `DATABASE_URL` env'de güncellenir.

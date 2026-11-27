@@ -213,4 +213,4 @@ Gösterge vize onay olasılığı veya sonuç garantisi ifade etmez.
 
 ## PHASE 12.1 — OD-27
 
-- **BR-190** Uygulama, kendi yedekleme veya geri yükleme mekanizmasını sunmaz (OD-27). Veri kaybında uygulamaya özel kurtarma garantisi yoktur. Sağlayıcı düzeyi olağanüstü geri yükleme yalnızca kullanıcı ve yetkili operatör kararıyla, ortam müşterilere açılmadan ve veri bütünlüğü değerlendirilmeden yapılır (OPERATIONS_RUNBOOK §2). Bu kural BR-47 (başarılı PDF versiyonları otomatik silinmez) ve kalıcı silme kurallarını değiştirmez.
+- **BR-190** (ACCEPTED — Product Owner, 2026-11-27) Uygulama, kendi yedekleme veya geri yükleme mekanizmasını sunmaz (OD-27). Veri kaybında uygulamaya özel kurtarma garantisi yoktur. Sağlayıcı düzeyi olağanüstü geri yükleme yalnızca kullanıcı ve yetkili operatör kararıyla, ortam müşterilere açılmadan ve veri bütünlüğü değerlendirilmeden yapılır (OPERATIONS_RUNBOOK §2). Bu kural BR-47 (başarılı PDF versiyonları otomatik silinmez) ve kalıcı silme kurallarını değiştirmez.

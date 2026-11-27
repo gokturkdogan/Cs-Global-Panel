@@ -2,6 +2,12 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 12.1 — Nihai kararlar ve Neon migration 0011] — 2026-11-27
+
+### Changed
+- Kararlar: OD-27, BR-190, D-149, D-151 ACCEPTED; D-146, D-147, D-150 CONDITIONALLY ACCEPTED; D-142 SUPERSEDED; D-148 WITHDRAWN.
+- Migration `0011_runtime_auth_least_privilege` kullanıcı onayıyla `neondb`'ye uygulandı (12 migration). Yalnızca beklenen üç yetki değişti; veri parmak izi aynı; Neon integration 68/0/17, Neon E2E 287/0/401. SEC-04 FIXED & VERIFIED.
+
 ## [PHASE 12.1 — OD-27: Özel yedek/geri yükleme altyapısının kaldırılması] — 2026-11-27 (kullanıcı onayı bekleniyor)
 
 ### Removed

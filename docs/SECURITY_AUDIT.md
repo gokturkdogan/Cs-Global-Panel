@@ -137,7 +137,7 @@ Kapsam: D-141…D-145 kullanıcı kararları, PB-12/PB-13 kabulü ve bağımsız
 | SEC-01 (MEDIUM) B2 anahtarı fazla yetkili | OPEN | **EXTERNAL ACTION REQUIRED** | `storage:inspect` (2026-11-27, salt okunur): 7 riskli + 6 gereksiz okuma yetkisi; asgari küme resmî tabloyla doğrulandı (`listFiles, readFiles, writeFiles, deleteFiles`); yeni anahtar prosedürü OPERATIONS_RUNBOOK §3.1 | Yeni anahtar oluşturulana kadar sızıntı etkisi geniş |
 | SEC-02 (MEDIUM) bağlantı önizleme verisi | RISK ACCEPTANCE REQUIRED | **PARTIAL** (D-141 uygulandı) | GET/HEAD oturum 0, cookie 0, kişisel veri 0; cookie saklayan + yönlendirme izleyen istemci portal verisine ulaşamaz (`security-audit.spec.ts`, `customer-link.spec.ts` C1–C17) | Bilinçli POST yapan/bağlantıyı ele geçiren istemci (PB-04); gerçek WhatsApp doğrulanmadı |
 | SEC-03 (MEDIUM) geri yükleme sonrası geri dönüş | OPEN | **PARTIAL** | `pnpm test:restore-drill` R-A…R-I + `pnpm ops:post-restore` (kilitleme + GO/NO-GO) | Başlamış-ama-nesnesi-silinmemiş silme tespit edilemez; bucket değişiminde eşleme uygulanamaz (D-148) → PB-12 OPEN |
-| SEC-04 (LOW) runtime users/accounts yazma | OPEN | **FIXED (izole) — Neon onay bekliyor** | migration 0011; `privileges.test.ts` matris + 10 negatif test; auth yaşam döngüsü sahip rolüyle | Neon'da 0011 uygulanana kadar açık |
+| SEC-04 (LOW) runtime users/accounts yazma | OPEN | **FIXED & VERIFIED** (izole + `neondb`, 2026-11-27) | migration 0011; `privileges.test.ts` matris + 10 negatif test (Neon'da da PASS); auth yaşam döngüsü sahip rolüyle | — |
 | SEC-05 (LOW) rate limit tablosu birikmesi | OPEN | **FIXED & VERIFIED** | `pnpm ops:rate-limit-cleanup` (dry-run/--apply, sınırlı); `rate-limit-cleanup.test.ts` (yalnızca süresi dolmuş satırlar; eşzamanlı artışta sınır aşılmaz) | Komut elle/planlı çalıştırılır (cron yok) |
 | SEC-06 (LOW) `/b` rate limit yok | OPEN | **PARTIAL** (D-150) | geçerli token başına 30/saat; geçersiz token satır üretmez (`customer-link.spec.ts` SEC-06) | Hacimsel kötüye kullanım için edge/hosting koruması (PB-01) |
 | SEC-07…SEC-13 | — | değişmedi (korundu; regresyon PASS) | son tam koşular | SEC-07 uzak CI doğrulanmadı |
@@ -162,7 +162,7 @@ P14 (eşzamanlı gözlem/silme/temizlik) ve P15 (yetkisiz/HEAD sıfır GET) mevc
 | CRITICAL | 0 | 0 | 0 | 0 |
 | HIGH | 1 (SEC-14) | 1 | 0 | 0 |
 | MEDIUM | 7 (SEC-01…03, SEC-15…18) | 4 (SEC-15…18) | 3: SEC-01 harici işlem; SEC-02, SEC-03 kısmi | SEC-02 kalanı (PB-04) |
-| LOW | 7 | 5 (SEC-05, 08, 12, 13; SEC-04 izole) + SEC-07 uzak doğrulanmadı | SEC-04 (Neon onayı), SEC-06 kısmi | 0 |
+| LOW | 7 | 5 (SEC-04, 05, 08, 12, 13) + SEC-07 uzak doğrulanmadı | SEC-06 kısmi | 0 |
 | INFORMATIONAL | 3 | 1 | 0 | 0 |
 
 Açık CRITICAL/HIGH: **0**. HIGH bulgu SEC-14 kod düzeyinde düzeltildi ve doğrulandı.

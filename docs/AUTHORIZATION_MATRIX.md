@@ -60,6 +60,6 @@ Giriş noktası envanteri ve aktör × işlem sonuçları [SECURITY_AUDIT.md](SE
 
 ## 6. PHASE 12.1
 
-- **Çalışma zamanı rolü (D-144, migration 0011 — izole):** `users`, `accounts`, `verifications` yalnızca SELECT. Personel hesabı oluşturma/değiştirme/silme ve credential değişikliği yalnızca operatör (sahip) bağlantısıyla yerel CLI'dan. Negatif testler: `privileges.test.ts`.
+- **Çalışma zamanı rolü (D-144, migration 0011 — izole + `neondb`, 2026-11-27):** `users`, `accounts`, `verifications` yalnızca SELECT. Personel hesabı oluşturma/değiştirme/silme ve credential değişikliği yalnızca operatör (sahip) bağlantısıyla yerel CLI'dan. Negatif testler: `privileges.test.ts`.
 - **Müşteri girişi (D-141):** `GET /b/<token>` → yetki yok (genel sayfa); `POST /b/enter` → aynı köken + geçerli token → müşteri oturumu. Personel cookie'si müşteri kapsamını genişletmez; müşteri oturumu personel yetkisi vermez (`customer-link.spec.ts` C11).
 - **Operatör komutları:** `ops:rate-limit-cleanup` (runtime, yalnızca süresi dolmuş satırlar) — uygulama içinde karşılığı yoktur. (`ops:post-restore` OD-27 ile kaldırıldı.)

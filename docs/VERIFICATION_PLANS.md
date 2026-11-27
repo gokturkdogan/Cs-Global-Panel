@@ -50,6 +50,10 @@ Aşağıdaki plan **kullanıcının açık onayı olmadan çalıştırılmaz.** 
 | Temizlik ve kurtarma | Manifestteki tüm versiyonlar versiyona özgü silinir → tam liste ile yokluk; yarıda kalırsa manifest korunur ve aynı manifestle sürdürülür; kalan nesne raporlanır |
 | Kapsam dışı | Object Lock, replikasyon, cap tüketme; hesap ayarı değişikliği; gerçek müşteri dosyası |
 
+**Ayrım (2026-11-27):** Checkpoint B yalnızca kullanıcının oluşturacağı AYRI test bucket'ında ve yalnızca o bucket'a kısıtlı, süreli (ör. 24 saat) geçici anahtarla yapılır; geçici anahtar çalıştırma anında gizli istemle alınır, `.env.local`'a yazılmaz. Yeni runtime anahtarının mevcut bucket'taki doğrulaması (OPERATIONS_RUNBOOK §3.1 adım E, `pnpm storage:verify`) ayrı bir onay kalemidir.
+
+**İstek/bayt bütçesi (temizlik ve son doğrulama DAHİL, üst sınır):** yükleme + bütünlük ~12; HEAD ~6; aralık/tam GET ~20; iptal ~2; 3 versiyon + silme işareti ~4; sayfalı versiyon listeleri ~20; versiyona özgü silme + kısmi/sürdürme ~25; uygulama akışı (izole DB) ~40; son yokluk ve tam liste ~15; temizlik ~25 → **≈ 170 istek** (sınır 500). Depolama zirvesi ≈ 35 MB (3 × 10 MiB + küçük nesneler; sınır 100 MB). Egress ≈ 60 MB (tam okumalar + bütünlük okuması; sınır 100 MB). Fiziksel versiyon + silme işareti toplamı ≤ 20.
+
 **PHASE 12.1 ek doğrulamaları (D-147):** B2-02'de yanıtın `x-amz-version-id` döndürdüğü (eksikse uygulama fail-closed teslim etmez — bu nedenle production öncesi ZORUNLU), mevcut olmayan anahtar/versiyon için hata kodu adı (`NoSuchKey`/`NoSuchVersion`), 206 + `Content-Range` + `Content-Length` biçimi, aralık yok sayıldığında 200 davranışı, belirsiz yazım gözlemi için HEAD + sınırlı SHA-256 okuması.
 
 **Test matrisi (onay sonrası):**
