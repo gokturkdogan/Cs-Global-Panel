@@ -15,7 +15,7 @@ export function DashboardShell({
     <div className="min-h-dvh">
       <a
         href="#main-content"
-        className="sr-only z-50 rounded-lg bg-card px-4 py-2 text-sm font-medium focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:ring-2 focus:ring-ring"
+        className="sr-only z-50 rounded-lg bg-card text-sm font-medium focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:px-4 focus:py-2 focus:ring-2 focus:ring-ring"
       >
         İçeriğe geç
       </a>

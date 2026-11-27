@@ -31,6 +31,11 @@ const EXPECTED_PRIVILEGES: Record<string, Privilege[]> = {
   rate_limit_buckets: ["SELECT", "INSERT", "UPDATE", "DELETE"],
   // PHASE 08: tek satırlık kota kilidi/mutabakat durumu — ekleme/silme yok.
   storage_quota_state: ["SELECT", "UPDATE"],
+  // PHASE 10 (D-116): silme işlemi + envanter — DELETE yok (yalnızca başvuruyla CASCADE).
+  application_deletions: ["SELECT", "INSERT", "UPDATE"],
+  application_deletion_objects: ["SELECT", "INSERT", "UPDATE"],
+  // PHASE 10.1 (D-121): yazım girişimleri — DELETE yok.
+  storage_write_attempts: ["SELECT", "INSERT", "UPDATE"],
 };
 const ALL_PRIVILEGES = [
   "SELECT",
@@ -196,17 +201,28 @@ describe("runtime rolü — en az yetki (D-054)", () => {
 });
 
 describe("audit_logs değiştirilemezliği (INV-13)", () => {
-  it("tablo sahibi rol için de UPDATE/DELETE/TRUNCATE trigger ile engellenir", async () => {
-    await expect(
-      owner.query("UPDATE audit_logs SET action = 'TAMPERED' WHERE false"),
-    ).resolves.toBeDefined();
-    await expect(owner.query("UPDATE audit_logs SET action = 'TAMPERED'")).rejects.toThrow(
-      /yalnızca eklemeye açıktır/,
-    );
-    await expect(owner.query("DELETE FROM audit_logs")).rejects.toThrow(
-      /yalnızca eklemeye açıktır/,
-    );
-    await expect(owner.query("TRUNCATE audit_logs")).rejects.toThrow(/yalnızca eklemeye açıktır/);
+  it("tablo sahibi rol için de UPDATE/DELETE/TRUNCATE trigger ile engellenir (geri alınan transaction — kalıcı test kaydı yok)", async () => {
+    // Satır düzeyi trigger'ın tetiklenmesi için en az bir kayıt gerekir; kayıt yalnızca bu transaction'da
+    // vardır ve ROLLBACK ile kaybolur (ortak veritabanına kalıcı yazım yok — D-086).
+    await owner.query("BEGIN");
+    try {
+      await owner.query(
+        "INSERT INTO audit_logs (action, actor_type, resource_type, metadata) VALUES ('TEST_EVENT', 'SYSTEM', 'session', '{}'::jsonb)",
+      );
+      const rejects = async (statement: string) => {
+        await owner.query("SAVEPOINT attempt");
+        await expect(owner.query(statement)).rejects.toThrow(/yalnızca eklemeye açıktır/);
+        await owner.query("ROLLBACK TO SAVEPOINT attempt");
+      };
+      await expect(
+        owner.query("UPDATE audit_logs SET action = 'TAMPERED' WHERE false"),
+      ).resolves.toBeDefined();
+      await rejects("UPDATE audit_logs SET action = 'TAMPERED'");
+      await rejects("DELETE FROM audit_logs");
+      await rejects("TRUNCATE audit_logs");
+    } finally {
+      await owner.query("ROLLBACK");
+    }
   });
 
   it.each([

@@ -25,7 +25,7 @@ import { cleanupStorage, reconcileStorage } from "../../scripts/storage/maintena
 import { fixtures, validPdfOfSize } from "../support/pdf-fixtures";
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { seedApplication } from "../support/portal-seed";
-import { connectOwner, createRuntimePool, testId } from "./helpers";
+import { fileGet, connectOwner, createRuntimePool, testId } from "./helpers";
 
 /**
  * Evrak dosyası yaşam döngüsü (PHASE 08). Commit eden testler → YALNIZCA izole veritabanı + geçici
@@ -371,7 +371,7 @@ describe.runIf(isIsolatedTestDatabase())(`evrak dosyaları — ${ISOLATION_SKIP_
     },
   });
 
-  it("storage yazımı başarısız → eski aktif korunur, kayıt EXPIRED, temizlik sonlandırır", async () => {
+  it("storage yazımı başarısız → eski aktif korunur, kayıt EXPIRED; belirsiz yazım kotada kalır, kesin başarısızlık sonlandırılır (D-123)", async () => {
     const app = await seed();
     await upload(staff(), app.requirementId);
     expect(
@@ -380,17 +380,31 @@ describe.runIf(isIsolatedTestDatabase())(`evrak dosyaları — ${ISOLATION_SKIP_
     expect(
       await upload(app.customer, app.requirementId, pdf, { storage: failingPut("LIMIT") }),
     ).toEqual({ ok: false, code: "STORAGE_LIMIT" });
+    expect(
+      await upload(app.customer, app.requirementId, pdf, { storage: failingPut("NOT_SENT") }),
+    ).toEqual({ ok: false, code: "STORAGE_UNAVAILABLE" });
     const files = await filesOf(app.requirementId);
-    expect(files.map((f) => f.status)).toEqual(["ACTIVE", "EXPIRED", "EXPIRED"]);
+    expect(files.map((f) => f.status)).toEqual(["ACTIVE", "EXPIRED", "EXPIRED", "EXPIRED"]);
     const audit = await auditActions(app.applicationId);
-    expect(audit.filter((a) => a.action === "DOCUMENT_UPLOAD_FAILED")).toHaveLength(2);
+    expect(audit.filter((a) => a.action === "DOCUMENT_UPLOAD_FAILED")).toHaveLength(3);
+    const attemptStates = await owner.query<{ state: string; outcome: string }>(
+      `SELECT w.state, w.outcome FROM storage_write_attempts w
+         JOIN application_document_files f ON f.id = w.file_id
+        WHERE f.requirement_id = $1 ORDER BY w.admitted_at`,
+      [app.requirementId],
+    );
+    expect(attemptStates.rows).toEqual([
+      { state: "CONFIRMED", outcome: "PROVIDER_CONFIRMED" },
+      { state: "UNKNOWN", outcome: "PROVIDER_ERROR" },
+      { state: "UNKNOWN", outcome: "PROVIDER_ERROR" },
+      { state: "FAILED", outcome: "NOT_SENT" },
+    ]);
     const report = await cleanupStorage(owner, storage, { apply: true });
     expect(report.applied).toBe(true);
+    expect(report.unresolvedWrites).toBe(2);
     const after = await filesOf(app.requirementId);
-    expect(
-      after.filter((f) => f.status === "EXPIRED").every((f) => f.blob_deleted_at !== null),
-    ).toBe(true);
-    expect(after.find((f) => f.status === "ACTIVE")!.blob_deleted_at).toBeNull();
+    // Belirsiz girişimli iki kayıt kotada kalır (blob_deleted_at boş); "hiç gönderilmedi" sonlandırılır.
+    expect(after.map((f) => f.blob_deleted_at === null)).toEqual([true, true, true, false]);
   });
 
   it("storage yazıldı ama yanıt kayboldu → HEAD mutabakatı ile aktive edilir (kör yeniden yazma yok)", async () => {
@@ -625,7 +639,7 @@ describe.runIf(isIsolatedTestDatabase())(`evrak dosyaları — ${ISOLATION_SKIP_
     const other = await upload(b.customer, b.requirementId);
     if (!first.ok || !second.ok || !other.ok) throw new Error("upload");
     const open = (actor: FileActor, id: string, d: "inline" | "attachment" = "inline") =>
-      openDocumentFile({ db, storage: async () => storage }, actor, id, d);
+      openDocumentFile({ db, storage: async () => storage }, actor, fileGet(id, d));
 
     const active = await open(a.customer, second.fileId);
     expect(active.ok).toBe(true);
@@ -640,7 +654,7 @@ describe.runIf(isIsolatedTestDatabase())(`evrak dosyaları — ${ISOLATION_SKIP_
     expect(await open(a.customer, randomUUID())).toEqual({ ok: false, code: "NOT_FOUND" });
     const history = await open(staff(employee), first.fileId, "attachment");
     expect(history.ok).toBe(true);
-    if (history.ok) await history.file.stream.cancel();
+    if (history.ok) await history.file.stream?.cancel();
     const audit = await auditActions(a.applicationId);
     expect(audit.map((x) => x.action)).toEqual(
       expect.arrayContaining(["DOCUMENT_VIEWED", "DOCUMENT_DOWNLOADED"]),
@@ -669,8 +683,7 @@ describe.runIf(isIsolatedTestDatabase())(`evrak dosyaları — ${ISOLATION_SKIP_
       await openDocumentFile(
         { db, storage: async () => storage },
         staff(),
-        result.fileId,
-        "inline",
+        fileGet(result.fileId, "inline"),
       ),
     ).toEqual({ ok: false, code: "INTEGRITY" });
   });
@@ -745,8 +758,14 @@ describe.runIf(isIsolatedTestDatabase())(`evrak dosyaları — ${ISOLATION_SKIP_
        VALUES ($1, $2, $3, 'UPLOAD_PENDING', $4, 'a.pdf', $5, $6, 'USER', $7, now() - interval '1 minute')`,
       [fileId, app.applicationId, app.requirementId, key, pdf.length, "b".repeat(64), admin],
     );
+    // Başlamamış yazım girişimi (rezervasyon kabul edildi, PUT hiç başlatılmadı).
+    await owner.query(
+      "INSERT INTO storage_write_attempts (application_id, file_id, object_key) VALUES ($1, $2, $3)",
+      [app.applicationId, fileId, key],
+    );
     const report = await cleanupStorage(owner, storage, { apply: true });
     expect(report.stalePendingExpired).toBeGreaterThanOrEqual(1);
+    expect(report.reservationsFenced).toBeGreaterThanOrEqual(1);
     const [row] = await filesOf(app.requirementId);
     expect(row).toMatchObject({ status: "EXPIRED" });
     expect(row!.blob_deleted_at).not.toBeNull();

@@ -27,6 +27,7 @@ function RowActions({
     >
       <Button asChild variant="outline" size="sm" className={mobile ? "h-11" : "h-9"}>
         <Link
+          prefetch={false}
           href={`/dashboard/applications/${item.id}`}
           aria-label={`${item.applicationNumber} başvuru detayı`}
         >
@@ -83,14 +84,15 @@ export function ApplicationTable({ items }: { readonly items: readonly Applicati
               <tr key={item.id} className="align-top">
                 <td className="px-4 py-3 font-medium whitespace-nowrap tabular-nums">
                   <Link
+                    prefetch={false}
                     href={`/dashboard/applications/${item.id}`}
                     className="text-primary-dark hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   >
                     {item.applicationNumber}
                   </Link>
                 </td>
-                <td className="max-w-44 px-4 py-3 break-words">{item.customerName}</td>
-                <td className="max-w-44 px-4 py-3 break-words text-muted-foreground">
+                <td className="max-w-44 px-4 py-3 wrap-anywhere">{item.customerName}</td>
+                <td className="max-w-44 px-4 py-3 wrap-anywhere text-muted-foreground">
                   {item.serviceName}
                 </td>
                 <td className="px-4 py-3">
@@ -115,6 +117,7 @@ export function ApplicationTable({ items }: { readonly items: readonly Applicati
           <li key={item.id} className="grid gap-2 px-4 py-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Link
+                prefetch={false}
                 href={`/dashboard/applications/${item.id}`}
                 className="font-medium text-primary-dark tabular-nums hover:underline"
               >
@@ -122,8 +125,8 @@ export function ApplicationTable({ items }: { readonly items: readonly Applicati
               </Link>
               <ApplicationStatusBadge status={item.status} />
             </div>
-            <p className="text-sm break-words text-foreground">{item.customerName}</p>
-            <p className="text-sm break-words text-muted-foreground">{item.serviceName}</p>
+            <p className="text-sm wrap-anywhere text-foreground">{item.customerName}</p>
+            <p className="text-sm wrap-anywhere text-muted-foreground">{item.serviceName}</p>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground tabular-nums">
                 <time dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>

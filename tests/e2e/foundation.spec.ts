@@ -95,6 +95,10 @@ test.describe("giriş ekranı (ortak temel)", () => {
     expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
     expect(csp).not.toContain("unsafe-eval");
     expect(csp).not.toContain("unsafe-inline");
+    // PHASE 11 (D-136): görüntüleyici worker'ı yalnızca aynı köken; joker/blob/wasm izni yok.
+    expect(csp).toContain("worker-src 'self';");
+    expect(csp).not.toMatch(/worker-src[^;]*(\*|blob:|data:)/);
+    expect(csp).not.toContain("wasm-unsafe-eval");
     expect(headers["cache-control"]).toContain("no-store");
     expect(headers["strict-transport-security"]).toContain("max-age=");
     expect(headers["x-powered-by"]).toBeUndefined();

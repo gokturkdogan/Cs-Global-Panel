@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
-import { CspNonce } from "@/components/dashboard/csp-nonce";
+import { CspNonce } from "@/components/csp-nonce";
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { requireStaff } from "@/server/auth/staff";

@@ -6,6 +6,9 @@ import { ErrorState } from "@/components/dashboard/error-state";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { ApplicationsBrowser } from "@/features/applications/components/applications-browser";
+import { DeletionQueueCard } from "@/features/deletion/components/deletion-queue-card";
+import { listDeletionQueue } from "@/features/deletion/queries";
+import { messages } from "@/lib/messages";
 import { listApplications, listServiceOptions } from "@/features/applications/queries";
 import { applicationListFiltersSchema } from "@/features/applications/schemas";
 import { requireStaff } from "@/server/auth/staff";
@@ -32,11 +35,13 @@ export default async function ApplicationsPage({ searchParams }: PageProps) {
 
   let data: Awaited<ReturnType<typeof listApplications>> | null = null;
   let services: Awaited<ReturnType<typeof listServiceOptions>> = [];
+  let deletionQueue: Awaited<ReturnType<typeof listDeletionQueue>> = { items: [], total: 0 };
   try {
     const db = getDb();
-    [data, services] = [
+    [data, services, deletionQueue] = [
       await listApplications(db, { ...filters, q: "" }),
       await listServiceOptions(db),
+      await listDeletionQueue(db),
     ];
   } catch (error) {
     console.error("[applications] Liste okunamadı", { code: pgErrorCode(error) ?? "unknown" });
@@ -50,13 +55,19 @@ export default async function ApplicationsPage({ searchParams }: PageProps) {
         breadcrumb={[{ label: "Panel", href: "/dashboard" }, { label: "Başvurular" }]}
         actions={
           <Button asChild size="lg">
-            <Link href="/dashboard/applications/new">
+            <Link prefetch={false} href="/dashboard/applications/new">
               <Plus aria-hidden="true" />
               Yeni Başvuru
             </Link>
           </Button>
         }
       />
+      {single(raw.deleted) === "1" ? (
+        <p role="status" className="rounded-lg border border-success/40 bg-card p-3 text-sm">
+          {messages.deletion.deleted}
+        </p>
+      ) : null}
+      <DeletionQueueCard items={deletionQueue.items} total={deletionQueue.total} />
       {data === null ? (
         <ErrorState />
       ) : (

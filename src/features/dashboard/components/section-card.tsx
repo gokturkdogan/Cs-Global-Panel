@@ -31,6 +31,7 @@ export function SectionCard({
         </div>
         {link ? (
           <Link
+            prefetch={false}
             href={link.href}
             className="rounded-sm text-sm font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >

@@ -357,3 +357,21 @@ Kurallar (D-016):
 - **Okuma:** `workflow/queries.ts` (inceleme geçmişi + dosya versiyonu, yorumlar, statü geçmişi + gerekçe, guard girdileri); müşteri portalı sorgusu yorumlar + herkese açık zaman çizelgesi ile genişletildi.
 - **UI:** personel `WorkflowPanel` (yalnızca matristeki aksiyonlar, pasifler nedenleriyle, onay + gerekçe; T12 evrak seçimi), `ReviewActions` (incelenen versiyon gösterilir), inceleme geçmişi, yorum formu, statü geçmişi; müşteri `SubmitPanel`, "incelemeye gönderildi" bilgisi, `RemoveFileButton`, yorumlar, süreç geçmişi.
 - Hiçbir iş akışı işlemi storage/PDF çağrısı yapmaz; yeni migration ve bağımlılık yok.
+
+## PHASE 10 Notları (uygulandı)
+- **İç notlar:** `src/features/internal-notes/{schemas,service,queries,actions}.ts` + `components/` — `addInternalNote` tek transaction (başvuru kilidi → evrak kapsamı → idempotent INSERT → audit); ortak `src/server/idempotency/payload-hash.ts`. Müşteri modülleri içe aktaramaz (ESLint).
+- **İşlem geçmişi:** `src/features/audit-logs/{domain/labels,domain/url,schemas,queries,actions}.ts` + `components/` — salt okunur, keyset sayfalama, allowlist sunum; sayfa `/dashboard/audit-logs` (RSC, `searchParams`).
+- **Kalıcı silme:** `src/features/deletion/{schemas,service,queries,actions}.ts` + `components/`. Talep (kısa TX) → kiralı sınırlı adımlar (TX dışında storage: listeleme → sahiplik → envanter → versiyona özgü silme → doğrulama listelemesi) → sonlandırma (kısa TX: blob_deleted_at → kota kilidi → DELETE applications → audit). Yalnızca bu modül iş akışı dışında storage'a yazar/siler; `GetObject` kullanmaz. DB trigger'ı `applications_guard_delete` (D-117). Kilit sırası: applications → application_deletions → application_document_files → storage_quota_state.
+- Silme sürecindeki başvuru: personel sorguları (`deletion_requested_at IS NULL`) normal verileri döndürmez; detay sayfası yalnızca `getDeletionProgress` ile ilerleme gösterir; liste sayfasında `listDeletionQueue`.
+
+## PHASE 10.1 Notları (uygulandı)
+- **Yükleme yazım hattı:** rezervasyon TX'i `storage_write_attempts` (`ADMITTED`) → (isteğe bağlı test zamanlayıcısı `beforeStorageWrite`) → `beginStorageWrite` çiti (`IN_PROGRESS`, commit) → tek girişimli PUT (`putClient`, `maxAttempts: 1`) → `settleStorageWrite` (`CONFIRMED`/`FAILED NOT_SENT`/`UNKNOWN`) → aktivasyon. Sonuç kaydı başarısızsa girişim `IN_PROGRESS` kalır (çözülmemiş).
+- **Silme adımı:** her tur listeleme başlangıcını DB saatiyle kaydeder; envanter → `resolveAttemptsByObservation` (çitleme + gözlemle çözüm + çözülmüş yarım kayıtların EXPIRED yapılması) → silme → doğrulama; boş listede onaylanmış versiyonlar için versiyona özgü HEAD; `finalize(listingStartedAt)`. Zaman kapısı yok.
+- Kilit sırası: applications → application_deletions → storage_write_attempts → application_document_files → storage_quota_state (yükleme çiti/sonuç kaydı yalnızca girişim satırını kilitler).
+
+## 12d. PHASE 11 Uygulama Notları (performans ve PDF teslimi)
+- **Range (D-135):** `src/features/documents/domain/byte-range.ts` (saf ayrıştırıcı/politika), `src/server/storage/exact-length.ts` (uzunluk korumalı akış), `StorageAdapter.getObject(key, versionId, { range, signal })` (B2: `GetObject` `Range` + `VersionId`; yerel: `createReadStream({ start, end })`), `openDocumentFile(deps, actor, FileRequest)` sırası: kayıt + yetki → aralık kararı → sınıf bazlı rate limit → HEAD/416 (sağlayıcı yok) → audit → sağlayıcıdan yalnızca aralık → yanıt doğrulaması → akış. Route'lar `GET` + `HEAD` (aynı işleyici, `request.method`).
+- **Görüntüleyici (D-136):** `src/features/documents/components/pdf-viewer/` (`pdf-viewer-dialog.tsx` istemci düğme + Dialog, `pdf-viewer.tsx` tembel, `range-fetch.ts`, `pdf.worker.ts`). Müşteri tarafı aynı ortak bileşeni kullanır (müşteri ESLint sınırı korunur). `src/components/csp-nonce.tsx` her iki düzende.
+- **Ön-getirme (D-137):** yalnızca ana gezinme/breadcrumb; diğer `Link`'ler `prefetch={false}`. Ölçüm: PHASE 11 raporu.
+- **Veritabanı (D-138):** migration 0010 bileşik audit indeksi; başvuru sorgularına indeks eklenmedi (ölçüm).
+- **Keep-alive / ısıtma sorgusu yok;** soğuk başlangıç kabul edilir (sağlayıcı ölçeklemesi).

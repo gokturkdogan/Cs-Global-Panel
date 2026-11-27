@@ -24,10 +24,41 @@ export type ObjectHead = {
   readonly contentLength: number;
 };
 
+/** Okunacak bayt aralığı (her iki uç dahil). Yalnızca sunucu, kayıtlı boyuta göre hesaplar (D-135). */
+export type ReadRange = { readonly start: number; readonly end: number };
+
+export type ContentRange = {
+  readonly start: number;
+  readonly end: number;
+  readonly total: number;
+};
+
 export type ObjectStream = {
   readonly body: ReadableStream<Uint8Array>;
+  /** Yanıt gövdesinin bayt sayısı (aralık isteğinde aralık uzunluğu). */
   readonly contentLength: number;
+  /** Sağlayıcının bildirdiği fiziksel versiyon (yoksa null) — çağıran kayıtla karşılaştırır. */
+  readonly versionId: string | null;
+  /** Aralık isteğinde sağlayıcının `Content-Range` bildirimi; tam okumada null. */
+  readonly contentRange: ContentRange | null;
 };
+
+export type GetObjectOptions = {
+  /** Verilirse yalnızca bu aralık okunur (sağlayıcıya `Range` iletilir; tam nesne indirilip kesilmez). */
+  readonly range?: ReadRange;
+  /** İstemci bağlantısı kapanınca sağlayıcı isteği iptal edilir. */
+  readonly signal?: AbortSignal;
+};
+
+/** `bytes <start>-<end>/<total>` biçimini çözer; başka her biçim → null. */
+export function parseContentRange(value: string | null | undefined): ContentRange | null {
+  if (typeof value !== "string" || value.length > 64) return null;
+  const match = /^bytes (\d{1,15})-(\d{1,15})\/(\d{1,15})$/.exec(value.trim());
+  if (match === null) return null;
+  const [start, end, total] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  if (end < start || end >= total) return null;
+  return { start, end, total };
+}
 
 export type ObjectVersion = {
   readonly key: string;
@@ -46,8 +77,16 @@ export type ListVersionsResult = {
 export interface StorageAdapter {
   readonly provider: "b2" | "local";
   putObject(input: PutObjectInput): Promise<PutObjectResult>;
-  /** Belirli versiyonu okur (versiyon verilmezse en güncel). Yoksa `StorageError("NOT_FOUND")`. */
-  getObject(key: string, versionId: string | null): Promise<ObjectStream>;
+  /**
+   * Belirli versiyonu okur (versiyon verilmezse en güncel). Yoksa `StorageError("NOT_FOUND")`.
+   * `options.range` verilirse sağlayıcıdan yalnızca o aralık istenir; sağlayıcı aralığı uygulamazsa
+   * (tam gövde dönerse) gövde iptal edilir ve `StorageError("INTEGRITY")` atılır.
+   */
+  getObject(
+    key: string,
+    versionId: string | null,
+    options?: GetObjectOptions,
+  ): Promise<ObjectStream>;
   /** Nesne yoksa `null`. */
   headObject(key: string, versionId: string | null): Promise<ObjectHead | null>;
   /** Önek altındaki tüm fiziksel versiyonlar (silme işaretleri dahil), sınırlı sayfa. */

@@ -10,6 +10,7 @@ import { LoadingSkeleton } from "@/components/dashboard/loading-skeleton";
 import { DASHBOARD_NAV_ITEMS, isNavItemActive } from "@/config/navigation";
 import { APPLICATION_STATUSES } from "@/config/statuses";
 import { ApplicationStatusBadge } from "@/features/applications/components/application-status-badge";
+import { RequirementSummary } from "@/features/applications/components/requirement-summary";
 import { APPLICATION_STATUS_PRESENTATION } from "@/features/applications/domain/status-labels";
 import { RecentApplications } from "@/features/dashboard/components/recent-applications";
 import { ReviewQueue } from "@/features/dashboard/components/review-queue";
@@ -148,5 +149,23 @@ describe("durum bileşenleri", () => {
     expect(renderToStaticMarkup(<ReviewQueue rows={[]} />)).toContain(
       "İnceleme bekleyen başvuru bulunmuyor.",
     );
+  });
+});
+
+describe("evrak statü özeti (PHASE 11.1)", () => {
+  it("sayılar doğru; sıfır statü gösterilmez; erişilebilir özet etiketi", () => {
+    const html = renderToStaticMarkup(
+      <RequirementSummary
+        statuses={["APPROVED", "APPROVED", "PENDING_REVIEW", "NOT_UPLOADED", "REVISION_REQUIRED"]}
+      />,
+    );
+    expect(html).toContain(
+      'aria-label="5 evrak: 1 Yüklenmedi, 1 İnceleme Bekliyor, 2 Onaylandı, 1 Düzeltme Gerekli"',
+    );
+    expect(html).toContain("5 evrak");
+    expect(html).not.toContain('data-document-status="UPLOADED"');
+  });
+  it("evrak yoksa hiçbir şey çizilmez", () => {
+    expect(renderToStaticMarkup(<RequirementSummary statuses={[]} />)).toBe("");
   });
 });

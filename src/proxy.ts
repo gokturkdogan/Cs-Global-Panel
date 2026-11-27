@@ -23,6 +23,9 @@ function buildContentSecurityPolicy(nonce: string): string {
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
+    // PHASE 11 (D-136): pdf.js worker'ı yalnızca aynı kökenden (`/_next/static`). Joker, `blob:`,
+    // `data:` veya eval izni YOK; worker, kendi betik politikasıyla yalnızca paket kodunu çalıştırır.
+    "worker-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'self'",

@@ -16,9 +16,13 @@ export function PageHeader({ title, description, breadcrumb, actions }: PageHead
       <Breadcrumb items={breadcrumb} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="grid min-w-0 gap-1">
-          <h1 className="text-2xl leading-8 font-semibold text-foreground">{title}</h1>
+          <h1 className="text-2xl leading-8 font-semibold wrap-anywhere text-foreground">
+            {title}
+          </h1>
           {description ? (
-            <p className="text-sm text-muted-foreground sm:text-base">{description}</p>
+            <p className="text-sm wrap-anywhere text-muted-foreground sm:text-base">
+              {description}
+            </p>
           ) : null}
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}

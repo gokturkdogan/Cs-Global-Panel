@@ -15,7 +15,8 @@ import type { PdfRejection } from "@/server/pdf/pdf-checks";
 import { isTrustedRequestOrigin } from "@/server/security/request-origin";
 
 import { contentDisposition, sanitizeFilename } from "./domain/filename";
-import type { FileDisposition, OpenedFile, UploadFailureCode } from "./service";
+import { contentRangeHeader, unsatisfiedRangeHeader } from "./domain/byte-range";
+import type { FileDisposition, OpenedFile, OpenFileFailure, UploadFailureCode } from "./service";
 
 /**
  * Dosya Route Handler'larının ortak HTTP katmanı (PHASE 08, D-100). Proxy bu yolları kapsamaz
@@ -226,33 +227,42 @@ export function bodyFailureResponse(code: "TOO_LARGE" | "LENGTH_MISMATCH" | "ABO
 }
 
 /**
- * PDF yanıtı (stream). Güvenilmeyen ad yalnızca güvenli `Content-Disposition` ile. İndirmede CSP
- * `sandbox`; satır içi görüntülemede tarayıcının yerleşik PDF görüntüleyicisinin çalışabilmesi için
- * `sandbox` yok, fakat tüm alt kaynak/çerçeve/form yüklemeleri kapalı ve yalnızca yeni sekmede
- * (üst düzey belge) açılır (D-104). Aralık (Range) desteklenmez: `Accept-Ranges: none`.
+ * PDF yanıtı (stream; 200 tam veya 206 aralık — PHASE 11, D-135). Güvenilmeyen ad yalnızca güvenli
+ * `Content-Disposition` ile. İndirmede CSP `sandbox`; satır içi görüntülemede tarayıcının yerleşik PDF
+ * görüntüleyicisinin çalışabilmesi için `sandbox` yok, fakat tüm alt kaynak/çerçeve/form yüklemeleri kapalı
+ * (D-104). `Accept-Ranges: bytes`; `ETag` opak güçlü doğrulayıcıdır (If-Range). Önbellek yok (`no-store`);
+ * CORS başlığı yok (yalnızca aynı köken). HEAD'de gövde yoktur.
  */
 export function pdfResponse(file: OpenedFile, disposition: FileDisposition): Response {
-  return new Response(file.stream, {
-    status: 200,
-    headers: {
-      ...BASE_HEADERS,
-      "Content-Type": ALLOWED_FILE_MIME,
-      "Content-Length": String(file.sizeBytes),
-      "Content-Disposition": contentDisposition(disposition, file.filename),
-      "Accept-Ranges": "none",
-      "Cross-Origin-Resource-Policy": "same-origin",
-      "Content-Security-Policy":
-        disposition === "attachment"
-          ? "default-src 'none'; sandbox; frame-ancestors 'none'"
-          : "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
-    },
-  });
+  const headers: Record<string, string> = {
+    ...BASE_HEADERS,
+    "Content-Type": ALLOWED_FILE_MIME,
+    "Content-Length": String(file.contentLength),
+    "Content-Disposition": contentDisposition(disposition, file.filename),
+    "Accept-Ranges": "bytes",
+    ETag: file.etag,
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Content-Security-Policy":
+      disposition === "attachment"
+        ? "default-src 'none'; sandbox; frame-ancestors 'none'"
+        : "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  };
+  if (file.range !== null)
+    headers["Content-Range"] = contentRangeHeader(file.range, file.sizeBytes);
+  return new Response(file.stream, { status: file.status, headers });
 }
 
-export function openFailureResponse(
-  code: "NOT_FOUND" | "STORAGE_LIMIT" | "STORAGE_UNAVAILABLE" | "INTEGRITY",
-) {
+export function openFailureResponse(code: OpenFileFailure, sizeBytes?: number) {
   if (code === "NOT_FOUND") return errorJson(404, code, messages.common.notFound);
+  if (code === "RATE_LIMITED") return errorJson(429, code, messages.files.rateLimited);
+  if (code === "RANGE_NOT_SATISFIABLE") {
+    const response = errorJson(416, code, messages.files.rangeNotSatisfiable);
+    response.headers.set("Accept-Ranges", "bytes");
+    if (sizeBytes !== undefined) {
+      response.headers.set("Content-Range", unsatisfiedRangeHeader(sizeBytes));
+    }
+    return response;
+  }
   if (code === "STORAGE_LIMIT") return errorJson(503, code, messages.files.providerLimit);
   return errorJson(code === "INTEGRITY" ? 502 : 503, code, messages.files.unavailable);
 }

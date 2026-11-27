@@ -23,6 +23,7 @@ export function ReviewQueue({ rows }: { readonly rows: readonly DashboardReviewR
           {rows.map((row) => (
             <li key={row.id} className="grid gap-1 px-4 py-3 sm:px-5">
               <Link
+                prefetch={false}
                 href={`/dashboard/applications/${row.id}`}
                 className="text-sm font-medium text-primary-dark tabular-nums hover:underline"
               >

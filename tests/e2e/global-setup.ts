@@ -3,7 +3,8 @@ import { existsSync } from "node:fs";
 
 import { bootstrapAccounts } from "../../scripts/auth/accounts";
 import { connect, resolveDatabaseUrls } from "../../scripts/db/lib";
-import { isIsolatedTestDatabase } from "../support/isolation";
+import { dataFingerprint, fingerprintDiff } from "../support/data-fingerprint";
+import { assertIsolationTargetConsistent, isIsolatedTestDatabase } from "../support/isolation";
 import { deleteAllTestSessions } from "../support/staff-session";
 
 /**
@@ -28,14 +29,19 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     process.env.E2E_SESSIONS = "unavailable:no-auth-secret";
   }
 
+  // D-129: izolasyon işareti var ama hedef izole değilse hiçbir test başlamadan dur (fail-closed).
+  assertIsolationTargetConsistent();
   const { runtime, owner } = resolveDatabaseUrls();
   let createdTemporaryAccounts = false;
+  let before: Record<string, unknown> | null = null;
   const client = await connect(runtime, "cs-global-e2e-setup");
   try {
     await deleteAllTestSessions(client);
     const existing = await client.query<{ n: number }>("SELECT count(*)::int AS n FROM users");
     if (existing.rows[0]!.n > 0) {
       process.env.E2E_ACCOUNTS = "unavailable:real-accounts";
+      // Gerçek hesaplı ortak veritabanı: test öncesi veri parmak izi (test oturumları hariç).
+      if (!isIsolatedTestDatabase()) before = await dataFingerprint(client);
     } else {
       const suffix = randomUUID().slice(0, 6);
       const credentials = {
@@ -57,10 +63,17 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
   return async () => {
     const runtimeCleanup = await connect(runtime, "cs-global-e2e-teardown");
+    let changed: string[] = [];
     try {
       await deleteAllTestSessions(runtimeCleanup);
+      if (before !== null) changed = fingerprintDiff(before, await dataFingerprint(runtimeCleanup));
     } finally {
       await runtimeCleanup.end();
+    }
+    if (changed.length > 0) {
+      throw new Error(
+        `Ortak veritabanında E2E sonrası veri değişti (D-129): ${changed.join(", ")}. Test izolasyonu ihlali.`,
+      );
     }
     if (!createdTemporaryAccounts) return;
     const cleanup = await connect(owner, "cs-global-e2e-teardown");

@@ -78,9 +78,17 @@ export const applicationInternalNotes = pgTable(
     authorUserId: text("author_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    // PHASE 10 (D-115): D-113 ile aynı sözleşme — istemcinin mantıksal not işlemi anahtarı (UNIQUE) ve
+    // SHA-256 (başvuru, evrak, yazar, metin). Aynı anahtar + farklı içerik/kapsam → genel çakışma.
+    idempotencyKey: uuid("idempotency_key").unique("app_internal_notes_idempotency_key_unique"),
+    payloadHash: text("payload_hash"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (t) => [
+    check(
+      "app_internal_notes_idempotency_check",
+      sql`(${t.idempotencyKey} IS NULL) = (${t.payloadHash} IS NULL) AND (${t.payloadHash} IS NULL OR ${t.payloadHash} ~ '^[0-9a-f]{64}$')`,
+    ),
     foreignKey({
       name: "app_internal_notes_requirement_fk",
       columns: [t.requirementId, t.applicationId],

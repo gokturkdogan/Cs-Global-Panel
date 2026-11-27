@@ -1,4 +1,4 @@
-/** Bu projenin public şemasındaki tablolar (DATABASE_SCHEMA.md — 18 tablo). */
+/** Bu projenin public şemasındaki tablolar (DATABASE_SCHEMA.md — 21 tablo). */
 export const EXPECTED_TABLES: readonly string[] = [
   "users",
   "sessions",
@@ -18,4 +18,7 @@ export const EXPECTED_TABLES: readonly string[] = [
   "rate_limit_buckets",
   "audit_logs",
   "storage_quota_state",
+  "application_deletions",
+  "application_deletion_objects",
+  "storage_write_attempts",
 ];

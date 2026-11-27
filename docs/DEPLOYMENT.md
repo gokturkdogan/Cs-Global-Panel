@@ -62,8 +62,8 @@ B2_APPLICATION_KEY=               # gizli; yerelde yalnızca pnpm env:b2 (yankı
 B2_BUCKET_NAME=                   # production'da geliştirme bucket'ı (cs-global-documents) reddedilir
 B2_ENDPOINT=                      # https://s3.<B2_REGION>.backblazeb2.com (birebir)
 B2_REGION=                        # ör. eu-central-003
-STORAGE_MAX_TOTAL_BYTES=9000000000   # ≤ 9e9 (kod tavanı)
-STORAGE_WARNING_BYTES=8000000000
+STORAGE_MAX_TOTAL_BYTES=100000000000  # hedef (OD-26); ≤ 1e11 kod tavanı — hesap hazır olana kadar 9000000000
+STORAGE_WARNING_BYTES=90000000000    # hedef; güvenli başlangıç 8000000000
 
 # --- Zamanlanmış iş ---
 CRON_SECRET=
@@ -114,7 +114,7 @@ Kaldırılan değişkenler: `NEXT_PUBLIC_APP_URL` (→ `APP_URL`, sunucu tarafı
 
 ### 6.2 Kapasite değerlendirmesi
 - Ortalama PDF 2 MB, başvuru başına ~8 evrak ve versiyonlarla ~10 dosya → başvuru başına ~20 MB.
-- **Backblaze B2 uygulama kotası 9 GB ≈ 450 başvuru** (PHASE 08, D-101). Otomatik silme olmadığından (OD-06) kapasite birikimlidir; 8 GB'ta panel uyarısı, 9 GB'ta yeni yükleme durur (mevcut dosyalar erişilebilir kalır). Uzun vadeli büyüme için ücretli kapasite kullanıcı kararıdır (PB-02 açık). (Önceki değerlendirme: Vercel Blob Hobby 1 GB ≈ 50 başvuru.)
+- **Backblaze B2 uygulama kotası hedefi 100 GB ≈ 5 000 başvuru** (OD-26, D-140; önceki 9 GB ≈ 450 başvuru / 8 GB uyarı değerlerinin yerine). Otomatik silme olmadığından (OD-06) kapasite birikimlidir; 90 GB'ta panel uyarısı, 100 GB'ta yeni yükleme durur (mevcut dosyalar erişilebilir kalır). Aktif sınır, sağlayıcı hesabı hazırlığı (FILE_STORAGE §7.2) doğrulanana kadar 9 GB'ta kalabilir. Tahmini B2 maliyeti 100 GB ortalamada yıllık 7,51 USD (vergiler hariç). Uzun vadeli büyüme için ücretli kapasite kullanıcı kararıdır (PB-02 açık). (Önceki değerlendirme: Vercel Blob Hobby 1 GB ≈ 50 başvuru.)
 - Neon Free 1 GB: metadata için uzun süre yeterli (binary yok). 100 CU-saat/ay, düşük trafikte scale-to-zero ile muhtemelen yeterli (ölçülmeli).
 - Vercel Hobby function/bandwidth: küçük operasyon için muhtemelen yeterli; ancak ticari kullanım izni yok (PB-01).
 
@@ -194,3 +194,33 @@ Veritabanı düzeyinde ortam ayrımı yoktur (Product Owner kararı). `db:init` 
 - İki hesap (ADMIN, EMPLOYEE) yalnızca işletmecinin kendi terminalinde `pnpm auth:bootstrap` ile oluşturulur; şifreler gizli girilir, sohbete/issue'ya/kanala yazılmaz. Production'da ayrı ve güçlü şifrelerle yeniden yapılır (PHASE 13).
 - Şifre unutulursa veya hesap ele geçirilirse: `pnpm auth:reset-password` (ilgili hesabın tüm oturumları sonlanır).
 - Secret rotasyonu: `BETTER_AUTH_SECRET` değişirse tüm oturum cookie'leri geçersizleşir (yeniden giriş gerekir); `RATE_LIMIT_KEY_SECRET` değişirse rate limit sayaçları sıfırlanır.
+
+## 14. Geliştirme Verisinin Production'a Taşınmaması (PHASE 10.2 — D-129)
+- Production veritabanı **boş** oluşturulur ve yalnızca migration'larla kurulur; `neondb` (geliştirme) verisi, audit kayıtları (ör. PHASE 10.1 test izolasyonu olayının sentetik `TEST_EVENT` kaydı, id 970, ve PHASE 02 dönemi id 459), sentetik başvuru/hizmet/test oturumu kayıtları production'a **kopyalanmaz** (dump/restore yapılmaz).
+- Production'da test komutları çalıştırılmaz; test izolasyon korumaları (D-129) yalnızca test araçlarıdır, production güvenlik kontrolü değildir.
+
+## 15. PHASE 11 Notu — PDF teslimi ve görüntüleyici
+- Hosting, Route Handler'da `Range`/`If-Range` istek başlıklarını ve `206`/`416` yanıtlarını değiştirmeden iletmelidir; `/api/files/*` ve `/api/portal/*/files/*` yanıtları paylaşılan önbelleğe/CDN'e alınmamalıdır (`private, no-store`). Edge/CDN katmanında Range birleştirme veya tam nesne önbellekleme yapılandırılmaz (D-104 koşulu).
+- pdf.js worker'ı `/_next/static/chunks/` altında aynı kökenden sunulur; CSP `worker-src 'self'` gerektirir (proxy'de tanımlı). Harici CDN yok.
+- Görüntüleme maliyet modeli ve günlük kapasite: [FILE_STORAGE.md](FILE_STORAGE.md) §7.1. Gerçek B2 Range doğrulaması PHASE 12.
+
+## 16. Hosting Karşılaştırması (PHASE 12 — resmî belgeler, 2026-11-27)
+
+Gereksinimler: ücretsiz ve ticari kullanıma uygun, mümkünse kartsız, Next.js 16 SSR + Server Actions + Route Handler akışı (Node.js), **10 MiB ham PDF gövdesi** (+ ek yük), HTTP Range/streaming/iptal, `worker_threads` (PDF doğrulama), HTTPS, secret yönetimi, log'larda token redaksiyonu, Neon/B2 erişimi.
+
+| Aday | Ticari kullanım | Kart | İstek gövdesi | Hesaplama | Uygunluk |
+|---|---|---|---|---|---|
+| Vercel Hobby | **Hayır**: "only … for your personal or non-commercial use" (Terms §4); Hobby içeriğinin model eğitiminde kullanılabileceğine dair hüküm | Yok | **4,5 MB** ("request bodies up to 4.5 MB by default"; 20 MiB beta yalnız Pro/Enterprise) | 300 sn, 2 GB | **Uygun değil** (ticari + 10 MiB) |
+| Netlify Free | Doğrulanamadı | Doğrulanamadı | Senkron yük sınırı doğrulanamadı (streaming: 60 sn, 20 MB yanıt); 300 kredi ≈ 15 GB bant | 1 GB | **Doğrulanamadı** |
+| Cloudflare Workers Free | Kısıt bulunmadı (yalnız kart verisi işleme yasağı) | Yok | 100 MB (alan adı planı) | **10 ms CPU/istek**, 128 MB bellek; Next.js için önerilen yol `vinext` (beta) | **Uygun değil** (SSR + PDF doğrulama CPU'su; `worker_threads`/pdf.js uyumu doğrulanmadı) |
+| Render Free | Doğrulanamadı (pazarlama metni "personal projects") | Ödeme yöntemi yoksa bant aşımında servis ay sonuna kadar askıya alınır | Doğrulanamadı | 15 dk boşta uyku (~1 dk uyanma), 750 saat/ay, 5 GB bant | **Koşullu** (ticari şart + gövde limiti doğrulanmalı; uyku süresi UX) |
+| Railway Free | Doğrulanamadı | "no credit card" | Doğrulanamadı | Aylık 1 USD kaynak, 0,5 GB RAM, 5–10 dk uyku | **Muhtemelen yetersiz** (0,5 GB RAM + 256 MB doğrulama heap'i + Next.js) |
+| Koyeb | Ücretsiz web instance'ı resmî fiyat sayfasında görünmüyor | Doğrulanamadı | — | — | **Uygun değil / doğrulanamadı** |
+
+Sonuç: **ücretsiz ve ticari kullanıma uygun, 10 MiB yüklemeyi destekleyen doğrulanmış bir hosting bulunamadı → PB-01 açık.** Seçenekler (Product Owner kararı): küçük ücretli plan (ör. Vercel Pro $20/ay — OD-12 ile çelişir), yükleme mimarisi değişikliği (ör. doğrudan imzalı yükleme — D-100 güvenlik modelini değiştirir; önerilmez), şartları doğrulanmış başka bir sağlayıcı. Yeni hesap açılmadı, deployment yapılmadı.
+
+Ek production gereksinimleri: HTTPS altında `__Host-` müşteri cookie'si ve `Secure` personel cookie'si, HSTS; güvenilen proxy başlıkları kullanılmaz (uygulama IP'ye dayanmaz); `/b/<token>` yolu için hosting erişim log'larında redaksiyon veya log kapatma (TM-15); `Range`/`If-Range` başlıkları ve 206/416 yanıtları değiştirilmeden iletilmeli; dosya yanıtları CDN önbelleğine alınmamalı.
+
+## 17. Yedekleme (PHASE 12 güncellemesi)
+
+Neon Free: 6 saat anlık geri yükleme penceresi ("up to 1 GB of changes"), 1 manuel snapshot, zamanlanmış yedek yok; uzun süreli koruma yalnızca `pg_dump` ile. Prosedürler: [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) §2. Sentetik tatbikat: `pnpm test:restore-drill`. B2 versiyon geçmişi bağımsız yedek değildir; nesne yedeği kararı açıktır (PB-08). Yedek depolamanın maliyeti B2'de tutulursa OD-26 bütçesine dahil olur (ör. 10 GB ek yedek ≈ 0,83 USD/yıl).

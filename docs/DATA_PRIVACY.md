@@ -45,14 +45,14 @@ Her veri işleyen ile veri işleme sözleşmesi (DPA) ve KVKK m.12 tedbirleri de
 
 - MVP'de **otomatik saklama süresi yönetimi ve otomatik silme yoktur**: başvurular, müşteri bilgileri ve geçerli dosya versiyonları süreye bağlı olarak silinmez; panelde saklama ayarı yoktur.
 - Veriler yalnızca **personelin manuel silme işlemiyle** silinir (iki hesap eşit — OD-24) (BR-150…BR-154).
-- ⚠️ **Manuel silme tercihi, verilerin süresiz saklanması için hukuki dayanak oluşturmaz.** KVKK m.7 ve "Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik" kapsamındaki saklama ve periyodik imha yükümlülüklerini **şirket** takip etmeli; bir saklama ve imha politikası belirleyip ADMIN silme aracıyla uygulamalıdır. Bu, production öncesi açık hukuki gereksinimdir (PB-03).
-- Yalnızca **teknik** temizlik otomatiktir (müşteri verisi saklama politikası değildir): tamamlanmamış yüklemeler, reddedilen dosyaların blob'ları, sahipsiz storage nesneleri, süresi dolmuş personel oturumları, süresi dolmuş rate limit anahtarları, yarım kalan silme işlemlerinin tamamlanması.
+- ⚠️ **Manuel silme tercihi, verilerin süresiz saklanması için hukuki dayanak oluşturmaz.** KVKK m.7 ve "Kişisel Verilerin Silinmesi, Yok Edilmesi veya Anonim Hale Getirilmesi Hakkında Yönetmelik" kapsamındaki saklama ve periyodik imha yükümlülüklerini **şirket** takip etmeli; bir saklama ve imha politikası belirleyip personel silme aracıyla (iki hesap — OD-24) uygulamalıdır. Bu, production öncesi açık hukuki gereksinimdir (PB-03).
+- Yalnızca **teknik** temizlik otomatiktir (müşteri verisi saklama politikası değildir): tamamlanmamış yüklemeler, reddedilen dosyaların blob'ları, sahipsiz storage nesneleri, süresi dolmuş personel oturumları, süresi dolmuş rate limit anahtarları. (PHASE 10: yarım kalan kalıcı silmeler otomatik tamamlanmaz; personel "Silme İşlemini Sürdür" ile devam ettirir — D-116. Teknik temizlik komutları elle çalıştırılır — D-105.)
 - Yedekler: seçilen DB planının geri yükleme penceresi süresince silinen veri yedekte kalabilir (Neon Free: 6 saat; ücretli planlarda daha uzun) — aydınlatma metninde belirtilmeli. Ek uzun süreli yedek alınmaz.
 
 ## 5. Silme
 
 - **Başvuru silme (personel):** bağlantı iptali + müşteri oturumlarının anında geçersizliği + tüm dosya versiyonlarının storage'dan fiziksel silinmesi ve doğrulanması + tüm başvuru kayıtlarının (yorum, not, inceleme, geçmiş dahil) DB'den silinmesi. Yalnızca `deleted_at` güncellemek gerçek silme sayılmaz; böyle bir alan yoktur.
-- **Kısmi hata:** başvuru erişilemez durumda kalır, silme idempotent olarak yeniden denenir; DB kaydı storage boşaltılmadan silinmez (sahipsiz kişisel veri kalmaz).
+- **Kısmi hata:** başvuru erişilemez durumda kalır, silme idempotent olarak yeniden denenir; DB kaydı storage boşaltılmadan silinmez (sahipsiz kişisel veri kalmaz). PHASE 10'da uygulandı (D-116, D-117); yeniden deneme personelin "Silme İşlemini Sürdür" isteğiyle yapılır (arka plan/zamanlanmış iş yoktur).
 - **Audit:** yalnızca `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETED` (başvuru ID'si, silen kullanıcı, dosya sayısı). Önceki audit kayıtları kişisel veri içermez ve korunur.
 - **İlgili kişi talebi (m.11):** kişinin tüm başvuruları ad/telefon/e-posta araması ile personel tarafından bulunur ve personel tarafından silinir (müşteri eşleştirme olmadığından otomatik toplu silme yoktur). Yasal saklama yükümlülüğü olan veriler hukuki görüşe göre korunur.
 
@@ -133,3 +133,36 @@ Ayrıntı: [DEPLOYMENT.md](DEPLOYMENT.md). ⚠️ D-059 (tek veritabanı) nedeni
 - Müşteriye yalnızca: statü + tarih zaman çizelgesi, evrak statüleri, düzeltme açıklamaları, müşteriye görünür yorumlar (yazar yok). Gösterilmeyen: iptal/geçiş gerekçeleri, personel kullanıcı adları, aktörler, iç notlar, audit.
 - Serbest metinler kendi tablolarında; audit metadata'sına kopyalanmaz.
 - İptal ve tamamlama veriyi silmez, bağlantıyı iptal etmez (OD-04, OD-06); kalıcı silme PHASE 10.
+
+## 12c. PHASE 10 Uygulama Notları (iç notlar, işlem geçmişi, kalıcı silme)
+- **Şirket içi notlar** yalnızca personel tarafından görülür (ayrı tablo, müşteri modüllerinde ESLint yasağı, müşteri DTO'sunda yok — sentinel testleriyle doğrulandı). Notlar hassas bilgi içerebilir: personel arayüzü notlara **şifre, kart bilgisi veya gereksiz hassas kişisel veri yazılmaması** gerektiğini belirtir. Not metni audit'e kopyalanmaz; notlar düzenlenemez/silinemez ve yalnızca kalıcı başvuru silmede başvuruyla birlikte silinir.
+- **İşlem geçmişi ekranı** kişisel veri araştırma aracı değildir: ad/telefon/e-posta/serbest metin araması yoktur; yalnızca tarih, işlem türü, aktör türü, personel, kayıt türü ve başvuru (numara sunucuda UUID'ye çözülür, URL'ye yazılmaz) filtreleri vardır. Ham metadata gösterilmez.
+- **Audit saklama ile kalıcı silme sınırı:** kalıcı silmeden sonra başvurunun canlı kişisel verileri, PDF'leri, notları, yorumları ve geçmişi silinir; `audit_logs` kayıtları kalır (başvuru UUID'si, eylem kodları, sayılar, personel kimliği). Bu kalan kayıtlar doğrudan kişisel veri içermez; ancak başvuru UUID'si gibi **dolaylı tanımlayıcılar** başka kaynaklarla (ör. şirketin kendi yazışmaları, yedekler) birleştirildiğinde bir kişiyle ilişkilendirilebilir. Bu nedenle kalan audit kayıtları otomatik olarak "anonim veri" sınıflandırılmaz; audit saklama süresi ve gerekçesi şirketin saklama ve imha politikasında belirlenmelidir (PB-03). Uygulamada otomatik audit silme yoktur.
+- **Yedek ve sağlayıcı kopyaları:** canlı veritabanı satırlarının ve B2 nesne versiyonlarının silinmesi; Neon geri yükleme penceresi/WAL, sağlayıcı yedekleri, sağlayıcı logları veya şirket dışı kopyalardaki verilerin anında silindiği anlamına **gelmez**. Silme penceresi kullanıcıya bunu belirtir; sistem "tüm kopyalar silindi" garantisi vermez.
+- **Hukuki uygunluk:** silme onayı (gerekçe + başvuru numarası) personelin bilinçli kararını kaydeder; silmenin KVKK saklama/imha yükümlülüklerine uygunluğunu teknik olarak doğrulamaz. Otomatik saklama süresi, otomatik silme, kapasite nedeniyle silme ve toplu silme yoktur. Aynı ad/telefon/e-postaya sahip diğer başvurular bağımsızdır ve otomatik silinmez.
+- Production öncesi doğrulanacaklar (PB-03 kapsamında açık): KVKK yükümlülükleri, yurt dışına aktarım, saklama ve imha politikası, hukuki saklama yükümlülükleri, yedek saklama süreleri, veri işleme sözleşmeleri, audit saklama.
+
+## PHASE 11 Notu — görüntüleme ve ölçüm
+- Uygulama içi görüntüleyici PDF baytlarını yalnızca sekme belleğinde tutar; IndexedDB, localStorage, Cache API veya Service Worker'a yazmaz; kapatınca bellek serbest bırakılır (statik test). Yanıtlar `no-store`.
+- Parça (Range) isteklerinin görüntüleme audit'i aktör + dosya başına 10 dakikada bir yazılır (D-135); işaret anahtarı `rate_limit_buckets`'ta kısa ömürlüdür ve yalnızca teknik kimlikler içerir (kişisel veri, IP, UA yok).
+- Performans ölçümleri yalnızca izole geçici ortamda sentetik veriyle yapılır; sonuç dosyaları URL, token, cookie veya kişisel veri içermez; ekran görüntüleri yalnızca sentetik veridir. Yeni telemetri/analytics yok.
+
+## 13. PHASE 12 — Hukuki/Mahremiyet Hazırlık Kontrol Listesi (hukuk görüşü değildir)
+
+Kaynak: 6698 sayılı KVKK resmî metni (mevzuat.gov.tr, 2024 değişiklikleri dahil; metin bu oturumda .doc'tan okundu, resmî metinle teyit edilmeli). kvkk.gov.tr'ye bu oturumda TLS hatası nedeniyle erişilemedi → Kurul kararları (72 saat ihlal bildirimi, VERBİS muafiyet eşikleri) **doğrulanmadı**.
+
+| Konu | Durum | Not |
+|---|---|---|
+| Veri sorumlusu / veri işleyen | Karar bekliyor | CS Global veri sorumlusu; Neon (Databricks) ve Backblaze veri işleyen (Backblaze DPA Module 2: controller-to-processor, AB SCC 2021/914 Module 2) |
+| İşleme amacı / hukuki sebep (md. 5) | Hukuk görüşü gerekli | Vize danışmanlığı hizmeti |
+| Özel nitelikli veri (md. 6) | Hukuk görüşü gerekli | Biyometrik/genetik veri özel nitelikli; pasaport/kimlik taraması kendiliğinden aynı kategoriye konmaz — bağlama göre (ör. biyometrik fotoğraf) değerlendirilmeli |
+| Aydınlatma (md. 10) | Metin hazırlanmalı | Kimlik, amaç, alıcılar (yurt dışı sağlayıcılar), yöntem/hukuki sebep, haklar |
+| Yurt dışı aktarım (md. 9, 2024) | **Açık** | Yeterlilik kararı yoksa uygun güvenceler (standart sözleşme imzadan itibaren **5 iş günü** içinde Kuruma bildirilir); Neon AWS Frankfurt + Grafana Labs (ABD) alt işleyen; Backblaze "may be transferred to … United States"; AB bölgesi tek başına uyum sağlamaz |
+| Saklama/imha | Karar bekliyor | OD-06: otomatik silme yok; kalıcı silme manuel (BR-150…); tamamlanan başvuru, audit ve yedek saklama süreleri belirlenmemiş |
+| İlgili kişi hakları (md. 11) | Prosedür gerekli | Silme talebi → kalıcı silme akışı + yedeklerdeki kopyalar (OPERATIONS_RUNBOOK §2.4) |
+| İhlal bildirimi (md. 12/5) | Prosedür taslağı | "en kısa sürede" ilgiliye ve Kurula; OPERATIONS_RUNBOOK §4.7 |
+| VERBİS (md. 16) | Hukuk görüşü gerekli | Muafiyet eşiği doğrulanmadı |
+| Sağlayıcı DPA / alt işleyenler | Kısmen incelendi | Backblaze DPA Module 1/2 mevcut, alt işleyen değişikliği ≥7 gün önceden; Neon "Product Specific Schedule" (Databricks MCSA), alt işleyenler Databricks listesi (bu oturumda okunmadı) |
+| GDPR uygulanabilirliği | Değerlendirilmeli | Şirketin AB'deki faaliyetlerine bağlı |
+
+**Kullanıcı karar listesi:** gerekli müşteri verileri (minimizasyon), tamamlanan başvuruların saklama süresi, audit saklama süresi, yedek saklama süresi ve şifrelemesi, silme taleplerinin yedeklere etkisi, bearer bağlantı kalan riski (PB-04, SEC-02), antivirüssüz kabul kalan riski (PB-05), yurt dışı aktarım mekanizması. Teknik denetim hukuki uyumluluk sertifikası değildir; yeni otomatik saklama/silme oluşturulmadı (OD-06).

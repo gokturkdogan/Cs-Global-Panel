@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 
 import type { BrowserContext, Page, TestInfo } from "@playwright/test";
@@ -6,6 +6,7 @@ import type pg from "pg";
 
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { expect, sessionsAvailable, sessionsSkipReason, test } from "./fixtures";
+import { collectErrors } from "./console-errors";
 
 /**
  * Başvuru yönetimi (PHASE 06).
@@ -19,15 +20,6 @@ test.skip(!sessionsAvailable, sessionsSkipReason);
 
 const isolated = isIsolatedTestDatabase();
 const tag = () => randomBytes(3).toString("hex");
-
-function collectErrors(page: Page) {
-  const errors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => errors.push(error.message));
-  return errors;
-}
 
 async function screenshot(page: Page, testInfo: TestInfo, name: string, projects: string[]) {
   if (process.env.E2E_SCREENSHOTS !== "1" || !isolated || !projects.includes(testInfo.project.name))
@@ -359,6 +351,11 @@ test.describe("başvurular — mutasyonlar (izole veritabanı)", () => {
 
     await openDetail(page);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/CS-\d{4}-\d{6}/);
+    // PHASE 11 (D-139): test kendi gezinmesini başlatmadan önce sayfanın uçuştaki ön-getirmelerini bekler.
+    // Aksi hâlde `page.goto` bu fetch'leri iptal eder ve WebKit iptali Next.js yönlendiricisinden yakalanmamış
+    // "… due to access control checks" ret'i olarak raporlar (teşhis: istek ağa hiç çıkmaz; bekleme ile
+    // 0/240, beklemesiz ~%3). Hata toplayıcı ve D-131 istisnası değişmedi.
+    await page.waitForLoadState("networkidle");
     await page.goto("/dashboard");
     // Paralel testler aynı anda başvuru ekleyip silme sürecine alabildiği için tam eşitlik integration
     // testinde (dashboard.test.ts) doğrulanır; burada sayaç gerçek veriyi (> 0) gösterir.
@@ -576,7 +573,7 @@ test.describe("başvurular — mutasyonlar (izole veritabanı)", () => {
     const unique = randomBytes(2).toString("hex").replace(/[0-9]/g, "q");
     // 11 sentetik başvuru (doğrudan; oluşturma akışı ayrı testte) + bağlantısız.
     for (let i = 0; i < 11; i += 1) {
-      const number = `CS-2094-${String((Number.parseInt(randomBytes(3).toString("hex"), 16) % 900000) + 100000)}`;
+      const number = `CS-2094-${randomInt(100_000_000_000, 999_999_999_999)}`; /* 12 hane: paket genelinde çakışma ihmal edilebilir (D-133 notu) */
       await runtimeDb.query(
         `INSERT INTO applications (application_number, customer_first_name, customer_last_name, customer_phone_e164, customer_email, search_text, service_id, service_name_snapshot, created_by_user_id, idempotency_key, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now() - make_interval(secs => $11))`,

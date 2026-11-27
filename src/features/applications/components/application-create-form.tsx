@@ -227,7 +227,7 @@ export function ApplicationCreateForm({
               }}
               aria-invalid={errors.serviceId ? true : undefined}
               aria-describedby={describedBy("application-serviceId", { error: errors.serviceId })}
-              className="h-10 w-full rounded-lg border border-input bg-card px-3 text-base focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none aria-invalid:border-destructive md:text-sm"
+              className="h-10 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-base focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none aria-invalid:border-destructive md:text-sm"
             >
               <option value="">Hizmet seçin</option>
               {services.map((service) => (
@@ -267,7 +267,7 @@ export function ApplicationCreateForm({
                   {preview.requirements.map((requirement, index) => (
                     <li key={requirement.id} className="grid gap-1 rounded-lg border p-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="text-sm font-medium break-words">
+                        <span className="text-sm font-medium wrap-anywhere">
                           <span className="mr-1.5 text-muted-foreground tabular-nums">
                             {index + 1}.
                           </span>
@@ -276,7 +276,7 @@ export function ApplicationCreateForm({
                         <RequiredBadge isRequired={requirement.isRequired} />
                       </div>
                       {requirement.instructions ? (
-                        <p className="text-sm break-words whitespace-pre-line text-muted-foreground">
+                        <p className="text-sm wrap-anywhere whitespace-pre-line text-muted-foreground">
                           {requirement.instructions}
                         </p>
                       ) : null}

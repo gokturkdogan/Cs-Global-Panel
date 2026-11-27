@@ -2,7 +2,7 @@
 
 > PostgreSQL (Neon) + Drizzle ORM 0.45.4. **PHASE 02'de uygulandı:** şema `src/server/db/schema/*`, migration'lar `src/server/db/migrations/` (0000–0002). Uygulama ayrıntıları, invariant'lar ve yetkiler §9'da. Gerçek veritabanında doğrulama durumu: [PROJECT_STATE.md](PROJECT_STATE.md).
 > İş kuralları: [BUSINESS_RULES.md](BUSINESS_RULES.md) · State machine: [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) · Silme: BR-150…BR-155
-> Revizyon (2026-11-24, OD-01…OD-23): 23 → **17 tablo**. Değişiklik özeti §8'de. **PHASE 08 (migration 0005, D-102): 18 tablo** — `storage_quota_state` eklendi (§4.14), `application_document_files.storage_version_id` (§4.6).
+> Revizyon (2026-11-24, OD-01…OD-23): 23 → **17 tablo**. Değişiklik özeti §8'de. **PHASE 08 (migration 0005, D-102): 18 tablo** — `storage_quota_state` eklendi (§4.14), `application_document_files.storage_version_id` (§4.6). **PHASE 10 (migration 0007, D-115…D-117): 20 tablo** — `application_deletions` (§4.15), `application_deletion_objects` (§4.16), iç not idempotency (§4.9), silme koruma trigger'ı (§9.4). **PHASE 10.1 (migration 0008, D-121…D-126): 21 tablo**; PHASE 10.2 migration 0009 (`accounting_epoch`, §4.14); **PHASE 11 migration 0010 (D-138): yalnızca indeks** `audit_logs_occurred_at_id_idx` (§9.15) — `storage_write_attempts` (§4.17), `application_deletions.final_listing_started_at`, koruma v2 ve durum makinesi trigger'ları (§9.13).
 
 ## 1. Genel Kurallar
 
@@ -150,7 +150,7 @@ erDiagram
 
 Better Auth `rateLimit` tablosu **oluşturulmaz**: `disableIpTracking` yerleşik HTTP rate limiter'ı kapattığı için giriş sınırlaması `rate_limit_buckets` ile yapılır (SECURITY §2).
 
-## 4. Domain Tabloları (14)
+## 4. Domain Tabloları (16)
 
 ### 4.1 `services`
 | Kolon | Tip | Null | Default | Kısıt |
@@ -293,7 +293,41 @@ Index `(requirement_id, created_at DESC)`. Immutable. Tek aktif dosya kuralıyla
 `id` uuid PK · `application_id` FK CASCADE · `requirement_id` FK CASCADE ✓ (null = başvuru geneli) · `body` text 1–2000 · `author_user_id` FK RESTRICT · `created_at`. Index `(application_id, created_at)`. Immutable.
 
 ### 4.9 `application_internal_notes` (yalnızca personel)
-`id` uuid PK · `application_id` FK CASCADE · `requirement_id` FK CASCADE ✓ · `body` text 1–5000 · `author_user_id` FK RESTRICT · `created_at`. Index `(application_id, created_at)`. Immutable. Müşteri yolu kodundan erişilmez (BR-121). Başvuru oluşturma formundaki "şirket içi not" bu tabloya yazılır.
+`id` uuid PK · `application_id` FK CASCADE · `requirement_id` FK CASCADE ✓ · `body` text 1–5000 · `author_user_id` FK RESTRICT · `idempotency_key` uuid UNIQUE ✓ (PHASE 10, D-115) · `payload_hash` text ✓ (SHA-256; anahtarla birlikte dolu/boş — CHECK `app_internal_notes_idempotency_check`) · `created_at`. Index `(application_id, created_at)`. Immutable (runtime: SELECT, INSERT). Müşteri yolu kodundan erişilmez (BR-121, ESLint). Notlar başvuru detayındaki "Şirket İçi Notlar" bölümünden eklenir (PHASE 10); başvuru oluşturma formunda not alanı yoktur (PHASE 06).
+
+### 4.15 `application_deletions` (PHASE 10 — migration 0007, D-116)
+| Kolon | Tip | Null | Not |
+|---|---|---|---|
+| `application_id` | uuid | ✗ | PK, FK applications **CASCADE** (başvuruyla birlikte silinir) |
+| `reason` | text | ✗ | 1–1000, personel içi; audit'e yazılmaz |
+| `requested_by_user_id` | text | ✗ | FK users RESTRICT |
+| `settle_after` | timestamptz | ✗ | PHASE 10.1'den itibaren yalnızca bilgi amaçlı (= talep zamanı); güvenlik koşulu değildir (D-124) |
+| `final_listing_started_at` | timestamptz | ✓ | PHASE 10.1: sonlandırmayı mümkün kılan eksiksiz boş listelemenin başlangıcı; tüm yazım girişimleri bundan önce çözülmüş olmalı (D-124, D-125) |
+| `inventory_completed_at` | timestamptz | ✓ | İlk eksiksiz önek listelemesi |
+| `storage_verified_at` | timestamptz | ✓ | Önekte fiziksel versiyon kalmadığı doğrulandı (sonlandırma TX'inde) |
+| `attempt_count` / `last_attempt_at` | integer / timestamptz | ✗ / ✓ | Adım sayısı |
+| `last_error` | text | ✓ | CHECK `DELETION_ERROR_CODES` (güvenli kod) |
+| `lease_id` / `lease_expires_at` | uuid / timestamptz | ✓ | Tek adım kirası; ikisi birlikte dolu/boş (CHECK) |
+| `created_at` / `updated_at` | timestamptz | ✗ | `updated_at` trigger |
+
+### 4.16 `application_deletion_objects` (PHASE 10 — migration 0007, D-116)
+`id` uuid PK · `application_id` FK → `application_deletions` **CASCADE** · `object_key` (CHECK: `applications/{application_id}/{requirement}/{file_id}.pdf`) · `version_id` (1–255) · `size_bytes` bigint ≥ 0 · `is_delete_marker` · `file_id` (sahiplik doğrulanmış dosya kaydı) · `state` `PENDING`/`DELETED` · `attempts` · `last_error` · `discovered_at` · `deleted_at` (`state = DELETED` ⇔ dolu). UNIQUE `(object_key, version_id)`; index `(application_id, state)`. `DELETED` yalnızca eksiksiz listelemede yokluk görülünce yazılır.
+
+Runtime rolü: her iki tabloda `SELECT, INSERT, UPDATE` — DELETE yok (yalnızca başvuruyla CASCADE).
+
+### 4.17 `storage_write_attempts` (PHASE 10.1 — migration 0008, D-121…D-123)
+| Kolon | Tip | Null | Not |
+|---|---|---|---|
+| `id` | uuid | ✗ | PK — fiziksel PUT girişiminin dayanıklı kimliği |
+| `application_id` | uuid | ✗ | FK applications CASCADE |
+| `file_id` | uuid | ✗ | FK application_document_files CASCADE |
+| `object_key` | text | ✗ | CHECK `applications/{application_id}/%/{file_id}.pdf` |
+| `state` | text | ✗ | `ADMITTED` / `IN_PROGRESS` / `CONFIRMED` / `FAILED` / `FENCED` / `UNKNOWN` |
+| `outcome` | text | ✓ | `PROVIDER_CONFIRMED`, `OBSERVED`, `NOT_SENT`, `FENCED_BY_DELETION`, `RESERVATION_EXPIRED`, `RESPONSE_LOST`, `PROVIDER_ERROR`, `NO_VERSION_ID`, `INTEGRITY_MISMATCH` |
+| `version_id` | text | ✓ | `CONFIRMED` ⇔ dolu; UNIQUE `(object_key, version_id)` (bir versiyon tek girişime atanır) |
+| `admitted_at` / `started_at` / `settled_at` | timestamptz | ✗ / ✓ / ✓ | `started_at` boş ⇔ `ADMITTED`/`FENCED`; `settled_at` dolu ⇔ çözülmüş |
+
+CHECK: `FAILED` ⇒ `outcome = NOT_SENT`. Index `(application_id, state)`, `(file_id)`. Trigger `storage_write_attempts_guard_update` (tüm roller): kimlik alanları değişmez; yalnızca `ADMITTED→IN_PROGRESS|FENCED`, `IN_PROGRESS→CONFIRMED|FAILED|UNKNOWN`, `UNKNOWN→CONFIRMED`. Runtime: `SELECT, INSERT, UPDATE` (DELETE yok).
 
 ### 4.10 `application_status_history`
 | Kolon | Tip | Null | Kısıt |
@@ -346,6 +380,7 @@ OD-09 istisnası: IP'den türetilen anahtarlar yalnızca HMAC'lenmiş, pencere s
 | `id` | smallint | ✗ | | PK, CHECK `id = 1` (tek satır; migration ile eklenir) |
 | `untracked_bytes` | bigint | ✗ | 0 | CHECK ≥ 0. `storage:reconcile --apply` ile: DB kaydına eşlenemeyen fiziksel kullanım |
 | `reconciled_at` | timestamptz | ✓ | | Son mutabakat |
+| `accounting_epoch` | bigint | ✗ | 0 | PHASE 10.2 (D-130): CHECK ≥ 0. Fiziksel silme/kayıt sonlandırmada artar; mutabakat yalnızca değişmemişse yazar |
 | `updated_at` | timestamptz | ✗ | now() | trigger |
 
 Global kota kilidi: rezervasyon transaction'ı bu satırı `FOR UPDATE` kilitler (kilit sırası: applications → requirements → files → storage_quota_state). Kullanım miktarı burada tutulmaz (dosya metadata'sından hesaplanır). Runtime rolü: yalnızca `SELECT, UPDATE` (satır ekleyemez/silemez).
@@ -442,7 +477,8 @@ Transaction içinde ağ çağrısı yok (storage ve PDF doğrulama dışarıda);
 | Yetki | Tablolar |
 |---|---|
 | SELECT, INSERT, UPDATE, DELETE | `applications`, `sessions`, `verifications`, `rate_limit_buckets` |
-| SELECT, INSERT, UPDATE | `users`, `accounts`, `services`, `service_document_requirements`, `application_number_counters`, `application_document_requirements`, `application_document_files`, `application_access_tokens` |
+| SELECT, INSERT, UPDATE | `users`, `accounts`, `services`, `service_document_requirements`, `application_number_counters`, `application_document_requirements`, `application_document_files`, `application_access_tokens`, `application_deletions`, `application_deletion_objects` (PHASE 10), `storage_write_attempts` (PHASE 10.1) |
+| SELECT, UPDATE | `storage_quota_state` (PHASE 08) |
 | SELECT, INSERT | `document_reviews`, `document_comments`, `application_internal_notes`, `application_status_history`, `audit_logs` |
 | Hiçbiri | TRUNCATE, REFERENCES, TRIGGER, DDL, `drizzle` şeması, `public`'te CREATE, TEMP |
 
@@ -456,6 +492,7 @@ Bu yetkiler sunucu tarafı yetkilendirmenin yerine geçmez: her erişim yine per
 
 ### 9.4 Silme ve storage
 Veritabanı CASCADE'i storage nesnelerini **silmez**. BR-153 sırası korunur: aşama 1 `deletion_requested_*` + token iptali → storage nesneleri silinip doğrulanır (PHASE 08/10) → aşama 2 DB satırı silinir. Storage silme başarısızsa DB kaydı silinmez (aksi halde sahipsiz kişisel veri kalır). `audit_logs` FK içermez ve kişisel veri içermediği için başvuru silinince kalır.
+**PHASE 10 (D-116, D-117):** iş akışı `application_deletions` + `application_deletion_objects` ile kalıcı durumludur; `applications_guard_delete` BEFORE DELETE trigger'ı tablo sahibi dışındaki her rol için başvuru satırının yalnızca (a) `deletion_requested_at` dolu, (b) işlem kaydında `storage_verified_at` dolu, (c) hiçbir dosya kaydında `blob_deleted_at IS NULL` yok, (d) envanterde `PENDING` yokken silinmesine izin verir (`55000`). CASCADE kapsamı: evrak snapshot'ları, dosya kayıtları (tüm versiyonlar), kararlar, yorumlar, iç notlar, statü geçmişi, token'lar, silme işlemi + envanter, yazım girişimleri (PHASE 10.1). **PHASE 10.1 (D-125):** koruma ayrıca çözülmemiş yazım girişimi, yazım girişimi olmayan dosya kaydı ve `final_listing_started_at` sonrasında çözülmüş girişim olmamasını şart koşar; silme işareti geri alınamaz (`applications_guard_deletion_flag`). Kalanlar: `audit_logs`, `application_number_counters` (numara tekrar kullanılmaz), hizmetler/şablonlar, personel hesapları, diğer başvurular.
 
 ### 9.5 Türkçe arama
 Veritabanının `lower()`/`ILIKE` davranışı collation'a bağlıdır ve Türkçe `I/ı`, `İ/i` kurallarını uygulamaz (integration testi bunu gösterir). Bu nedenle arama **uygulamada** yapılan Türkçe katlama ile çalışır (BR-80): `search_text` yazılırken ve sorgu metni aynı fonksiyondan (`src/lib/search.ts`, PHASE 06) geçer; veritabanında `pg_trgm` GIN index'i bu katlanmış metin üzerindedir. Full-text search altyapısı kurulmaz. `services_name_lower_unique` ASCII dışı büyük/küçük harf eşleşmesini garanti etmez (Türkçe harfli hizmet adlarında aynı adın farklı yazımı ayrı kayıt sayılabilir — PHASE 05'te uygulama normalizasyonuyla ele alınır).
@@ -474,6 +511,18 @@ Migration eklenmedi (5 migration, 17 tablo). Müşteri oturumu için tablo yoktu
 
 ### 9.10 PHASE 09.1 — migration 0006 (D-113)
 `0006_comment_idempotency.sql` (yalnızca ekleme): `document_comments.idempotency_key uuid` (UNIQUE `document_comments_idempotency_key_unique`), `payload_hash text`, CHECK `document_comments_idempotency_check` (ikisi birlikte dolu/boş; hash `^[0-9a-f]{64}$`). Runtime yetkileri değişmedi (SELECT, INSERT). Önce izole Docker'da (tüm integration/E2E), sonra `neondb`'de uygulandı (7 migration, 18 tablo; veri parmak izi aynı).
+
+### 9.11 PHASE 10 — migration 0007 (D-115…D-117)
+`0007_deletion_and_internal_notes.sql` (drizzle-kit üretimi + elle eklenen trigger/fonksiyon/GRANT; yalnızca ekleme, DROP/DELETE yok): `application_internal_notes.idempotency_key` (UNIQUE) + `payload_hash` + CHECK; `application_deletions` ve `application_deletion_objects` tabloları (+ `updated_at` trigger'ı); `applications_guard_delete()` fonksiyonu ve trigger'ı; iki yeni tabloya `SELECT, INSERT, UPDATE`. Önce izole Docker'da (tüm integration/E2E), sonra `neondb`'de uygulandı (8 migration, 20 tablo; veri parmak izi aynı). Yeni enum/statü değeri yok; audit metadata anahtarları değişmedi.
+
+### 9.13 PHASE 10.1 — migration 0008 (D-121…D-126)
+`0008_upload_write_tracking.sql` (drizzle-kit üretimi + elle eklenen fonksiyon/trigger/GRANT): `storage_write_attempts` tablosu + CHECK/index; `application_deletions.final_listing_started_at`; iki tablodaki `last_error` CHECK'i yeni kodlarla (`UPLOAD_OUTCOME_UNKNOWN`, `LEGACY_UNVERIFIED`) yeniden tanımlandı (DROP/ADD aynı migration'da, veri silinmez — migration testindeki gerekçeli izin listesinde); `storage_write_attempts_guard_update`, `applications_guard_deletion_flag` trigger'ları; `applications_guard_delete()` `CREATE OR REPLACE` ile genişletildi; yeni tabloya `SELECT, INSERT, UPDATE`. Backfill yok (eski dosya kayıtları kanıtsız sayılır — D-126). Önce izole Docker'da, sonra `neondb`'de uygulandı (9 migration, 21 tablo; veri parmak izi aynı).
+
+### 9.14 PHASE 10.2 — migration 0009 (D-130)
+`0009_reconcile_accounting_epoch.sql` (drizzle-kit üretimi; yalnızca ekleme): `storage_quota_state.accounting_epoch bigint DEFAULT 0 NOT NULL` + CHECK ≥ 0. GRANT değişmedi (runtime `SELECT, UPDATE`). Önce izole Docker'da, sonra `neondb`'de (10 migration, 21 tablo; veri parmak izi aynı — `storage_quota_state` satırının yeni kolonu 0).
+
+### 9.15 PHASE 11 — migration 0010 (D-138)
+`0010_audit_logs_keyset_index.sql` (drizzle-kit üretimi; yalnızca ekleme): `CREATE INDEX audit_logs_occurred_at_id_idx ON audit_logs (occurred_at DESC NULLS FIRST, id DESC NULLS FIRST)`. Tablo/kolon/GRANT değişmedi. Gerekçe ölçümdür (`pnpm perf:db:isolated`, sentetik izole veri): 100 000 audit satırında liste 26–29 ms → 0,05 ms, keyset 2. sayfa 39 ms → 0,05 ms, işlem türü filtresi 10 ms → 0,06 ms (plan: tam tarama + hash join + sıralama → `Index Scan(audit_logs_occurred_at_id_idx)` + nested loop, LIMIT 21). Sıra yönü sorgudaki `ORDER BY … DESC` (NULLS FIRST) ile birebir olmalıdır — Drizzle varsayılanı `NULLS LAST` ile üretilen ilk deneme indeksi kullanılmadı (ölçüldü; migration uygulanmadan yeniden üretildi). `audit_logs_occurred_at_idx` artık gereksiz; kaldırma ayrı onay konusu. Başvuru listesi/arama/pano sorguları 10 000 başvuruda ≤ 7,4 ms (sıralı tarama kabul edilebilir) → ek indeks yok. Önce izole Docker'da doğrulandı; ardından `neondb`'ye uygulanır (11 migration, 21 tablo).
 
 ### 9.9 PHASE 09 — iş akışı (şema değişikliği yok)
 Migration eklenmedi (6 migration, 18 tablo). Kullanılanlar: `applications` (`status`, `status_changed_at`, `submitted_at`, `version`, `updated_by_user_id`), `application_document_requirements` (`status`, `version`), `document_reviews` (değiştirilemez; bileşik FK dosya → evrak → başvuru), `document_comments`, `application_status_history` (T7–T12 gerekçe CHECK; müşteri aktörü token FK), `application_document_files` (`REMOVED`, `EXPIRED`). Review/yorum/geçmiş tabloları runtime rolünde yalnızca SELECT+INSERT (append-only).

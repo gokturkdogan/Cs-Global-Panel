@@ -9,6 +9,12 @@ import type { DashboardApplicationRow } from "../domain";
 import { SectionCard } from "./section-card";
 
 /**
+ * PHASE 11: yan panelle birlikte (xl) tablo sığmıyor ve Durum sütunu kesiliyordu → Hizmet sütunu yalnızca
+ * geniş ekranda (2xl); hizmet adı başvuru detayında ve mobil kart listesinde görünür.
+ */
+const SERVICE_COLUMN = "hidden 2xl:table-cell";
+
+/**
  * Son 5 başvuru; başvuru numarası detaya bağlantıdır (PHASE 06). ≥768px tablo, altında kart listesi.
  */
 export function RecentApplications({
@@ -38,7 +44,11 @@ export function RecentApplications({
                 <tr>
                   {["Başvuru No", "Müşteri", "Hizmet", "Durum", "Oluşturulma Tarihi"].map(
                     (heading) => (
-                      <th key={heading} scope="col" className="px-5 py-3 font-medium">
+                      <th
+                        key={heading}
+                        scope="col"
+                        className={`px-5 py-3 font-medium ${heading === "Hizmet" ? SERVICE_COLUMN : ""}`}
+                      >
                         {heading}
                       </th>
                     ),
@@ -50,6 +60,7 @@ export function RecentApplications({
                   <tr key={row.id}>
                     <td className="px-5 py-3 font-medium whitespace-nowrap tabular-nums">
                       <Link
+                        prefetch={false}
                         href={`/dashboard/applications/${row.id}`}
                         className="text-primary-dark hover:underline"
                       >
@@ -57,10 +68,12 @@ export function RecentApplications({
                       </Link>
                     </td>
                     <td className="max-w-48 truncate px-5 py-3">{row.customerName}</td>
-                    <td className="max-w-48 truncate px-5 py-3 text-muted-foreground">
+                    <td
+                      className={`max-w-48 truncate px-5 py-3 text-muted-foreground ${SERVICE_COLUMN}`}
+                    >
                       {row.serviceName}
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <ApplicationStatusBadge status={row.status} />
                     </td>
                     <td className="px-5 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
@@ -76,6 +89,7 @@ export function RecentApplications({
               <li key={row.id} className="grid gap-1.5 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Link
+                    prefetch={false}
                     href={`/dashboard/applications/${row.id}`}
                     className="text-sm font-medium text-primary-dark tabular-nums hover:underline"
                   >

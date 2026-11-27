@@ -127,6 +127,77 @@ export const AUDIT_METADATA_KEYS = [
   "versionNumber",
 ] as const;
 
+/**
+ * Kalıcı başvuru silme (PHASE 10, D-116): sağlayıcıdaki her fiziksel versiyonun durumu. `DELETED` yalnızca
+ * versiyona özgü listeleme ile YOKLUĞU doğrulanınca yazılır (silme yanıtı tek başına kanıt değildir).
+ */
+export const DELETION_OBJECT_STATES = ["PENDING", "DELETED"] as const;
+export type DeletionObjectState = (typeof DELETION_OBJECT_STATES)[number];
+
+/**
+ * Silme adımının son hata kategorisi (personel içi, güvenli kod; sağlayıcı mesajı/anahtar içermez).
+ * `MANUAL_DELETION_ERRORS` personel yeniden denemesiyle çözülmez: yapılandırma/yetki/sahiplik incelemesi gerekir.
+ */
+export const DELETION_ERROR_CODES = [
+  "STORAGE_UNAVAILABLE",
+  "STORAGE_LIMIT",
+  "STORAGE_FORBIDDEN",
+  "STORAGE_NOT_CONFIGURED",
+  "LISTING_INCOMPLETE",
+  "UNKNOWN_OBJECT",
+  "OWNERSHIP_CONFLICT",
+  "VERIFICATION_PENDING",
+  "FINALIZATION_FAILED",
+  // PHASE 10.1 (D-124, D-126): talepten önce başlamış bir storage yazımının sonucu kanıtlanamadı /
+  // yazım takibi olmayan eski (migration 0008 öncesi) dosya kaydı.
+  "UPLOAD_OUTCOME_UNKNOWN",
+  "LEGACY_UNVERIFIED",
+] as const;
+export type DeletionErrorCode = (typeof DELETION_ERROR_CODES)[number];
+export const MANUAL_DELETION_ERRORS: readonly DeletionErrorCode[] = [
+  "STORAGE_FORBIDDEN",
+  "STORAGE_NOT_CONFIGURED",
+  "UNKNOWN_OBJECT",
+  "OWNERSHIP_CONFLICT",
+  "LEGACY_UNVERIFIED",
+];
+
+/**
+ * Fiziksel storage yazım girişimi (PHASE 10.1, D-121…D-123). Dosya yaşam döngüsünden (FILE_STATUSES)
+ * ayrı eksendir: dosyanın EXPIRED/REJECTED olması yazımın bittiğini kanıtlamaz.
+ * - ADMITTED: rezervasyonla kabul edildi, PUT henüz gönderilmedi (silme talebiyle çitlenebilir).
+ * - IN_PROGRESS: PUT gönderilmek üzere/gönderildi; sonuç henüz kaydedilmedi (süreç çökerse burada kalır).
+ * - CONFIRMED: sağlayıcı versiyon kimliğiyle başarı döndürdü VEYA versiyon depoda gözlendi.
+ * - FAILED: kesin başarısızlık — yalnızca istek hiç gönderilmediyse (bağlantı kurulamadı).
+ * - FENCED: PUT başlamadan çitlendi (silme talebi / süresi dolmuş rezervasyon); hiç yazım olmaz.
+ * - UNKNOWN: sonuç belirsiz (zaman aşımı, yanıt kaybı, sağlayıcı hatası, bütünlük uyuşmazlığı).
+ * Çözülmüş (settled) = CONFIRMED | FAILED | FENCED. UNKNOWN yalnızca versiyon gözlemiyle CONFIRMED olur.
+ */
+export const WRITE_ATTEMPT_STATES = [
+  "ADMITTED",
+  "IN_PROGRESS",
+  "CONFIRMED",
+  "FAILED",
+  "FENCED",
+  "UNKNOWN",
+] as const;
+export type WriteAttemptState = (typeof WRITE_ATTEMPT_STATES)[number];
+export const SETTLED_WRITE_ATTEMPT_STATES = ["CONFIRMED", "FAILED", "FENCED"] as const;
+export const UNSETTLED_WRITE_ATTEMPT_STATES = ["ADMITTED", "IN_PROGRESS", "UNKNOWN"] as const;
+
+export const WRITE_ATTEMPT_OUTCOMES = [
+  "PROVIDER_CONFIRMED",
+  "OBSERVED",
+  "NOT_SENT",
+  "FENCED_BY_DELETION",
+  "RESERVATION_EXPIRED",
+  "RESPONSE_LOST",
+  "PROVIDER_ERROR",
+  "NO_VERSION_ID",
+  "INTEGRITY_MISMATCH",
+] as const;
+export type WriteAttemptOutcome = (typeof WRITE_ATTEMPT_OUTCOMES)[number];
+
 export const ACCESS_TOKEN_REVOKE_REASONS = ["ROTATED", "REVOKED", "APPLICATION_DELETION"] as const;
 
 /** Personel rolleri (Better Auth admin plugin `role` alanı). */

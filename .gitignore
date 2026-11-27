@@ -26,6 +26,8 @@ coverage/
 playwright-report/
 blob-report/
 test-results/
+# PHASE 11 ölçüm çıktıları (yerel; sentetik veri)
+perf-results/
 playwright/.cache/
 .vitest/
 

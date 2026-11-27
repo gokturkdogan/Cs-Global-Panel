@@ -37,6 +37,9 @@ describe("migration dosyaları", () => {
       // eklenir) — başvuru silmede zincirleme silme NO ACTION'a takılmasın.
       "0005_storage_b2.sql":
         /ALTER TABLE "(application_document_files|application_status_history)" DROP CONSTRAINT "(app_doc_files_access_token_fk|app_status_history_access_token_fk)";/g,
+      // PHASE 10.1: hata kodu listesi genişletildi — CHECK aynı migration'da yeniden eklenir (veri silinmez).
+      "0008_upload_write_tracking.sql":
+        /ALTER TABLE "(application_deletion_objects|application_deletions)" DROP CONSTRAINT "(app_deletion_objects_last_error_check|app_deletions_last_error_check)";/g,
     };
     for (const file of sqlFiles) {
       const allowed = ALLOWED_DESTRUCTIVE[file];

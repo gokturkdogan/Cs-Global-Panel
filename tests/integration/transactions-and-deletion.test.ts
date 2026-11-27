@@ -5,7 +5,6 @@ import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createDatabase } from "@/server/db/client";
 import * as schema from "@/server/db/schema";
 import { serviceDocumentRequirements, services } from "@/server/db/schema";
 import { DEMO_SERVICES, seedDemoServices } from "../../scripts/db/seed-data";
@@ -16,17 +15,17 @@ import {
   createApplication,
   createRequirement,
   createService,
+  createTestDatabase,
   createUser,
   expectPgError,
   insertFile,
   insertToken,
   newCreated,
   TEST_ID_PREFIX,
-  urls,
 } from "./helpers";
 
 const created = newCreated();
-const database = createDatabase(urls.runtime.connectionString);
+const database = createTestDatabase();
 let runtime: pg.Client;
 let owner: pg.Client;
 let userId: string;
@@ -136,6 +135,32 @@ describe("silme davranışı (INV-15, BR-150…BR-155)", () => {
       [applicationId],
     );
 
+    // PHASE 10 (D-117): storage doğrulanmadan runtime rolü başvuru satırını silemez (D-102 koşulu).
+    await expectPgError(
+      runtime.query("DELETE FROM applications WHERE id = $1", [applicationId]),
+      "55000",
+    );
+    // Silme iş akışının sonlandırma koşulları (talep + doğrulanmış storage + blob'ları silinmiş dosyalar).
+    await runtime.query(
+      "UPDATE applications SET deletion_requested_at = now(), deletion_requested_by_user_id = $2 WHERE id = $1",
+      [applicationId, userId],
+    );
+    // PHASE 10.1 (D-124/D-125): dosyanın yazım girişimi çözülmüş + sonlandırma listelemesi kanıtı.
+    await runtime.query(
+      `INSERT INTO storage_write_attempts (application_id, file_id, object_key, state, outcome, version_id, started_at, settled_at)
+       SELECT application_id, id, blob_pathname, 'CONFIRMED', 'PROVIDER_CONFIRMED', storage_version_id, now(), now() - interval '1 minute'
+         FROM application_document_files WHERE application_id = $1`,
+      [applicationId],
+    );
+    await runtime.query(
+      `INSERT INTO application_deletions (application_id, reason, requested_by_user_id, settle_after, storage_verified_at, final_listing_started_at)
+       VALUES ($1, 'test', $2, now(), now(), now())`,
+      [applicationId, userId],
+    );
+    await runtime.query(
+      "UPDATE application_document_files SET blob_deleted_at = now() WHERE application_id = $1",
+      [applicationId],
+    );
     // Runtime rolü yalnızca applications üzerinde DELETE yetkisine sahiptir; alt kayıtlar CASCADE ile gider.
     await runtime.query("DELETE FROM applications WHERE id = $1", [applicationId]);
 
@@ -147,6 +172,8 @@ describe("silme davranışı (INV-15, BR-150…BR-155)", () => {
       "document_comments",
       "application_internal_notes",
       "application_status_history",
+      "application_deletions",
+      "storage_write_attempts",
     ];
     for (const table of tables) {
       const rows = await owner.query(`SELECT 1 FROM ${table} WHERE application_id = $1`, [

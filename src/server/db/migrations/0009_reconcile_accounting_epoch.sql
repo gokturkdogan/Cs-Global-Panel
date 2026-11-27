@@ -1,0 +1,2 @@
+ALTER TABLE "storage_quota_state" ADD COLUMN "accounting_epoch" bigint DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "storage_quota_state" ADD CONSTRAINT "storage_quota_state_epoch_check" CHECK ("storage_quota_state"."accounting_epoch" >= 0);

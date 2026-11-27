@@ -102,3 +102,15 @@ export async function lockStorageQuota(tx: Pick<Database, "select">): Promise<vo
     .for("update");
   if (row === undefined) throw new Error("storage_quota_state satırı yok");
 }
+
+/**
+ * Muhasebe neslini artırır (D-130): nesneyi fiziksel silen veya dosya kaydını sonlandıran/silen her işlem
+ * çağırır; devam eden mutabakatın envanteri bayatlar ve uygulanmaz. Kota satırını kısa süre kilitler —
+ * çağıran, varsa dosya kilitlerinden SONRA çağırmalıdır (kilit sırası).
+ */
+export async function bumpAccountingEpoch(tx: Pick<Database, "update">): Promise<void> {
+  await tx
+    .update(storageQuotaState)
+    .set({ accountingEpoch: sql`${storageQuotaState.accountingEpoch} + 1` })
+    .where(eq(storageQuotaState.id, 1));
+}

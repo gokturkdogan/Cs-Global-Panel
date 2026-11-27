@@ -1,7 +1,7 @@
 # Ürün Gereksinimleri (PRD)
 
 > Kaynak: PHASE 00 brief'i + Product Owner kararları OD-01…OD-23 (2026-11-24, [DECISION_LOG.md](DECISION_LOG.md)). Ayrıntılar: [BUSINESS_RULES.md](BUSINESS_RULES.md), [AUTHORIZATION_MATRIX.md](AUTHORIZATION_MATRIX.md).
-> Ürün yaklaşımı: basit, anlaşılır, **sıfır aylık maliyet hedefli**, harici servis ihtiyacı minimum, mevcut WhatsApp operasyonunu kolaylaştıran bir MVP. Gelecek ihtimaller için kod/tablo/servis oluşturulmaz.
+> Ürün yaklaşımı: basit, anlaşılır, **sıfır aylık maliyet hedefli** (Backblaze B2 hariç: yıllık ~10 USD — OD-26), harici servis ihtiyacı minimum, mevcut WhatsApp operasyonunu kolaylaştıran bir MVP. Gelecek ihtimaller için kod/tablo/servis oluşturulmaz.
 
 ## 1. Roller
 
@@ -86,7 +86,7 @@
 | NFR-10 | Gerçek müşteri verisi dev/test/preview/demo'da kullanılmaz. |
 | NFR-11 | Safari iOS, Android Chrome, WhatsApp in-app tarayıcısı desteklenir. |
 | NFR-12 | IP, user-agent, cihaz bilgisi uygulama DB'sinde saklanmaz (OD-09). |
-| NFR-13 | Aylık altyapı maliyeti hedefi 0; ücretli servis kullanıcı onayı olmadan eklenmez (OD-12). |
+| NFR-13 | Aylık altyapı maliyeti hedefi 0; ücretli servis kullanıcı onayı olmadan eklenmez (OD-12). **İstisna (OD-26, 2026-11-27):** Backblaze B2 depolama/trafik için yıllık ~10 USD bütçe; uygulama depolama hedefi 100 GB (uyarı 90 GB), PDF başına 10 MiB. Diğer altyapılarda hedef 0 sürer. |
 | NFR-14 | Production; güvenlik risk kabulleri, hukuki değerlendirme ve ticari kullanıma uygun altyapı olmadan açılmaz (SECURITY §11). |
 
 ## 4. Kullanıcı Hikâyeleri (özet)

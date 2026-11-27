@@ -30,6 +30,14 @@ export const auditLogs = pgTable(
   },
   (t) => [
     index("audit_logs_occurred_at_idx").on(t.occurredAt.desc()),
+    // PHASE 11 (D-138, migration 0010): işlem geçmişi listesi ve keyset sayfalama `(occurred_at, id)`
+    // sırasıyla okunur; tek kolonlu indeks bu sırayı karşılamadığı için 100 000 satırda tam tarama + sıralama
+    // ölçüldü (EXPLAIN ANALYZE). Bileşik indeks yalnızca ek (additive) değişikliktir.
+    // Sıra yönü sorguyla birebir: `ORDER BY ... DESC` Postgres'te NULLS FIRST demektir.
+    index("audit_logs_occurred_at_id_idx").on(
+      t.occurredAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
     index("audit_logs_action_occurred_at_idx").on(t.action, t.occurredAt.desc()),
     index("audit_logs_actor_user_occurred_at_idx").on(t.actorUserId, t.occurredAt.desc()),
     index("audit_logs_application_occurred_at_idx").on(t.applicationId, t.occurredAt.desc()),

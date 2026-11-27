@@ -10,9 +10,9 @@ CS Global Customer Panel
 
 ## Durum
 
-**PHASE 09 — Document Review & Application Workflow** tamamlandı (kullanıcı onayı bekleniyor): incelemeye gönderme, evrak onay/düzeltme, statü geçişleri (iptal, yeniden açma dahil), dosya kaldırma, müşteriye görünür yorumlar ve süreç geçmişi. Önceki faz: **PHASE 08** — Personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi, başvuru yönetimi, müşteri paneli (`/b/<token>` → imzalı 7 günlük oturum → `/portal/<bağlam>`) ve **PDF yükleme/değiştirme/görüntüleme** (müşteri ve personel — müşteri adına; yapısal PDF doğrulaması, versiyon geçmişi, depolama kotası) vardır. Dosyalar Backblaze B2 private bucket'ta (OD-25). Kalıcı silme, iç notlar ve audit yönetim ekranı (PHASE 10) **henüz yoktur**. Platform gerçek müşteri kullanımına hazır değildir.
+**PHASE 12 — Testing & Security Audit** (kullanıcı onayı bekleniyor): güvenlik denetimi ([docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)), operasyon runbook'u, doğrulama planları; production **NO-GO** (açık blocker'lar). **PHASE 11.1 — Depolama bütçesi ve kapanış** (onaylandı): Backblaze B2 için yıllık ~10 USD bütçe ve 100 GB / 90 GB kapasite hedefi (OD-26; kod hazır, aktif ortam sağlayıcı hesabı hazır olana kadar 9 GB), görüntüleyicide sayfaya git + klavye gezinmesi, başvuru detayında evrak statü özeti. **PHASE 11 — UI/UX Polish & Performance Optimization** (kullanıcı onayı bekleniyor): güvenli HTTP Range ile PDF teslimi (206/416/If-Range/HEAD, sağlayıcıya yalnızca istenen aralık), tembel yüklenen uygulama içi PDF görüntüleyici (yerel pdf.js worker, CSP `worker-src 'self'`), ön-getirme politikası, işlem geçmişi indeksi (migration 0010), yükleme aşamaları ve mobil düzen iyileştirmeleri; ölçüm araçları `pnpm perf:isolated` ve `pnpm perf:db:isolated`. **PHASE 10 — Administration & Operations** onaylandı: şirket içi notlar (yalnızca personel), merkezi **İşlem Geçmişi** (`/dashboard/audit-logs` — filtreler, sayfalama, salt okunur) ve **kalıcı başvuru silme** (gerekçe + başvuru numarası onayı, versiyona özgü fiziksel silme ve doğrulama, yarım kalan silmeyi "Silme İşlemini Sürdür" ile devam ettirme). Önceki fazlar: personel girişi, şirket paneli, hizmet/evrak şablonu yönetimi, başvuru yönetimi, müşteri paneli (`/b/<token>` → imzalı 7 günlük oturum → `/portal/<bağlam>`), PDF yükleme/değiştirme/görüntüleme (yapısal PDF doğrulaması, versiyon geçmişi, depolama kotası) ve evrak inceleme / başvuru iş akışı (PHASE 09). Dosyalar Backblaze B2 private bucket'ta (OD-25). Platform gerçek müşteri kullanımına hazır değildir.
 
-Sonraki faz: **PHASE 10 — Administration & Operations** (kullanıcı onayı olmadan başlanmaz). Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+Sonraki faz: **PHASE 11 — UI/UX & Performance Optimization** (kullanıcı onayı olmadan başlanmaz). Güncel durum: [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 ## Teknoloji
 
@@ -113,7 +113,7 @@ Başvuru oluşturmak ve bağlantı göstermek için `.env.local`'da `ACCESS_TOKE
 1. Backblaze panelinde bucket'a kısıtlı bir **Application Key** oluşturun (Master Application Key değil).
 2. Kendi terminalinizde `pnpm env:b2` çalıştırın: keyID görünür, Application Key **gizli** girilir; değerler sohbete/komut satırına yazılmaz, `.env.local`'a eklenir (mevcut değerler korunur, izin 600). Bucket, uç nokta, bölge ve kota ayarlarını da ekler.
 3. `pnpm storage:verify` — tek ve kontrollü canlı test (≈10 API çağrısı): erişim, sentetik `_verification/` nesnesi yazma/okuma/SHA-256, imzasız erişimin reddi, yalnızca kendi nesnesinin tüm versiyonlarının silinmesi.
-4. Bakım (varsayılan **dry-run**): `pnpm storage:reconcile` (sağlayıcı ↔ DB mutabakatı; `--apply` yalnızca kota durumunu yazar) ve `pnpm storage:cleanup` (yarım/başarısız yüklemelerin nesneleri; `--apply` ile versiyona özgü silme). Aktif ve önceki geçerli versiyonlar asla silinmez.
+4. Bakım (varsayılan **dry-run**): `pnpm storage:reconcile` (sağlayıcı ↔ DB mutabakatı; `--apply` yalnızca kota durumunu yazar) ve `pnpm storage:cleanup` (yarım/başarısız yüklemelerin nesneleri; `--apply` ile versiyona özgü silme). Aktif ve önceki geçerli versiyonlar asla silinmez; kalıcı silme sürecindeki başvuruların nesnelerine temizlik dokunmaz (yalnızca personel arayüzündeki silme iş akışı siler — D-120).
 
 B2 yapılandırması yoksa yalnızca dosya işlemleri "şu anda işlenemiyor" der; panelin diğer bölümleri çalışır. Otomatik testler gerçek B2 kullanmaz (izole testler geçici yerel private depolama ile).
 
@@ -130,6 +130,10 @@ E2E_SCREENSHOTS=1 pnpm test:e2e   # ayrıca screenshots/ (maskeli, commit edilme
 # İzole geçici veritabanı (Docker gerekir; gerçek veritabanına dokunmaz — D-077)
 pnpm test:integration:isolated   # eşzamanlılık + geçici hesaplarla tüm hesap testleri
 pnpm test:e2e:isolated           # tarayıcıdan mutasyonlar, müşteri bağlantısı/oturumu, çoklu sekme, PDF yükleme dahil
+pnpm perf:isolated               # PHASE 11 ölçümü: sayfa vitals, ağ, SQL çağrıları, PDF görüntüleyici (izole, sentetik)
+pnpm perf:db:isolated            # PHASE 11 ölçümü: EXPLAIN ANALYZE (100/1k/10k başvuru) + sağlayıcı trafiği B11–B16
+pnpm test:restore-drill          # PHASE 12: sentetik yedek/geri yükleme tatbikatı (geçici container'lar)
+pnpm storage:inspect             # PHASE 12: salt okunur Backblaze denetimi (anahtar kapsamı, bucket ayarları)
 ```
 
 Ortak veritabanında mutasyon testleri yalnızca geri alınan transaction'larda çalışır; commit eden testler yalnızca izole ortamda.

@@ -5,7 +5,7 @@
  * şifreli kopyayı çözmez; şifreli kopya alanı biçime uygun yer tutucudur (personel "Göster" bu
  * tohum başvurularında kullanılmaz). Test token'ları gerçek müşteri bağlantısı değildir.
  */
-import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomInt, randomUUID } from "node:crypto";
 
 import type pg from "pg";
 
@@ -56,6 +56,22 @@ export async function insertToken(db: pg.ClientBase, applicationId: string, user
   return { token, tokenId };
 }
 
+/**
+ * Sentetik dosya kaydının yazım girişimi (PHASE 10.1, D-121): sağlayıcının versiyon kimliğiyle onayladığı
+ * tek girişim. Gerçek yüklemelerde servis bunu kendisi oluşturur; tohum yalnızca aynı kanıtı taklit eder.
+ */
+export async function insertConfirmedAttempt(
+  db: pg.ClientBase,
+  input: { applicationId: string; fileId: string; key: string; versionId: string },
+) {
+  await db.query(
+    `INSERT INTO storage_write_attempts (application_id, file_id, object_key, state, outcome, version_id,
+       started_at, settled_at)
+     VALUES ($1, $2, $3, 'CONFIRMED', 'PROVIDER_CONFIRMED', $4, now(), now())`,
+    [input.applicationId, input.fileId, input.key, input.versionId],
+  );
+}
+
 export async function seedApplication(
   db: pg.ClientBase,
   userId: string,
@@ -75,7 +91,7 @@ export async function seedApplication(
     "INSERT INTO services (name, created_by_user_id, updated_by_user_id) VALUES ($1, $2, $2) RETURNING id",
     [serviceName.slice(0, 150), userId],
   );
-  const number = `CS-2093-${String((Number.parseInt(randomBytes(3).toString("hex"), 16) % 900000) + 100000)}`;
+  const number = `CS-2093-${randomInt(100_000_000_000, 999_999_999_999)}`; /* 12 hane: paket genelinde çakışma ihmal edilebilir (D-133 notu) */
   const application = await db.query<{ id: string }>(
     `INSERT INTO applications (application_number, customer_first_name, customer_last_name, customer_phone_e164, customer_email,
        search_text, service_id, service_name_snapshot, created_by_user_id, status)
@@ -137,6 +153,12 @@ export async function seedApplication(
           `seed-version-${fileId}`,
         ],
       );
+      await insertConfirmedAttempt(db, {
+        applicationId,
+        fileId,
+        key: `applications/${applicationId}/${requirementId}/${fileId}.pdf`,
+        versionId: `seed-version-${fileId}`,
+      });
       await db.query(
         `INSERT INTO document_reviews (application_id, requirement_id, file_id, decision, customer_message, reviewed_by_user_id)
          VALUES ($1, $2, $3, 'REVISION_REQUIRED', $4, $5)`,
@@ -187,6 +209,12 @@ export async function seedActiveFile(
       `seed-version-${fileId}`,
     ],
   );
+  await insertConfirmedAttempt(db, {
+    applicationId,
+    fileId,
+    key: `applications/${applicationId}/${requirementId}/${fileId}.pdf`,
+    versionId: `seed-version-${fileId}`,
+  });
   await db.query(
     "UPDATE application_document_requirements SET status = 'UPLOADED', version = version + 1 WHERE id = $1",
     [requirementId],

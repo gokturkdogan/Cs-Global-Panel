@@ -12,12 +12,14 @@ import { getCurrentStaff } from "@/server/auth/staff";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ fileId: string }> },
-) {
+type Context = { params: Promise<{ fileId: string }> };
+
+/** GET: tam (200) veya tek aralık (206/416 — D-135). HEAD: aynı yetki, gövdesiz, sağlayıcıya gidilmez. */
+export async function GET(request: NextRequest, { params }: Context) {
   const staff = await getCurrentStaff();
   if (staff === null) return errorJson(401, "UNAUTHENTICATED", messages.files.unauthenticated);
   const { fileId } = await params;
   return handleOpen(request, { kind: "STAFF", userId: staff.userId }, fileId);
 }
+
+export const HEAD = GET;

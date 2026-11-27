@@ -166,7 +166,7 @@ export function RequirementList({ serviceId, requirements }: Props) {
               ) : (
                 <>
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <h3 className="min-w-0 text-base font-medium break-words text-foreground">
+                    <h3 className="min-w-0 text-base font-medium wrap-anywhere text-foreground">
                       <span className="mr-2 text-muted-foreground tabular-nums">{index + 1}.</span>
                       {requirement.title}
                     </h3>
@@ -181,7 +181,7 @@ export function RequirementList({ serviceId, requirements }: Props) {
                         Yükleme talimatı
                       </span>
                       <p
-                        className="text-sm break-words whitespace-pre-line text-foreground"
+                        className="text-sm wrap-anywhere whitespace-pre-line text-foreground"
                         data-testid="requirement-instructions"
                       >
                         {requirement.instructions}
@@ -189,7 +189,7 @@ export function RequirementList({ serviceId, requirements }: Props) {
                     </div>
                   ) : null}
                   {requirement.description ? (
-                    <p className="text-sm break-words whitespace-pre-line text-muted-foreground">
+                    <p className="text-sm wrap-anywhere whitespace-pre-line text-muted-foreground">
                       {requirement.description}
                     </p>
                   ) : null}

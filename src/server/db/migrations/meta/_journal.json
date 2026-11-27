@@ -50,6 +50,34 @@
       "when": 1795627448042,
       "tag": "0006_comment_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795635247106,
+      "tag": "0007_deletion_and_internal_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795674127746,
+      "tag": "0008_upload_write_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795678134687,
+      "tag": "0009_reconcile_accounting_epoch",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795709327566,
+      "tag": "0010_audit_logs_keyset_index",
+      "breakpoints": true
     }
   ]
 }

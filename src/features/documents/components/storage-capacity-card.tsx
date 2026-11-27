@@ -7,7 +7,7 @@ import type { StorageCapacity } from "@/server/storage/quota";
 
 /**
  * Şirket paneli depolama kapasitesi (PHASE 08 §27, D-101). Yalnızca DB metadata'sından hesaplanır
- * (her render'da sağlayıcı çağrısı yok); sağlayıcı faturalama verisi değildir. 8 GB uyarı, 9 GB'da yeni
+ * (her render'da sağlayıcı çağrısı yok); sağlayıcı faturalama verisi değildir. Uyarı ve sınır yapılandırmadan gelir (hedef 90 / 100 GB — OD-26); sınırda yeni
  * yükleme durur. Müşteri panelinde gösterilmez. İlerleme çubuğu SVG (satır içi stil yok — CSP).
  */
 const gb = (bytes: number, digits = 2) =>

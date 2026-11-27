@@ -54,12 +54,14 @@ export const SERVICE_LIST_LIMIT = 100;
 export const SEARCH_QUERY_MAX_LENGTH = 100;
 
 /**
- * Dosya depolama kotası (PHASE 08, D-101). Ücretsiz Backblaze B2 kapasitesi (10 GB) aşılmasın diye
- * uygulama tarafı sınırlar. Ortam değişkeniyle yalnızca DAHA DÜŞÜK değer verilebilir (testler);
- * üst sınır kodda sabittir. Bayt (10^9 = GB, ondalık — sağlayıcı faturalamasıyla aynı birim).
+ * Dosya depolama kotası (PHASE 08, D-101; PHASE 11.1, OD-26). Hedef: 100 GB sınır / 90 GB uyarı
+ * (Backblaze için yıllık ~10 USD bütçe). Kod tavanıdır: ortam değişkeniyle yalnızca EŞİT veya DAHA DÜŞÜK
+ * değer verilebilir. Aktif ortam, sağlayıcı hesabı hazır olana kadar `.env.local`'da daha düşük güvenli
+ * değerle (9 GB / 8 GB) çalışabilir. Bayt (10^9 = GB, ondalık — sağlayıcı faturalamasıyla aynı birim);
+ * değerler `Number.MAX_SAFE_INTEGER`'ın çok altındadır.
  */
-export const STORAGE_HARD_MAX_TOTAL_BYTES = 9_000_000_000;
-export const STORAGE_DEFAULT_WARNING_BYTES = 8_000_000_000;
+export const STORAGE_HARD_MAX_TOTAL_BYTES = 100_000_000_000;
+export const STORAGE_DEFAULT_WARNING_BYTES = 90_000_000_000;
 
 /** Yükleme isteği (D-100): ham PDF gövdesi; süre, eşzamanlılık ve dosya adı sınırları. */
 export const UPLOAD_REQUEST_TIMEOUT_MS = 120_000;
@@ -85,12 +87,48 @@ export const FILE_UPLOAD_RATE_LIMIT = { max: 30, windowSeconds: 60 * 60 } as con
 export const FILE_DOWNLOAD_RATE_LIMIT = { max: 120, windowSeconds: 60 * 60 } as const;
 
 /**
+ * PHASE 11 (D-135) bayt aralığı (Range) teslimi. En fazla `MAX_RANGE_CHUNK_BYTES` uzunluğundaki aralıklar
+ * "parça" sınıfındadır ve ayrı limitle sayılır; daha uzun aralıklar ve tam istekler indirme sınıfındadır
+ * (`FILE_DOWNLOAD_RATE_LIMIT`). Kötü durum sağlayıcı çıkışı aktör başına saatte
+ * 120 × 10 MiB + 600 × 1 MiB ile sınırlıdır. Görüntüleyici parça boyutu bu sınırın altındadır.
+ */
+export const MAX_RANGE_CHUNK_BYTES = 1024 * 1024;
+export const FILE_RANGE_RATE_LIMIT = { max: 600, windowSeconds: 60 * 60 } as const;
+/** Parça istekleri için `DOCUMENT_VIEWED` audit kaydı aktör + dosya başına bu pencerede en fazla bir kez. */
+export const FILE_VIEW_AUDIT_WINDOW_SECONDS = 10 * 60;
+/** Görüntüleyicinin aralık parça boyutu (pdf.js `rangeChunkSize`; `MAX_RANGE_CHUNK_BYTES` altında). */
+export const PDF_VIEWER_CHUNK_BYTES = 256 * 1024;
+
+/**
  * İş akışı metin sınırları (PHASE 09; DB CHECK'leriyle aynı): düzeltme açıklaması müşteriye görünür
- * (BR-56, 10–1000); geçiş gerekçesi personel içi (T7–T12, 1–1000); müşteriye görünür yorum (1–2000).
+ * (BR-56, 10–1000); geçiş gerekçesi personel içi (T7–T12, 1–1000); müşteriye görünür yorum (1–2000);
+ * şirket içi not (PHASE 10, 1–5000); kalıcı silme gerekçesi (PHASE 10, personel içi, 1–1000).
  */
 export const WORKFLOW_TEXT_LIMITS = {
   revisionMessageMin: 10,
   revisionMessageMax: 1000,
   reasonMax: 1000,
   commentMax: 2000,
+  internalNoteMax: 5000,
+  deletionReasonMax: 1000,
 } as const;
+
+/** Başvuru detayında gösterilen en fazla şirket içi not (en yeniler; sınırsız sorgu yok — PHASE 10). */
+export const INTERNAL_NOTES_LIST_LIMIT = 50;
+
+/** İşlem geçmişi (audit) sayfa boyutları (PHASE 10); sunucu en fazla 50 kayıt döndürür. */
+export const AUDIT_PAGE_SIZES = [10, 20, 50] as const;
+
+/**
+ * Kalıcı başvuru silme (PHASE 10, D-116). Sınırlı adımlar — tek istekte tüm silme zorunlu değildir.
+ * - Kira: aynı anda tek adım (iki personel / sekme); süre dolarsa başka istek devralır.
+ * - (PHASE 10.1, D-124) Zamana dayalı yükleme bekleme payı KALDIRILDI: süre dolması bir storage yazımının
+ *   bittiğini kanıtlamaz; sonlandırma yalnızca kalıcı yazım girişimi kanıtlarıyla yapılır.
+ * - Toplu silme: adım başına en fazla bu kadar versiyona özgü DeleteObject, sıralı (paralel değil).
+ * - Liste: başvuru öneki için adım başına en fazla bu kadar sayfa (1000 versiyon/sayfa, Class C).
+ */
+export const DELETION_LEASE_SECONDS = 120;
+export const DELETION_BATCH_SIZE = 50;
+export const DELETION_LIST_MAX_PAGES = 5;
+/** Silme işlemleri listesinde gösterilen en fazla kayıt. */
+export const DELETION_QUEUE_LIMIT = 50;

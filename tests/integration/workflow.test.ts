@@ -17,7 +17,7 @@ import type { StorageAdapter } from "@/server/storage/types";
 import { fixtures } from "../support/pdf-fixtures";
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { seedApplication } from "../support/portal-seed";
-import { connectOwner, createRuntimePool, testId } from "./helpers";
+import { fileGet, connectOwner, createRuntimePool, testId } from "./helpers";
 
 /**
  * Başvuru ve evrak iş akışı (PHASE 09). Commit eden testler → YALNIZCA izole veritabanı + geçici yerel
@@ -656,16 +656,19 @@ describe.runIf(isIsolatedTestDatabase())(`iş akışı — ${ISOLATION_SKIP_REAS
     );
     expect(row.rows[0]).toMatchObject({ status: "REMOVED", blob_deleted_at: null });
     expect(
-      await openDocumentFile({ db, storage: async () => storage }, app.customer, file, "inline"),
+      await openDocumentFile(
+        { db, storage: async () => storage },
+        app.customer,
+        fileGet(file, "inline"),
+      ),
     ).toEqual({ ok: false, code: "NOT_FOUND" });
     const staffOpen = await openDocumentFile(
       { db, storage: async () => storage },
       staffActor(),
-      file,
-      "attachment",
+      fileGet(file, "attachment"),
     );
     expect(staffOpen.ok).toBe(true);
-    if (staffOpen.ok) await staffOpen.file.stream.cancel();
+    if (staffOpen.ok) await staffOpen.file.stream?.cancel();
     expect(
       await owner
         .query(

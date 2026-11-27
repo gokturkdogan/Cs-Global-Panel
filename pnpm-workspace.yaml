@@ -12,7 +12,7 @@ ignoredBuiltDependencies:
 # Tedarik zinciri koruması: 24 saatten yeni yayımlanmış sürümler kurulmaz.
 minimumReleaseAge: 1440
 
-# pdfjs-dist yalnızca yapısal PDF doğrulaması için kullanılır (render yok — D-099); isteğe bağlı
-# native canvas paketi kurulmaz.
+# pdfjs-dist sunucuda yapısal PDF doğrulaması (render yok — D-099) ve tarayıcıda tembel görüntüleyici
+# (D-136) için kullanılır; isteğe bağlı native canvas paketi (yalnızca Node render) kurulmaz.
 ignoredOptionalDependencies:
   - "@napi-rs/canvas"

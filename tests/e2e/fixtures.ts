@@ -3,6 +3,8 @@ import type pg from "pg";
 
 import type { StaffRole } from "../../src/config/statuses";
 import { connect, resolveDatabaseUrls } from "../../scripts/db/lib";
+import { guardSharedDatabaseClient } from "../support/db-guard";
+import { isIsolatedTestDatabase } from "../support/isolation";
 import {
   deleteMintedSessions,
   mintStaffSession,
@@ -26,7 +28,9 @@ type Fixtures = {
 
 export const test = base.extend<Fixtures>({
   runtimeDb: async ({}, provide) => {
-    const client = await connect(resolveDatabaseUrls().runtime, "cs-global-e2e-test");
+    const raw = await connect(resolveDatabaseUrls().runtime, "cs-global-e2e-test");
+    // D-129: ortak veritabanında kalıcı yazım yok (yalnızca D-067 test oturumları).
+    const client = isIsolatedTestDatabase() ? raw : guardSharedDatabaseClient(raw);
     try {
       await provide(client);
     } finally {

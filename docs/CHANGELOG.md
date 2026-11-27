@@ -2,6 +2,125 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 12 — Testing & Security Audit] — 2026-11-27 (kullanıcı onayı bekleniyor)
+
+### Added
+- `docs/SECURITY_AUDIT.md` (yöntem, bulgu kaydı SEC-01…SEC-13, tehdit kapsamı, PB matrisi, hazırlık listesi), `docs/OPERATIONS_RUNBOOK.md` (yedek/geri yükleme, anahtar yenileme, olay müdahalesi, belirsiz yazım kurtarma), `docs/VERIFICATION_PLANS.md` (gerçek B2 planı + Checkpoint B onay talebi, panel kontrol listesi, 100 GB kapısı, gerçek cihaz listesi).
+- `pnpm storage:inspect` (salt okunur B2 denetimi), `pnpm test:restore-drill` (sentetik yedek/geri yükleme tatbikatı).
+- Testler: `tests/e2e/security-audit.spec.ts`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/customer-upload.ts` (ortak yardımcı), `file-delivery.test.ts` +4, `externalLinkAndForm` fixture'ı.
+- CI `isolated` işi (Docker PostgreSQL + geçici depolama; secret yok).
+- THREAT_MODEL TM-59, TM-60; SECURITY PB-12, PB-13 (Proposed); DEPLOYMENT §16 hosting karşılaştırması, §17 yedekleme; DATA_PRIVACY §13 KVKK kontrol listesi; D-141…D-145 (Proposed).
+
+### Fixed
+- Atlama bağlantısı (`İçeriğe geç`): Tailwind 4'te `px-4 py-2` `sr-only` dolgusunu eziyordu → `focus:px-4 focus:py-2` (SEC-08).
+- `scripts/test/isolated-db.ts`: kota açıkça 9 / 8 GB (SEC-09).
+- Boşluksuz uzun adlar (veritabanı sınırında) yatay taşma yapıyordu: 320 px'de hizmet/evrak listeleri, başvuru tablosu (mobil), oluşturma formu ve başarı ekranı; masaüstünde hizmet ve başvuru tablosu hücreleri, `PageHeader` başlık/açıklaması, hizmet filtresi ve oluşturma formu `<select>`'i → `wrap-anywhere` / `min-w-0`. `services.spec.ts` genişlik testi ve `accessibility.spec.ts` sınır uzunluklu kendi verisiyle güçlendirildi; erişilebilirlik testi yeni başvuru formunu da kapsar (SEC-12).
+- İzole integration dosya sırası bağımlılığı: `auth.test.ts` yaşam döngüsü başlangıcında global teardown ile aynı geçici `test-` veri temizliği (`tests/support/temporary-test-data.ts`, DRY); assertion değişmedi (SEC-13).
+
+### Security findings (open)
+- SEC-01 (MEDIUM) B2 anahtarı fazla yetkili — kullanıcı işlemi; SEC-02 (MEDIUM) bağlantı önizleme verisi — risk kabulü/D-141; SEC-03 (MEDIUM) geri yükleme sonrası geri dönüş — prosedür, PB-12; SEC-04…SEC-06 (LOW).
+
+## [PHASE 11.1 — Storage Budget & Closure] — 2026-11-27 (kullanıcı onayı bekleniyor)
+
+### Added
+- OD-26 (ACCEPTED): Backblaze B2 için yıllık ~10 USD bütçe; diğer altyapılarda hedef 0 sürer.
+- D-140 (Proposed): kapasite kod tavanı **100 GB**, varsayılan uyarı **90 GB** (önceki 9 GB sınır / 8 GB uyarı yerine); uyarı tanımsızsa %90; şema değişikliği yok. Aktif `.env.local` sağlayıcı hesabı hazırlığı doğrulanana kadar 9 GB / 8 GB.
+- FILE_STORAGE §7.2: doğrulanmış fiyatlar, maliyet tablosu (100 GB → ~7,51 USD/yıl), hesap durumu ve kullanıcı etkinleştirme adımları.
+- Görüntüleyici: sayfaya git alanı + klavye gezinmesi (←/→, PageUp/PageDown, Home/End).
+- Başvuru detayı: evrak statü özeti (`RequirementSummary`).
+- Testler: `storage-capacity.test.ts` (6, izole), kota unit testleri (100/90 GB), sabit değer statik testi, görüntüleyici gezinme E2E, statü özeti unit; perf `pdfSequences`.
+
+### Changed
+- OD-12 (B2 istisnası), OD-25 ve D-101 notları OD-26'ya göre güncellendi (geçmiş hükümler silinmedi).
+- `.env.example`, DEPLOYMENT env örneği: hedef 100 GB / 90 GB; `pnpm env:b2` güvenli başlangıç değerini (9 / 8 GB) yalnızca tanımsızsa yazar.
+
+### Not changed
+- Range, HEAD, görüntüleyici güvenliği, ön-getirme, indeks, rate limit (600/120 saat — ölçümle yeterli), tüm güvenlik kontrolleri. Sağlayıcı hesabında değişiklik yapılmadı.
+
+## [PHASE 11 — UI/UX Polish & Performance Optimization] — 2026-11-26 (kullanıcı onayı bekleniyor)
+
+### Added
+- Güvenli HTTP Range (D-135): tek aralık 206, 416 (`bytes */boyut`), güçlü opak `ETag` + `If-Range`, `HEAD` (sağlayıcıya gitmez, audit yok); sağlayıcıya `Range` + kayıtlı `VersionId`; `Content-Range`/uzunluk/versiyon doğrulaması; uzunluk korumalı akış (`exactLengthStream`); iptal/`AbortSignal` iletimi; sınıf bazlı rate limit (`FILE_RANGE_RATE_LIMIT` 600/saat, `MAX_RANGE_CHUNK_BYTES` 1 MiB); parça istekleri için 10 dakikalık görüntüleme audit tekilleştirmesi.
+- Uygulama içi tembel PDF görüntüleyici (D-136): Radix Dialog, pdf.js yalnızca açılışta, yerel worker (Turbopack worker chunk'ı), `PDFDataRangeTransport`, sayfa gezinme, yakınlaştırma, güvenli hata + indirme; CSP `worker-src 'self'`.
+- Migration 0010 (D-138): `audit_logs_occurred_at_id_idx` (yalnızca indeks).
+- Ölçüm araçları (D-134): `pnpm perf:isolated` (Playwright perf yapılandırması), `pnpm perf:db:isolated` (EXPLAIN ANALYZE + sağlayıcı trafiği B11–B16); izole container'da `pg_stat_statements`; `tests/support/instrumented-storage.ts`; `multiPagePdf` (kümelenmiş/dağınık) fixture'ı.
+- Testler: `byte-range.test.ts` (29), `b2-range.test.ts` (7, sahte S3), `viewer-range.test.ts` (10), `phase11-policies.test.ts` (8), `file-delivery.test.ts` (15, izole), `viewer.spec.ts` (5 × 4 proje); CSP worker-src E2E iddiası; çok sayfalı fixture doğrulaması.
+- Görüntüleyici: uyarlamalı 1 MiB blok okuyucu (oturum belleği) — dağınık yapılı PDF'de 39 → 14 istek.
+
+### Changed
+- "Görüntüle" yeni sekme bağlantısından görüntüleyici düğmesine dönüştü (personel aktif + geçmiş versiyonlar, müşteri). İndirme aynı.
+- Ön-getirme politikası (D-137): ana gezinme ve breadcrumb dışındaki `Link`'lerde `prefetch={false}`.
+- Yükleme aşama metinleri gerçek olaylara bağlandı: "Dosya hazırlanıyor…", "Gönderiliyor — %N", "Kontrol ediliyor ve kaydediliyor…" + adım listesi.
+- İşlem geçmişi filtreleri mobilde katlanır (etkin filtre sayısı). Başvuru özeti numarası tek satır; müşteri bilgilerinde uzun e-posta kart içinde kırılır; Genel Bakış tablosunda Hizmet sütunu ≥1536 px.
+- `CspNonce` ortak bileşene taşındı (`src/components/csp-nonce.tsx`) ve müşteri düzenine eklendi.
+- `scripts/test/isolated-db.ts`: geçici container `pg_stat_statements` ile başlar; hata mesajı komut satırını (geçici şifreler) artık yazdırmaz.
+
+### Fixed
+- (Faz içinde bulunup düzeltildi) Görüntüleyici 1 MiB'tan büyük pdf.js isteklerini parça parça teslim ediyordu; pdf.js tek teslim beklediği için büyük tek nesneli PDF'lerde (ör. 10 MiB tek sayfa) çizim bozulurdu — E2E ile yakalandı.
+- `applications.spec.ts` (D-139): test kaynaklı `page.goto` öncesi uçuştaki istekler beklenir (WebKit'te iptal edilen ön-getirme `pageerror` üretiyordu; 1. tam izole çalıştırmada yakalandı).
+- `viewer.spec.ts` yüklemeleri müşteri yolundan (personel yükleme limiti paket genelinde ortak; limit gevşetilmedi).
+- `documents.spec.ts`: görüntüleme başlık testi bağlantı yerine uç noktayı doğrudan çağırır (Görüntüle artık düğme).
+- HEAD istekleri (Next.js'in GET işleyicisini çalıştırması nedeniyle) tam sağlayıcı GET'i ve gereksiz görüntüleme/indirme audit kaydı üretiyordu.
+- İşlem geçmişi listesi ve keyset sayfalaması 100 000 satırda tam tarama + sıralama yapıyordu (26–39 ms → 0,05 ms).
+
+### Not verified
+- Gerçek B2 Range yanıtı ve canlı benchmark (PHASE 12), gerçek cihaz/WhatsApp in-app tarayıcı, axe/Lighthouse (yeni araç gerektirir), GitHub CI.
+
+## [PHASE 10.2 — Final Regression, Test Isolation & Reconciliation Safety] — 2026-11-26
+
+### Added
+- Test izolasyonu korumaları (D-129): Neon'da korunan test bağlantıları (kalıcı yazım engeli), Neon integration/E2E öncesi/sonrası veri parmak izi kontrolü, fail-closed izolasyon hedefi kontrolü; negatif unit + izole PostgreSQL testleri.
+- Mutabakat muhasebe nesli `storage_quota_state.accounting_epoch` (migration 0009) ve koşullu mutabakat yazımı (D-130); `reconcile-safety.test.ts` (R1–R7).
+- Ortak E2E konsol hatası toplayıcı (`tests/e2e/console-errors.ts`) — dar WebKit istisnası (D-131).
+
+### Changed
+- Müşteri bilgisi düzenleme formunda ertelenmiş odak kaldırıldı (odak yarışı — D-133).
+- `isDefinitelyNotSent` ile `NOT_SENT` sıkılaştırıldı (D-132); silme/temizlik/yükleme en iyi çaba silme muhasebe neslini artırır; `storage:reconcile` bayat sonucu yazmaz (çıkış kodu 3).
+- `privileges.test.ts` audit sahip testi geri alınan transaction'da (PHASE 10.1 olayı). Belgeler: DECISION_LOG (D-129…D-133), DATABASE_SCHEMA (§4.14, §9.14), FILE_STORAGE §11, TESTING_STRATEGY §22, DEPLOYMENT §14, PROJECT_STATE.
+
+### Not Done / Not Verified
+- Neon `TEST_EVENT` (id 970) kaydı bilinçli olarak korundu. Gerçek B2 silme/mutabakat/tutarlılık (PHASE 12), Object Lock, cap davranışı, gerçek cihaz, GitHub CI. PB-01…PB-11 açık. Commit/push yapılmadı.
+
+## [PHASE 10.1 — Deletion Safety, Durable Upload Recovery & Final Verification] — 2026-11-26
+
+### Added
+- `storage_write_attempts` (migration 0008): her fiziksel PUT girişiminin kalıcı kimliği ve durum makinesi (DB trigger), PUT öncesi yazım çiti, kesin/belirsiz sonuç ayrımı, gözlemle çözüm (D-121…D-123).
+- Zamandan bağımsız silme sonlandırması: belirsiz yazım varken `UPLOAD_OUTCOME_UNKNOWN` ile güvenli bekletme; sonlandırma listelemesi kanıtı (`final_listing_started_at`); onaylanmış versiyonların versiyona özgü HEAD ile yokluk doğrulaması (D-124).
+- DB koruması v2, geri alınamaz silme işareti, takipsiz eski kayıtlar için `LEGACY_UNVERIFIED` (D-125, D-126).
+- Eski iç notlar için "Daha eski notları göster" (keyset, `listOlderInternalNotesAction`) (D-127).
+- Testler: `tests/integration/deletion-write-safety.test.ts` (A–K, C2, H2, eski kayıt, eşzamanlılık matrisi — D-128), unit +6, E2E (bekletme ↔ kanıt, müşteri oturumu / yabancı köken).
+
+### Changed
+- B2 PUT tek girişim (`maxAttempts: 1`); bağlantı kurulamaması `NOT_SENT`; yerel adapter yazma hatası belirsiz.
+- Zamana dayalı bekleme kapısı (`DELETION_UPLOAD_SETTLE_GRACE_SECONDS`, `SETTLING`) kaldırıldı; D-116 → kısmen D-124, D-117 → kısmen D-125 ile geçersiz.
+- `storage:cleanup`: rezervasyon çitleme, gözlemle çözüm, kanıt tabanlı `blob_deleted_at`; yeni rapor sayaçları.
+- Test tohumları sentetik dosyalara onaylı yazım girişimi ekler; belgeler (DECISION_LOG, DATABASE_SCHEMA §4.17/§9.13, FILE_STORAGE §5/§10, STATE_TRANSITIONS, SECURITY §19, THREAT_MODEL TM-55, TESTING_STRATEGY §21, BUSINESS_RULES, API_CONTRACTS, ARCHITECTURE, PROJECT_STATE).
+
+### Not Done / Not Verified
+- Gerçek B2 üzerinde silme/yazım sözleşmesi (PHASE 12), B2 tutarlılık modeli, belirsiz yazım için teknik müdahale prosedürü, gerçek cihaz, GitHub CI. PB-01…PB-11 açık. Commit/push yapılmadı.
+
+## [PHASE 10 — Administration & Operations] — 2026-11-25
+
+### Added
+- Şirket İçi Notlar (başvuru detayı): idempotent ekleme (`addInternalNoteAction`, işlem anahtarı, migration 0007 `idempotency_key` + `payload_hash`), sınırlı liste, hassas veri uyarısı; müşteri modüllerinde ESLint yasağı; audit `INTERNAL_NOTE_ADDED { id }` (D-115).
+- İşlem Geçmişi (`/dashboard/audit-logs`): merkezi Türkçe event etiketleri, allowlist ayrıntı sunumu, tarih (Europe/Istanbul) / işlem / aktör / personel / kayıt türü / başvuru filtreleri, keyset sayfalama (10/20/50), başvuru numarası → UUID çözümleme action'ı; başvuru detayında "Bu Başvurunun İşlem Geçmişi" (D-119).
+- Kalıcı başvuru silme: "Tehlikeli İşlemler" (gerekçe + numara onayı), `requestDeletionAction` / `resumeDeletionAction`, kalıcı işlem kaydı + envanter tabloları (`application_deletions`, `application_deletion_objects`), yükleme bekleme kapısı, kira, sahiplik doğrulamalı versiyona özgü sınırlı silme, listeleme ile yokluk doğrulaması, kısa sonlandırma TX'i, ilerleme kartı ve "Silme İşlemleri" kuyruğu; audit `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETION_FAILED` / `APPLICATION_DELETED` (D-116, D-118).
+- `applications_guard_delete` trigger'ı: storage doğrulanmadan başvuru satırı runtime rolüyle silinemez (D-117, D-102 koşulu).
+- Testler: unit `operations.test.ts` (15), izole integration `operations.test.ts` (27 — iç not, audit, silme A–I senaryoları), izole E2E `operations.spec.ts` (S16, iki hesapla audit, E5, silme ilerlemesi).
+
+### Changed
+- PHASE 09 ve 09.1 onayı: D-108…D-114 Accepted.
+- `storage:cleanup` silme sürecindeki başvuruların dosyalarına dokunmaz (D-120).
+- B2 `NoSuchBucket` → `NOT_CONFIGURED` (nesne yokluğu sayılmaz).
+- `getCustomerPortalView` silme sürecindeki başvuruyu okumaz (katmanlı savunma).
+- Yorum içerik özeti ortak `textPayloadHash`'e taşındı (çıktı aynı).
+- Mevcut testler: runtime rolüyle doğrudan başvuru silme artık reddedilir (cascade testi sonlandırma koşullarını kurar; E2E temizliği sahip bağlantısıyla).
+- Dokümanlar: DECISION_LOG (D-115…D-120, faz onayları), DATABASE_SCHEMA (§4.9, §4.15, §4.16, §9.2, §9.4, §9.11), BUSINESS_RULES (§13, §15 uygulama notları), SECURITY (§8.1, §18), DATA_PRIVACY (§12c), FILE_STORAGE (§5, §5.1), API_CONTRACTS, AUTHORIZATION_MATRIX, THREAT_MODEL (TM-54…TM-56), TESTING_STRATEGY (§20), DEVELOPMENT_ROADMAP, PROJECT_STATE.
+
+### Not Done / Not Verified
+- Tekil dosya/eski versiyon kalıcı silme (BR-47 izin vermiyor), toplu silme, audit dışa aktarma, silme CLI'ı, zamanlanmış bakım — bilinçli olarak yok.
+- Gerçek B2 üzerinde uygulama silme akışı (canlı smoke tekrar çalıştırılmadı), gerçek cap/Object Lock davranışı, gerçek cihaz, GitHub CI, production. PB-01…PB-11 açık. Commit/push yapılmadı.
+
 ## [PHASE 09.1 — Workflow Hardening & Final Verification] — 2026-11-25
 
 ### Added

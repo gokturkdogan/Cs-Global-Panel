@@ -4,7 +4,7 @@ import { MAX_PDF_SIZE_BYTES } from "@/config/constants";
 import { checkEnvelope, decodePdfName, scanForbiddenStructures } from "@/server/pdf/pdf-checks";
 import { PDF_LIMITS, validatePdfIsolated } from "@/server/pdf/validate";
 
-import { fixtures, validPdfOfSize, type FixtureName } from "../support/pdf-fixtures";
+import { fixtures, multiPagePdf, validPdfOfSize, type FixtureName } from "../support/pdf-fixtures";
 
 /**
  * Yapısal PDF doğrulaması (PHASE 08, D-099; FILE_STORAGE §6.4). Gerçek worker thread + gerçek pdf.js
@@ -14,6 +14,7 @@ const expectations: [FixtureName, string][] = [
   ["valid", "OK"],
   ["openActionDestination", "OK"],
   ["compressedBenign", "OK"],
+  ["externalLinkAndForm", "OK"],
   ["javascriptOpenAction", "ACTIVE_CONTENT"],
   ["hexEscapedJavascript", "ACTIVE_CONTENT"],
   ["compressedJavascript", "ACTIVE_CONTENT"],
@@ -53,6 +54,25 @@ describe("PDF yapısal doğrulama (worker + pdf.js)", () => {
     expect(over.length).toBe(10_485_761);
     expect(await validatePdfIsolated(over)).toEqual({ ok: false, reason: "TOO_LARGE" });
   }, 60_000);
+
+  // PHASE 11: benchmark fixture'ları gerçek yükleme hattındaki doğrulamadan geçmelidir.
+  it.each([
+    [1, 20_000],
+    [10, 1_000_000],
+    [50, 5_000_000],
+    [100, 10_000_000],
+  ] as const)(
+    "çok sayfalı sentetik PDF (%i sayfa, ~%i bayt) kabul edilir",
+    async (pages, bytes) => {
+      const pdf = multiPagePdf(pages, bytes);
+      expect(pdf.length).toBeLessThanOrEqual(MAX_PDF_SIZE_BYTES);
+      expect(Math.abs(pdf.length - bytes) / bytes).toBeLessThan(0.02);
+      expect(await validatePdfIsolated(pdf)).toEqual({ ok: true, pageCount: pages });
+      const worst = multiPagePdf(pages, bytes, "interleaved");
+      expect(await validatePdfIsolated(worst)).toEqual({ ok: true, pageCount: pages });
+    },
+    60_000,
+  );
 
   it("süre sınırı aşılırsa worker sonlandırılır → RESOURCE_LIMIT", async () => {
     const result = await validatePdfIsolated(fixtures.valid(), { timeoutMs: 1 });

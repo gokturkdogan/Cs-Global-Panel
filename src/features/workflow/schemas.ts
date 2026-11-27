@@ -11,7 +11,7 @@ import { messages } from "@/lib/messages";
  */
 const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f‪-‮⁦-⁩]/;
 
-function plainText(min: number, max: number, lengthMessage: string) {
+export function plainText(min: number, max: number, lengthMessage: string) {
   return z
     .string()
     .transform((value) => value.replace(/\r\n?/g, "\n").trim())

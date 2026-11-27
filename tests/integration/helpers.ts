@@ -7,22 +7,48 @@ import { randomBytes, randomUUID } from "node:crypto";
 import pg from "pg";
 import { expect } from "vitest";
 
+import { drizzle } from "drizzle-orm/node-postgres";
+
+import * as schema from "@/server/db/schema";
+import { POOL_OPTIONS } from "@/server/db/settings";
+
 import { connect, resolveDatabaseUrls } from "../../scripts/db/lib";
+import { guardSharedDatabaseClient, guardSharedDatabasePool } from "../support/db-guard";
+import { isIsolatedTestDatabase } from "../support/isolation";
 
 export const urls = resolveDatabaseUrls();
 
+/**
+ * Ortak (Neon) veritabanında tüm test bağlantıları korumalıdır (D-129): kalıcı yazım yapılamaz.
+ * İzole geçici veritabanında koruma yoktur (commit eden mutasyon testleri yalnızca orada).
+ */
+const shared = !isIsolatedTestDatabase();
+const guardClient = (client: pg.Client) => (shared ? guardSharedDatabaseClient(client) : client);
+
 /** Runtime rolüyle (uygulamanın kullanacağı en az yetkili rol) bağımsız bağlantı. */
-export function connectRuntime(): Promise<pg.Client> {
-  return connect(urls.runtime, "cs-global-test-runtime");
+export async function connectRuntime(): Promise<pg.Client> {
+  return guardClient(await connect(urls.runtime, "cs-global-test-runtime"));
 }
 
 /** Tablo sahibi rolle bağlantı — yalnızca fixture temizliği ve sahip davranışı testleri için. */
-export function connectOwner(): Promise<pg.Client> {
-  return connect(urls.owner, "cs-global-test-owner");
+export async function connectOwner(): Promise<pg.Client> {
+  return guardClient(await connect(urls.owner, "cs-global-test-owner"));
 }
 
 export function createRuntimePool(max: number): pg.Pool {
-  return new pg.Pool({ connectionString: urls.runtime.connectionString, max });
+  const pool = new pg.Pool({ connectionString: urls.runtime.connectionString, max });
+  return shared ? guardSharedDatabasePool(pool) : pool;
+}
+
+/** Uygulamanın `createDatabase` eşdeğeri; ortak veritabanında korumalı Pool üzerinde. */
+export function createTestDatabase() {
+  const pool = new pg.Pool({
+    connectionString: urls.runtime.connectionString,
+    ...POOL_OPTIONS,
+    application_name: "cs-global-test",
+  });
+  if (shared) guardSharedDatabasePool(pool);
+  return { pool, db: drizzle({ client: pool, schema }) };
 }
 
 /** PostgreSQL hata kodunu bekler (23505 unique, 23514 check, 23503 FK, 42501 yetki, 55P03 kilit). */
@@ -203,3 +229,18 @@ export function insertToken(
 
 export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+/** PHASE 11: `openDocumentFile` isteği (varsayılan: tam GET, Range yok). */
+export function fileGet(
+  fileId: string,
+  disposition: "inline" | "attachment" = "inline",
+  extra: { rangeHeader?: string | null; ifRange?: string | null; method?: "GET" | "HEAD" } = {},
+) {
+  return {
+    fileId,
+    disposition,
+    method: extra.method ?? "GET",
+    rangeHeader: extra.rangeHeader ?? null,
+    ifRange: extra.ifRange ?? null,
+  } as const;
+}

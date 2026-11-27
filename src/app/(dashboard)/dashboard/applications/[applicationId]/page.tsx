@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -12,8 +13,14 @@ import { staffActions } from "@/features/applications/domain/application-status"
 import { APPLICATION_STATUS_PRESENTATION } from "@/features/applications/domain/status-labels";
 import { TRANSITION_HISTORY_LABELS } from "@/features/applications/domain/transition-labels";
 import { getApplicationDetail, type ApplicationDetail } from "@/features/applications/queries";
+import { DeletionDangerZone } from "@/features/deletion/components/deletion-danger-zone";
+import { DeletionProgressCard } from "@/features/deletion/components/deletion-progress-card";
+import { getDeletionProgress, type DeletionProgress } from "@/features/deletion/queries";
 import { StaffDocumentCard } from "@/features/documents/components/staff-document-card";
+import { RequirementSummary } from "@/features/applications/components/requirement-summary";
 import { getApplicationFileVersions } from "@/features/documents/queries";
+import { InternalNotesSection } from "@/features/internal-notes/components/internal-notes-section";
+import { listInternalNotes, type InternalNoteList } from "@/features/internal-notes/queries";
 import { CommentForm } from "@/features/workflow/components/comment-form";
 import { WorkflowPanel } from "@/features/workflow/components/workflow-panel";
 import { getWorkflowDetail, type WorkflowDetail } from "@/features/workflow/queries";
@@ -28,19 +35,30 @@ export const metadata: Metadata = { title: "Başvuru Detayı | CS Global" };
 type PageProps = { params: Promise<{ applicationId: string }> };
 const MAX_PDF_MB = MAX_PDF_SIZE_BYTES / (1024 * 1024);
 
-/** Başvuru detayı. Geçersiz/bilinmeyen/silme sürecindeki kimlik → 404 (BR-153). */
+/**
+ * Başvuru detayı. Geçersiz/bilinmeyen kimlik → 404. Silme sürecindeki başvuru (BR-153): yalnızca silme
+ * ilerlemesi gösterilir — müşteri bilgileri, evraklar, notlar ve normal aksiyonlar okunmaz/sunulmaz.
+ */
 export default async function ApplicationDetailPage({ params }: PageProps) {
   await requireStaff();
   const { applicationId } = await params;
   if (!z.uuid().safeParse(applicationId).success) notFound();
 
   let application: ApplicationDetail | null;
-  let fileVersions: Awaited<ReturnType<typeof getApplicationFileVersions>>;
-  let workflow: WorkflowDetail;
+  let fileVersions: Awaited<ReturnType<typeof getApplicationFileVersions>> = new Map();
+  let workflow: WorkflowDetail | null = null;
+  let notes: InternalNoteList = { items: [], total: 0, nextCursor: null };
+  let deletion: DeletionProgress | null = null;
   try {
     application = await getApplicationDetail(getDb(), applicationId);
-    fileVersions = await getApplicationFileVersions(getDb(), applicationId);
-    workflow = await getWorkflowDetail(getDb(), applicationId);
+    if (application === null) {
+      // Silme sürecindeki başvuru: yalnızca ilerleme okunur (müşteri verisi, evrak, not okunmaz).
+      deletion = await getDeletionProgress(getDb(), applicationId);
+    } else {
+      fileVersions = await getApplicationFileVersions(getDb(), applicationId);
+      workflow = await getWorkflowDetail(getDb(), applicationId);
+      notes = await listInternalNotes(getDb(), applicationId);
+    }
   } catch (error) {
     console.error("[applications] Detay okunamadı", { code: pgErrorCode(error) ?? "unknown" });
     return (
@@ -57,7 +75,23 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       </div>
     );
   }
-  if (application === null) notFound();
+  if (application === null && deletion !== null) {
+    return (
+      <div className="grid gap-6">
+        <PageHeader
+          title={deletion.applicationNumber}
+          description={messages.deletion.progressTitle}
+          breadcrumb={[
+            { label: "Panel", href: "/dashboard" },
+            { label: "Başvurular", href: "/dashboard/applications" },
+            { label: deletion.applicationNumber },
+          ]}
+        />
+        <DeletionProgressCard progress={deletion} />
+      </div>
+    );
+  }
+  if (application === null || workflow === null) notFound();
 
   // İzinli aksiyonlar ve engeller aynı domain kurallarından (sunucu kilit altında yeniden doğrular).
   const actions = staffActions(application.status, workflow.facts);
@@ -89,10 +123,16 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         <h2 id="summary-title" className="sr-only">
           Başvuru özeti
         </h2>
-        <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5" data-testid="application-summary">
+        <dl
+          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[max-content_repeat(4,minmax(0,1fr))] xl:gap-x-8"
+          data-testid="application-summary"
+        >
           <div className="grid gap-1">
             <dt className="text-xs text-muted-foreground">Başvuru numarası</dt>
-            <dd className="font-semibold tabular-nums">{application.applicationNumber}</dd>
+            {/* PHASE 11: numara tire noktasında bölünmez (tek satır, tabular). */}
+            <dd className="font-semibold whitespace-nowrap tabular-nums">
+              {application.applicationNumber}
+            </dd>
           </div>
           <div className="grid gap-1">
             <dt className="text-xs text-muted-foreground">Durum</dt>
@@ -102,7 +142,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           </div>
           <div className="grid gap-1">
             <dt className="text-xs text-muted-foreground">Hizmet (başvuru anındaki ad)</dt>
-            <dd className="font-medium break-words">{application.serviceName}</dd>
+            <dd className="font-medium wrap-anywhere">{application.serviceName}</dd>
           </div>
           <div className="grid gap-1">
             <dt className="text-xs text-muted-foreground">Oluşturulma</dt>
@@ -176,6 +216,9 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
             &ldquo;İncelemede&rdquo; durumunda ve ekranda görünen dosya versiyonu için verilir.
           </p>
         </div>
+        <RequirementSummary
+          statuses={application.requirements.map((requirement) => requirement.status)}
+        />
         <ol className="grid gap-3" data-testid="application-requirements">
           {application.requirements.map((requirement, index) => (
             <StaffDocumentCard
@@ -194,9 +237,19 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         aria-labelledby="history-title"
         className="grid gap-3 rounded-xl border bg-card p-4 shadow-sm sm:p-5"
       >
-        <h2 id="history-title" className="text-lg leading-7 font-semibold">
-          Başvuru geçmişi
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="history-title" className="text-lg leading-7 font-semibold">
+            Başvuru geçmişi
+          </h2>
+          <Link
+            prefetch={false}
+            href={`/dashboard/audit-logs?applicationId=${application.id}`}
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            data-testid="application-audit-link"
+          >
+            {messages.auditLogs.applicationHistoryLink}
+          </Link>
+        </div>
         <ol className="grid gap-2" data-testid="application-history">
           {workflow.history.map((entry) => (
             <li
@@ -261,6 +314,14 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
         )}
         <CommentForm applicationId={application.id} />
       </section>
+
+      <InternalNotesSection applicationId={application.id} notes={notes} />
+
+      <DeletionDangerZone
+        applicationId={application.id}
+        applicationNumber={application.applicationNumber}
+        version={application.version}
+      />
     </div>
   );
 }

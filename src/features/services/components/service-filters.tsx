@@ -54,6 +54,7 @@ export function ServiceFilters({ filters }: { readonly filters: ServiceListFilte
             return (
               <li key={status}>
                 <Link
+                  prefetch={false}
                   href={hrefFor(filters.q, status)}
                   aria-current={active ? "page" : undefined}
                   className={cn(

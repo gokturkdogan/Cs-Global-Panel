@@ -41,7 +41,7 @@ export default async function ServicesPage({ searchParams }: PageProps) {
         breadcrumb={[{ label: "Panel", href: "/dashboard" }, { label: "Hizmetler" }]}
         actions={
           <Button asChild size="lg">
-            <Link href="/dashboard/services/new">
+            <Link prefetch={false} href="/dashboard/services/new">
               <Plus aria-hidden="true" />
               Yeni Hizmet
             </Link>

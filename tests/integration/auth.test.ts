@@ -30,6 +30,7 @@ import {
   connectOwner,
   connectRuntime,
   createRuntimePool,
+  createTestDatabase,
   expectPgError,
   TEST_ID_PREFIX,
   testId,
@@ -41,6 +42,7 @@ import {
   SESSION_COOKIE_NAME,
   type MintedSession,
 } from "../support/staff-session";
+import { removeTemporaryTestData } from "../support/temporary-test-data";
 
 /**
  * Sabit iki hesap modeli, kimlik doğrulama ve rate limiting (OD-24, PHASE 03).
@@ -84,7 +86,7 @@ function credentialsSet(prefix: string): Required<BootstrapInput> {
 describe.skipIf(hasRealAccounts)(
   `iki hesap modeli ve kimlik doğrulama (geçici hesaplar)${hasRealAccounts ? ` — ${SKIP_REASON}` : ""}`,
   () => {
-    const database = createDatabase(urls.runtime.connectionString);
+    const database = createTestDatabase();
     const auth: Auth = createAuth({
       db: database.db,
       secret: `test-secret-${randomUUID()}`,
@@ -97,6 +99,10 @@ describe.skipIf(hasRealAccounts)(
 
     beforeAll(async () => {
       owner = await connectOwner();
+      // Bu blok yalnızca gerçek hesap yokken çalışır. Önceki dosyaların bıraktığı GEÇİCİ (`test-`)
+      // hesaplar ve sentetik kayıtları kaldırılır (SEC-13: dosya sırası bağımlılığı); ardından tablo
+      // gerçekten boş olmalıdır — gerçek veya önek dışı bir hesap varsa test başarısız olur.
+      await removeTemporaryTestData(owner);
       const leftovers = await owner.query("SELECT 1 FROM users");
       expect(leftovers.rowCount, "başlangıçta hiç hesap olmamalı").toBe(0);
     });
@@ -384,7 +390,7 @@ describe.skipIf(hasRealAccounts)(
 describe.runIf(hasRealAccounts)(
   "gerçek hesaplar mevcutken: salt okunur / etkisiz doğrulamalar ve test oturumları (D-067)",
   () => {
-    const database = createDatabase(urls.runtime.connectionString);
+    const database = createTestDatabase();
     const secret = `test-secret-${randomUUID()}`;
     const auth: Auth = createAuth({
       db: database.db,
@@ -753,7 +759,7 @@ describe("giriş rate limiting (D-063, D-068)", () => {
 describe("Secure cookie yapılandırması (P4-04 — yapılandırma düzeyi)", () => {
   // Gerçek HTTPS tarayıcı doğrulaması deployment/HTTPS ortamı gerektirir (PB, PHASE 13).
   it("https APP_URL'de oturum cookie'si __Secure- önekli ve Secure; http'de değil", async () => {
-    const database = createDatabase(urls.runtime.connectionString);
+    const database = createTestDatabase();
     try {
       const cookieOf = async (secureCookies: boolean) => {
         const auth = createAuth({

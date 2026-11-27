@@ -36,7 +36,7 @@ export default async function DashboardOverviewPage() {
         breadcrumb={[{ label: "Panel" }, { label: "Genel Bakış" }]}
         actions={
           <Button asChild size="lg">
-            <Link href="/dashboard/applications/new">
+            <Link prefetch={false} href="/dashboard/applications/new">
               <Plus aria-hidden="true" />
               Yeni Başvuru
             </Link>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Pencil } from "lucide-react";
-import { useRef, useState, useTransition, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, useTransition, type FormEvent } from "react";
 
 import { describedBy, FormField } from "@/components/dashboard/form-field";
 import { useUnsavedChangesWarning } from "@/components/dashboard/use-unsaved-changes";
@@ -53,6 +53,16 @@ export function CustomerInfoCard({ applicationId, version, customer }: Props) {
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
   const firstRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Form açılınca odak ilk alana — açıldığı commit'te eşzamanlı ve YALNIZCA odak henüz formun içinde
+  // değilse (PHASE 10.2, D-133). Önceki ertelenmiş (requestAnimationFrame) odak, kullanıcı başka alana
+  // geçip yazmaya başladıktan sonra çalışıp odağı/metni "Ad" alanına taşıyabiliyordu.
+  useLayoutEffect(() => {
+    if (!editing) return;
+    if (formRef.current?.contains(document.activeElement)) return;
+    firstRef.current?.focus();
+  }, [editing]);
 
   const dirty = editing && JSON.stringify(values) !== JSON.stringify(customer);
   useUnsavedChangesWarning(dirty && !pending);
@@ -112,7 +122,6 @@ export function CustomerInfoCard({ applicationId, version, customer }: Props) {
               setValues(customer);
               setEditing(true);
               setFeedback(null);
-              requestAnimationFrame(() => firstRef.current?.focus());
             }}
           >
             <Pencil aria-hidden="true" />
@@ -124,14 +133,18 @@ export function CustomerInfoCard({ applicationId, version, customer }: Props) {
       {!editing ? (
         <dl className="grid gap-3 sm:grid-cols-2" data-testid="customer-info">
           {FIELDS.map(([name, label]) => (
-            <div key={name} className="grid gap-0.5">
+            <div key={name} className="grid min-w-0 gap-0.5">
               <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="font-medium break-words text-foreground">{customer[name]}</dd>
+              {/* PHASE 11: uzun e-posta/ad kart dışına taşmaz (grid öğesi min-w-0 + her yerde kırılabilir). */}
+              <dd className="min-w-0 font-medium wrap-anywhere text-foreground">
+                {customer[name]}
+              </dd>
             </div>
           ))}
         </dl>
       ) : (
         <form
+          ref={formRef}
           onSubmit={onSubmit}
           noValidate
           aria-busy={pending}

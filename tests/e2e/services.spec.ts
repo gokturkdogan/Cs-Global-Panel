@@ -1,10 +1,11 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 
 import type { Locator, Page, TestInfo } from "@playwright/test";
 
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { expect, sessionsAvailable, sessionsSkipReason, test } from "./fixtures";
+import { collectErrors } from "./console-errors";
 
 /**
  * Hizmet ve evrak şablonu yönetimi (PHASE 05).
@@ -17,15 +18,6 @@ test.skip(!sessionsAvailable, sessionsSkipReason);
 
 const isolated = isIsolatedTestDatabase();
 const tag = () => randomBytes(3).toString("hex");
-
-function collectErrors(page: Page) {
-  const errors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => errors.push(error.message));
-  return errors;
-}
 
 async function screenshot(page: Page, testInfo: TestInfo, name: string, projects: string[]) {
   if (process.env.E2E_SCREENSHOTS !== "1" || !isolated || !projects.includes(testInfo.project.name))
@@ -212,6 +204,7 @@ test.describe("hizmetler — salt okunur", () => {
     test(`${width}px: liste ve yeni hizmet formunda yatay taşma yok`, async ({
       page,
       signInAs,
+      runtimeDb,
     }, testInfo) => {
       test.skip(
         !["Desktop Chrome", "Desktop WebKit"].includes(testInfo.project.name),
@@ -219,6 +212,15 @@ test.describe("hizmetler — salt okunur", () => {
       );
       await page.setViewportSize({ width, height: 900 });
       await signInAs("employee");
+      // PHASE 12: boşluksuz uzun hizmet adı (yalnızca izole ortamda tohumlanır) dar ekranda taşmamalı.
+      if (isolated) {
+        const userId = (await runtimeDb.query<{ id: string }>("SELECT id FROM users LIMIT 1"))
+          .rows[0]!.id;
+        await runtimeDb.query(
+          "INSERT INTO services (name, created_by_user_id, updated_by_user_id) VALUES ($1, $2, $2)",
+          [`Uzun${"a".repeat(80)}${randomUUID().slice(0, 8)}`, userId],
+        );
+      }
       for (const path of ["/dashboard/services", "/dashboard/services/new"]) {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

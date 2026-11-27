@@ -2,6 +2,9 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 import { connect, resolveDatabaseUrls } from "../../scripts/db/lib";
+import { dataFingerprint, fingerprintDiff } from "../support/data-fingerprint";
+import { assertIsolationTargetConsistent, isIsolatedTestDatabase } from "../support/isolation";
+import { removeTemporaryTestData } from "../support/temporary-test-data";
 import {
   MIGRATIONS_FOLDER,
   MIGRATIONS_SCHEMA,
@@ -13,18 +16,40 @@ import {
  * testler yalnızca kendi oluşturdukları sentetik kayıtları siler.
  */
 export default async function setup(): Promise<() => Promise<void>> {
+  // D-129: izolasyon işareti var ama hedef izole değilse hiçbir test başlamadan dur (fail-closed).
+  assertIsolationTargetConsistent();
   const { owner } = resolveDatabaseUrls();
   const client = await connect(owner, "cs-global-test-setup");
+  let before: Record<string, unknown> | null = null;
   try {
     await migrate(drizzle({ client }), {
       migrationsFolder: MIGRATIONS_FOLDER,
       migrationsSchema: MIGRATIONS_SCHEMA,
       migrationsTable: MIGRATIONS_TABLE,
     });
+    // Ortak veritabanı: test öncesi veri parmak izi (yalnızca sayılar/özetler).
+    if (!isIsolatedTestDatabase()) before = await dataFingerprint(client);
   } finally {
     await client.end();
   }
-  return teardown;
+  return async () => {
+    let changed: string[] = [];
+    if (before !== null) {
+      const { owner: ownerUrl } = resolveDatabaseUrls();
+      const check = await connect(ownerUrl, "cs-global-test-fingerprint");
+      try {
+        changed = fingerprintDiff(before, await dataFingerprint(check));
+      } finally {
+        await check.end();
+      }
+    }
+    await teardown();
+    if (changed.length > 0) {
+      throw new Error(
+        `Ortak veritabanında test sonrası veri değişti (D-129): ${changed.join(", ")}. Test izolasyonu ihlali.`,
+      );
+    }
+  };
 }
 
 /**
@@ -35,12 +60,7 @@ async function teardown(): Promise<void> {
   const { owner } = resolveDatabaseUrls();
   const client = await connect(owner, "cs-global-test-teardown");
   try {
-    await client.query("DELETE FROM applications WHERE created_by_user_id LIKE 'test-%'");
-    await client.query(
-      "DELETE FROM service_document_requirements WHERE service_id IN (SELECT id FROM services WHERE created_by_user_id LIKE 'test-%')",
-    );
-    await client.query("DELETE FROM services WHERE created_by_user_id LIKE 'test-%'");
-    await client.query("DELETE FROM users WHERE id LIKE 'test-%'");
+    await removeTemporaryTestData(client);
   } finally {
     await client.end();
   }

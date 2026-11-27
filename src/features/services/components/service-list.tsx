@@ -20,7 +20,9 @@ export function ServiceList({ data }: { readonly data: ServiceListData }) {
         description={messages.services.emptyDescription}
         action={
           <Button asChild>
-            <Link href="/dashboard/services/new">Yeni Hizmet</Link>
+            <Link prefetch={false} href="/dashboard/services/new">
+              Yeni Hizmet
+            </Link>
           </Button>
         }
       />
@@ -60,7 +62,9 @@ export function ServiceList({ data }: { readonly data: ServiceListData }) {
             {data.items.map((item) => (
               <tr key={item.id}>
                 <td className="max-w-md px-5 py-3">
-                  <span className="block font-medium text-foreground">{item.name}</span>
+                  <span className="block font-medium wrap-anywhere text-foreground">
+                    {item.name}
+                  </span>
                   {item.description ? (
                     <span className="line-clamp-1 text-muted-foreground">{item.description}</span>
                   ) : null}
@@ -78,6 +82,7 @@ export function ServiceList({ data }: { readonly data: ServiceListData }) {
                 <td className="px-5 py-3 text-right">
                   <Button asChild variant="outline" size="sm">
                     <Link
+                      prefetch={false}
                       href={`/dashboard/services/${item.id}`}
                       aria-label={`${item.name} hizmetini düzenle`}
                     >
@@ -94,7 +99,7 @@ export function ServiceList({ data }: { readonly data: ServiceListData }) {
         {data.items.map((item) => (
           <li key={item.id} className="grid gap-2 px-4 py-4">
             <div className="flex items-start justify-between gap-3">
-              <span className="min-w-0 font-medium break-words text-foreground">{item.name}</span>
+              <span className="min-w-0 font-medium wrap-anywhere text-foreground">{item.name}</span>
               <ActiveStatusBadge isActive={item.isActive} />
             </div>
             {item.description ? (
@@ -109,6 +114,7 @@ export function ServiceList({ data }: { readonly data: ServiceListData }) {
             </p>
             <Button asChild variant="outline" className="mt-1 h-11 w-full">
               <Link
+                prefetch={false}
                 href={`/dashboard/services/${item.id}`}
                 aria-label={`${item.name} hizmetini düzenle`}
               >

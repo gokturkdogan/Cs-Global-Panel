@@ -4,8 +4,12 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
-import { UPLOAD_PENDING_TTL_SECONDS } from "@/config/constants";
-import type { DocumentStatus } from "@/config/statuses";
+import {
+  FILE_VIEW_AUDIT_WINDOW_SECONDS,
+  MAX_RANGE_CHUNK_BYTES,
+  UPLOAD_PENDING_TTL_SECONDS,
+} from "@/config/constants";
+import type { DocumentStatus, WriteAttemptOutcome } from "@/config/statuses";
 import { writeAuditLog } from "@/server/audit/log";
 import type { Database } from "@/server/db/client";
 import { pgErrorCode } from "@/server/db/errors";
@@ -14,13 +18,28 @@ import {
   applicationDocumentFiles as files,
   applicationDocumentRequirements as requirements,
   applications,
+  storageWriteAttempts as attempts,
 } from "@/server/db/schema";
 import type { StorageQuota } from "@/server/env";
 import type { PdfCheck, PdfRejection } from "@/server/pdf/pdf-checks";
+import { hitRateLimitCounter } from "@/server/security/rate-limit-counter";
 import { isStorageError } from "@/server/storage/errors";
-import { fitsQuota, lockStorageQuota, readStorageUsage } from "@/server/storage/quota";
+import { exactLengthStream } from "@/server/storage/exact-length";
+import {
+  bumpAccountingEpoch,
+  fitsQuota,
+  lockStorageQuota,
+  readStorageUsage,
+} from "@/server/storage/quota";
 import { buildObjectKey, type StorageAdapter } from "@/server/storage/types";
 
+import {
+  ifRangeAllowsPartial,
+  parseRangeHeader,
+  rangeLength,
+  type ByteRange,
+  type RangeDecision,
+} from "./domain/byte-range";
 import {
   canUploadDocument,
   documentStatusAfterUpload,
@@ -85,6 +104,12 @@ export type UploadDeps = {
   readonly storage: StorageAdapter;
   readonly quota: StorageQuota;
   readonly validatePdf: (bytes: Uint8Array) => Promise<PdfCheck>;
+  /**
+   * Rezervasyon commit edildikten sonra, yazım başlatılmadan önce çağrılır (kontrollü zamanlayıcı —
+   * yalnızca testler duraklatma/çökme simülasyonu için verir; production'da tanımsız). Güvenlik
+   * kararını değiştirmez: başlatma her durumda kalıcı çite (`beginStorageWrite`) tabidir.
+   */
+  readonly beforeStorageWrite?: () => Promise<void>;
 };
 
 export type UploadRequest = {
@@ -220,7 +245,74 @@ type Reservation = {
   readonly fileId: string;
   readonly key: string;
   readonly applicationId: string;
+  /** Fiziksel yazım girişiminin dayanıklı kimliği (D-121). */
+  readonly attemptId: string;
 };
+
+// ---------------------------------------------------------------- Yazım girişimi (D-121…D-123)
+
+/**
+ * Yazım çiti (D-122): `ADMITTED → IN_PROGRESS` koşullu güncellemesi PUT'tan ÖNCE commit edilir. Silme
+ * talebi aynı satırları başvuru kilidi altında `FENCED` yapar; satır kilidi iki işlemi sıraya koyar →
+ * ya yazım başlamıştır (silme bunu takip eder) ya çitlenmiştir (PUT hiç gönderilmez). Duraklamış bir
+ * işçi uyandığında çitlenmişse yazmaz. Başlatma kaydı olmadan hiçbir PUT gönderilmez.
+ */
+export async function beginStorageWrite(db: Database, attemptId: string): Promise<boolean> {
+  const started = await db
+    .update(attempts)
+    .set({ state: "IN_PROGRESS", startedAt: sql`now()` })
+    .where(
+      and(
+        eq(attempts.id, attemptId),
+        eq(attempts.state, "ADMITTED"),
+        sql`NOT EXISTS (SELECT 1 FROM applications a WHERE a.id = ${attempts.applicationId} AND a.deletion_requested_at IS NOT NULL)`,
+      ),
+    )
+    .returning({ id: attempts.id });
+  return started.length === 1;
+}
+
+type WriteSettlement =
+  | {
+      readonly state: "CONFIRMED";
+      readonly outcome: WriteAttemptOutcome;
+      readonly versionId: string;
+    }
+  | { readonly state: "FAILED"; readonly outcome: "NOT_SENT" }
+  | { readonly state: "UNKNOWN"; readonly outcome: WriteAttemptOutcome };
+
+/**
+ * Girişim sonucunu kaydeder (koşullu; DB trigger'ı geçişleri ayrıca kısıtlar). Silme iş akışı versiyonu
+ * daha önce gözleyip girişimi çözmüşse güncelleme yan etkisizdir. Kayıt yazılamazsa girişim
+ * `IN_PROGRESS` kalır = çözülmemiş (güvenli taraf).
+ */
+export async function settleStorageWrite(
+  db: Database,
+  attemptId: string,
+  settlement: WriteSettlement,
+): Promise<void> {
+  const from = settlement.state === "CONFIRMED" ? ["IN_PROGRESS", "UNKNOWN"] : ["IN_PROGRESS"];
+  try {
+    await db
+      .update(attempts)
+      .set({
+        state: settlement.state,
+        outcome: settlement.outcome,
+        versionId: settlement.state === "CONFIRMED" ? settlement.versionId : null,
+        settledAt: settlement.state === "UNKNOWN" ? null : sql`now()`,
+      })
+      .where(
+        and(
+          eq(attempts.id, attemptId),
+          inArray(attempts.state, from as ("IN_PROGRESS" | "UNKNOWN")[]),
+        ),
+      );
+  } catch (error) {
+    console.error("[files] Yazım sonucu kaydedilemedi (girişim çözülmemiş kalır)", {
+      code: pgErrorCode(error) ?? "unknown",
+    });
+  }
+}
 
 async function reserve(
   deps: UploadDeps,
@@ -269,6 +361,7 @@ async function reserve(
       return failure("QUOTA_EXCEEDED");
 
     const fileId = randomUUID();
+    const attemptId = randomUUID();
     const key = buildObjectKey(target.applicationId, input.requirementId, fileId);
     await tx.insert(files).values({
       id: fileId,
@@ -282,7 +375,15 @@ async function reserve(
       ...uploaderColumns(actor),
       uploadExpiresAt: sql`now() + make_interval(secs => ${UPLOAD_PENDING_TTL_SECONDS})`,
     });
-    return { fileId, key, applicationId: target.applicationId };
+    // Yazım kabulü (D-121): rezervasyonla aynı transaction'da, başvuru kilidi altında (silme işaretliyse
+    // buraya gelinmez). Silme iş akışı bu girişimi bilir ve çözülmeden sonlandırma yapılamaz.
+    await tx.insert(attempts).values({
+      id: attemptId,
+      applicationId: target.applicationId,
+      fileId,
+      objectKey: key,
+    });
+    return { fileId, key, applicationId: target.applicationId, attemptId };
   });
 }
 
@@ -526,8 +627,21 @@ export async function uploadDocumentFile(
   const reserved = await reserve(deps, actor, input, sha256);
   if ("ok" in reserved) return reserved;
 
-  // 3. Storage yazımı (transaction ve kilit yok).
-  let versionId: string | null;
+  // 3. Storage yazımı (transaction ve kilit yok). Önce kalıcı yazım çiti; tek fiziksel girişim (D-121…D-123).
+  if (deps.beforeStorageWrite) await deps.beforeStorageWrite();
+  let begun = false;
+  try {
+    begun = await beginStorageWrite(deps.db, reserved.attemptId);
+  } catch (error) {
+    console.error("[files] Yazım başlatılamadı", { code: pgErrorCode(error) ?? "unknown" });
+  }
+  if (!begun) {
+    // Çitlendi (silme talebi / süresi dolmuş rezervasyon) veya DB hatası: PUT GÖNDERİLMEZ.
+    await abandon(deps.db, actor, reserved, input.requirementId, "STATE_CHANGED");
+    return failure("STATE_CHANGED");
+  }
+
+  let versionId: string | null = null;
   try {
     ({ versionId } = await deps.storage.putObject({
       key: reserved.key,
@@ -537,17 +651,46 @@ export async function uploadDocumentFile(
       md5Hex,
     }));
   } catch (error) {
+    if (isStorageError(error, "NOT_SENT")) {
+      // İstek sağlayıcıya ulaşmadı → kesin başarısızlık (yazım olmadı).
+      await settleStorageWrite(deps.db, reserved.attemptId, {
+        state: "FAILED",
+        outcome: "NOT_SENT",
+      });
+      await abandon(deps.db, actor, reserved, input.requirementId, "STORAGE_ERROR");
+      return failure("STORAGE_UNAVAILABLE");
+    }
     if (isStorageError(error, "AMBIGUOUS")) {
       // Yanıt kayboldu: yazma gerçekleşmiş olabilir → kör yeniden yazma yok; nesne kimliğiyle mutabakat.
+      // Anahtar bu girişime özgü ve tek girişim olduğundan gözlenen versiyon bu girişimindir.
       const head = await deps.storage.headObject(reserved.key, null).catch(() => null);
-      versionId =
-        head !== null && head.contentLength === input.bytes.byteLength ? head.versionId : null;
-      if (versionId === null) {
+      if (
+        head !== null &&
+        head.versionId !== null &&
+        head.contentLength === input.bytes.byteLength
+      ) {
+        versionId = head.versionId;
+        await settleStorageWrite(deps.db, reserved.attemptId, {
+          state: "CONFIRMED",
+          outcome: "OBSERVED",
+          versionId,
+        });
+      } else {
+        await settleStorageWrite(deps.db, reserved.attemptId, {
+          state: "UNKNOWN",
+          outcome: "RESPONSE_LOST",
+        });
         await abandon(deps.db, actor, reserved, input.requirementId, "STORAGE_AMBIGUOUS");
         return failure("STORAGE_UNAVAILABLE");
       }
     } else {
+      // Sağlayıcı hata yanıtı (cap/yetki/5xx) veya bütünlük uyuşmazlığı: B2 belgeleri hata yanıtında
+      // nesne oluşmadığını garanti etmez → BELİRSİZ (yalnızca gözlemle çözülür).
       const limited = isStorageError(error, "LIMIT");
+      await settleStorageWrite(deps.db, reserved.attemptId, {
+        state: "UNKNOWN",
+        outcome: isStorageError(error, "INTEGRITY") ? "INTEGRITY_MISMATCH" : "PROVIDER_ERROR",
+      });
       await abandon(
         deps.db,
         actor,
@@ -563,10 +706,19 @@ export async function uploadDocumentFile(
     }
   }
   if (versionId === null) {
-    // Sağlayıcı versiyon kimliği döndürmediyse dosya aktifleştirilmez (versiyona özgü silme şartı).
+    // Sağlayıcı versiyon kimliği döndürmediyse dosya aktifleştirilmez; nesne oluşmuş olabilir → belirsiz.
+    await settleStorageWrite(deps.db, reserved.attemptId, {
+      state: "UNKNOWN",
+      outcome: "NO_VERSION_ID",
+    });
     await abandon(deps.db, actor, reserved, input.requirementId, "STORAGE_NO_VERSION");
     return failure("STORAGE_UNAVAILABLE");
   }
+  await settleStorageWrite(deps.db, reserved.attemptId, {
+    state: "CONFIRMED",
+    outcome: "PROVIDER_CONFIRMED",
+    versionId,
+  });
 
   // 4. Aktivasyon.
   let activation: Activation;
@@ -595,9 +747,13 @@ export async function uploadDocumentFile(
   if (activation.kind === "rejected") {
     if (await bestEffortDelete(deps.storage, reserved.key, versionId)) {
       await deps.db
-        .update(files)
-        .set({ blobDeletedAt: sql`now()` })
-        .where(and(eq(files.id, reserved.fileId), eq(files.status, "REJECTED")))
+        .transaction(async (tx) => {
+          await tx
+            .update(files)
+            .set({ blobDeletedAt: sql`now()` })
+            .where(and(eq(files.id, reserved.fileId), eq(files.status, "REJECTED")));
+          await bumpAccountingEpoch(tx); // D-130
+        })
         .catch(() => undefined);
     }
     return failure(activation.code);
@@ -610,30 +766,101 @@ export async function uploadDocumentFile(
 
 export type FileDisposition = "inline" | "attachment";
 
+/**
+ * Dosya isteği (PHASE 11, D-135). Range/If-Range başlıkları yalnızca sözdizimi olarak gelir; aralık
+ * sınırları, versiyon ve anahtar sunucudaki kayıttan hesaplanır (istemciden anahtar/versiyon alınmaz).
+ */
+export type FileRequest = {
+  readonly fileId: string;
+  readonly disposition: FileDisposition;
+  readonly method: "GET" | "HEAD";
+  readonly rangeHeader: string | null;
+  readonly ifRange: string | null;
+  readonly signal?: AbortSignal;
+};
+
+/**
+ * İstek sınıfı (rate limit): `transfer` = tam dosya veya `MAX_RANGE_CHUNK_BYTES`'tan uzun aralık;
+ * `chunk` = kısa aralık (görüntüleyici); `meta` = HEAD, 416 ve bulunamayan dosya (sağlayıcıya gidilmez).
+ */
+export type FileRequestClass = "transfer" | "chunk" | "meta";
+
 export type OpenedFile = {
   readonly filename: string;
+  /** Kayıtlı toplam dosya boyutu. */
   readonly sizeBytes: number;
-  readonly stream: ReadableStream<Uint8Array>;
+  /** Opak güçlü doğrulayıcı (If-Range); storage anahtarı/versiyonu veya içerik hash'i açığa çıkarmaz. */
+  readonly etag: string;
+  readonly status: 200 | 206;
+  readonly range: ByteRange | null;
+  readonly contentLength: number;
+  /** HEAD'de null (sağlayıcıya istek yapılmaz). */
+  readonly stream: ReadableStream<Uint8Array> | null;
 };
+
+export type OpenFileFailure =
+  | "NOT_FOUND"
+  | "RANGE_NOT_SATISFIABLE"
+  | "RATE_LIMITED"
+  | "STORAGE_LIMIT"
+  | "STORAGE_UNAVAILABLE"
+  | "INTEGRITY";
 
 export type OpenFileResult =
   | { readonly ok: true; readonly file: OpenedFile }
-  | {
-      readonly ok: false;
-      readonly code: "NOT_FOUND" | "STORAGE_LIMIT" | "STORAGE_UNAVAILABLE" | "INTEGRITY";
-    };
+  | { readonly ok: false; readonly code: OpenFileFailure; readonly sizeBytes?: number };
+
+export type OpenFileDeps = {
+  readonly db: Database;
+  readonly storage: () => Promise<StorageAdapter>;
+  /** İstek sınıfına göre rate limit (route katmanı); verilmezse sınırsız (yalnızca testler). */
+  readonly allow?: (requestClass: FileRequestClass) => Promise<boolean>;
+};
+
+/** Dosya kimliği + içerik hash'inden türetilmiş opak, güçlü ETag. Dosya kimliği değişmez içeriğe bağlıdır. */
+export function fileEtag(fileId: string, sha256: string): string {
+  return `"${createHash("sha256").update(`cs-file-etag:v1:${fileId}:${sha256}`).digest("hex").slice(0, 32)}"`;
+}
+
+function classify(decision: RangeDecision, method: FileRequest["method"]): FileRequestClass {
+  if (method === "HEAD" || decision.kind === "unsatisfiable") return "meta";
+  if (decision.kind === "partial" && rangeLength(decision.range) <= MAX_RANGE_CHUNK_BYTES) {
+    return "chunk";
+  }
+  return "transfer";
+}
 
 /**
- * Yetkili dosya okuma (FILE_STORAGE §3). Müşteri: yalnızca oturum başvurusunun ACTIVE dosyası.
- * Personel: ACTIVE/SUPERSEDED/REMOVED (BR-72). Doğrulanmamış/silinmekte olan → NOT_FOUND (ayırt edilmez).
- * Storage çağrısı yalnızca yetki geçtikten sonra yapılır; yanıt boyutu kayıtla eşleşmezse sunulmaz.
- * Audit (`DOCUMENT_VIEWED` / `DOCUMENT_DOWNLOADED`) storage okumasından önce yazılır (fail-closed).
+ * Parça isteklerinde görüntüleme audit'i aktör + dosya + biçim başına pencere içinde bir kez (D-135):
+ * pdf.js bir görüntülemede birkaç aralık ister; her biri ayrı kayıt olsaydı audit gürültüye boğulurdu.
+ * Tam/uzun istekler her seferinde kaydedilir. Pencere işareti kısa ömürlü teknik anahtardır (kişisel veri yok).
  */
-export async function openDocumentFile(
-  deps: { readonly db: Database; readonly storage: () => Promise<StorageAdapter> },
+async function chunkAuditDue(
+  db: Database,
   actor: FileActor,
   fileId: string,
   disposition: FileDisposition,
+) {
+  const who = actor.kind === "STAFF" ? `user:${actor.userId}` : `token:${actor.tokenId}`;
+  const count = await hitRateLimitCounter(
+    db,
+    `files:viewed:${who}:${fileId}:${disposition}`,
+    FILE_VIEW_AUDIT_WINDOW_SECONDS,
+  );
+  return count === 1;
+}
+
+/**
+ * Yetkili dosya okuma (FILE_STORAGE §3, PHASE 11 Range). Müşteri: yalnızca oturum başvurusunun ACTIVE
+ * dosyası. Personel: ACTIVE/SUPERSEDED/REMOVED (BR-72). Doğrulanmamış/silinmekte olan → NOT_FOUND
+ * (ayırt edilmez). Sıra: kayıt + yetki → aralık kararı (kayıtlı boyuta göre) → rate limit → (HEAD/416:
+ * sağlayıcıya gidilmez) → audit (fail-closed, okumadan önce) → sağlayıcıdan YALNIZCA istenen aralık
+ * (kayıtlı versiyon) → yanıt doğrulaması (versiyon, Content-Range, uzunluk) → tam uzunluk korumalı akış.
+ */
+export async function openDocumentFile(
+  deps: OpenFileDeps,
+  actor: FileActor,
+  request: FileRequest,
 ): Promise<OpenFileResult> {
   const allowed = actor.kind === "CUSTOMER" ? ["ACTIVE"] : ["ACTIVE", "SUPERSEDED", "REMOVED"];
   const [row] = await deps.db
@@ -644,13 +871,14 @@ export async function openDocumentFile(
       key: files.blobPathname,
       versionId: files.storageVersionId,
       sizeBytes: files.sizeBytes,
+      sha256: files.sha256,
       filename: files.originalFilename,
     })
     .from(files)
     .innerJoin(applications, eq(applications.id, files.applicationId))
     .where(
       and(
-        eq(files.id, fileId),
+        eq(files.id, request.fileId),
         isNull(applications.deletionRequestedAt),
         isNull(files.blobDeletedAt),
         ...(actor.kind === "CUSTOMER" ? [eq(files.applicationId, actor.applicationId)] : []),
@@ -661,36 +889,90 @@ export async function openDocumentFile(
     row === undefined ||
     !allowed.includes(row.status) ||
     row.versionId === null ||
-    row.sizeBytes === null
+    row.sizeBytes === null ||
+    row.sha256 === null ||
+    !(await customerStillAllowed(deps.db, actor))
   ) {
+    // Bulunamayan istekler de sayılır (kimlik taraması sınırlı kalır); sonuç ayırt edilmez.
+    if (deps.allow) await deps.allow("meta");
     return { ok: false, code: "NOT_FOUND" };
   }
-  if (!(await customerStillAllowed(deps.db, actor))) return { ok: false, code: "NOT_FOUND" };
+  const size = row.sizeBytes;
+  const etag = fileEtag(request.fileId, row.sha256);
+  const decision: RangeDecision =
+    request.method === "HEAD" || !ifRangeAllowsPartial(request.ifRange, etag)
+      ? { kind: "full" }
+      : parseRangeHeader(request.rangeHeader, size);
+  if (deps.allow && !(await deps.allow(classify(decision, request.method)))) {
+    return { ok: false, code: "RATE_LIMITED" };
+  }
+  const base = { filename: row.filename, sizeBytes: size, etag };
+  if (request.method === "HEAD") {
+    return {
+      ok: true,
+      file: { ...base, status: 200, range: null, contentLength: size, stream: null },
+    };
+  }
+  if (decision.kind === "unsatisfiable") {
+    return { ok: false, code: "RANGE_NOT_SATISFIABLE", sizeBytes: size };
+  }
+  const range = decision.kind === "partial" ? decision.range : null;
 
-  await writeAuditLog(deps.db, {
-    action: disposition === "inline" ? "DOCUMENT_VIEWED" : "DOCUMENT_DOWNLOADED",
-    ...auditActor(actor),
-    resourceType: "file",
-    resourceId: fileId,
-    applicationId: row.applicationId,
-    metadata: { fileId, requirementId: row.requirementId },
-  });
+  if (
+    range === null ||
+    rangeLength(range) > MAX_RANGE_CHUNK_BYTES ||
+    (await chunkAuditDue(deps.db, actor, request.fileId, request.disposition))
+  ) {
+    await writeAuditLog(deps.db, {
+      action: request.disposition === "inline" ? "DOCUMENT_VIEWED" : "DOCUMENT_DOWNLOADED",
+      ...auditActor(actor),
+      resourceType: "file",
+      resourceId: request.fileId,
+      applicationId: row.applicationId,
+      metadata: { fileId: request.fileId, requirementId: row.requirementId },
+    });
+  }
 
   try {
     const storage = await deps.storage();
-    const object = await storage.getObject(row.key, row.versionId);
-    if (object.contentLength !== row.sizeBytes) {
+    const object = await storage.getObject(row.key, row.versionId, {
+      ...(range ? { range } : {}),
+      ...(request.signal ? { signal: request.signal } : {}),
+    });
+    const expectedLength = range === null ? size : rangeLength(range);
+    const rangeOk =
+      range === null
+        ? object.contentRange === null
+        : object.contentRange !== null &&
+          object.contentRange.start === range.start &&
+          object.contentRange.end === range.end &&
+          object.contentRange.total === size;
+    if (
+      object.contentLength !== expectedLength ||
+      !rangeOk ||
+      (object.versionId !== null && object.versionId !== row.versionId)
+    ) {
       await object.body.cancel().catch(() => undefined);
-      console.error("[files] Storage bütünlük uyuşmazlığı", { fileId });
+      console.error("[files] Storage bütünlük uyuşmazlığı", { fileId: request.fileId });
       return { ok: false, code: "INTEGRITY" };
     }
     return {
       ok: true,
-      file: { filename: row.filename, sizeBytes: row.sizeBytes, stream: object.body },
+      file: {
+        ...base,
+        status: range === null ? 200 : 206,
+        range,
+        contentLength: expectedLength,
+        stream: exactLengthStream(object.body, expectedLength),
+      },
     };
   } catch (error) {
     if (isStorageError(error, "NOT_FOUND")) {
-      console.error("[files] Kayıtlı nesne storage'da yok", { fileId });
+      console.error("[files] Kayıtlı nesne storage'da yok", { fileId: request.fileId });
+      return { ok: false, code: "INTEGRITY" };
+    }
+    if (isStorageError(error, "INTEGRITY")) {
+      console.error("[files] Storage yanıtı doğrulanamadı", { fileId: request.fileId });
       return { ok: false, code: "INTEGRITY" };
     }
     return {

@@ -7,6 +7,7 @@ import { Readable } from "node:stream";
 import { StorageError } from "./errors.ts";
 import {
   isAllowedObjectKey,
+  type GetObjectOptions,
   type ListVersionsResult,
   type ObjectHead,
   type ObjectStream,
@@ -91,20 +92,46 @@ export async function createLocalPrivateAdapter(rootDir: string): Promise<Storag
           mode: 0o600,
         });
       } catch {
-        throw new StorageError("UNAVAILABLE", "write");
+        // Kısmi dosya kalmış olabilir → yazma açısından belirsiz (D-123).
+        throw new StorageError("AMBIGUOUS", "write");
       }
       return { versionId };
     },
 
-    async getObject(key: string, versionId: string | null): Promise<ObjectStream> {
+    async getObject(
+      key: string,
+      versionId: string | null,
+      options: GetObjectOptions = {},
+    ): Promise<ObjectStream> {
       const path = await versionPath(key, versionId);
       if (path === null) throw new StorageError("NOT_FOUND");
       const info = await stat(/*turbopackIgnore: true*/ path);
+      const resolvedVersion = path.split(sep).at(-1) ?? null;
+      const { range, signal } = options;
+      if (range === undefined) {
+        return {
+          body: Readable.toWeb(
+            createReadStream(/*turbopackIgnore: true*/ path, signal ? { signal } : {}),
+          ) as ReadableStream<Uint8Array>,
+          contentLength: info.size,
+          versionId: resolvedVersion,
+          contentRange: null,
+        };
+      }
+      // S3 davranışı: başlangıç boyutu aşarsa 416 (burada INTEGRITY — servis bunu asla istemez).
+      if (range.start >= info.size) throw new StorageError("INTEGRITY", "range-outside");
+      const end = Math.min(range.end, info.size - 1);
       return {
         body: Readable.toWeb(
-          createReadStream(/*turbopackIgnore: true*/ path),
+          createReadStream(/*turbopackIgnore: true*/ path, {
+            start: range.start,
+            end,
+            ...(signal ? { signal } : {}),
+          }),
         ) as ReadableStream<Uint8Array>,
-        contentLength: info.size,
+        contentLength: end - range.start + 1,
+        versionId: resolvedVersion,
+        contentRange: { start: range.start, end, total: info.size },
       };
     },
 

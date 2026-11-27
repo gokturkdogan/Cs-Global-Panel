@@ -94,7 +94,7 @@
 - **DoD:** Ortak DoD + SDK/sağlayıcı davranışı TECH_STACK §3.8'de doğrulandı + canlı `storage:verify` (kullanıcının anahtarı girmesine bağlı).
 - **Sonuç (2026-11-25):** Uygulandı; unit, izole integration ve izole E2E (Chrome, WebKit, mobil emülasyon) yeşil; migration 0005 önce izole ortamda sonra `neondb`'de; ortak veritabanı verisi değişmedi. **Yapılmayan:** canlı B2 doğrulaması (anahtar henüz `.env.local`'da yok — kullanıcı `pnpm env:b2` + `pnpm storage:verify` çalıştıracak); gerçek cihaz testleri; gerçek belge setiyle yanlış pozitif ölçümü.
 
-## PHASE 09 — Document Review & Application Workflow (tamamlandı — kullanıcı onayı bekliyor)
+## PHASE 09 — Document Review & Application Workflow (tamamlandı — Product Owner onayı 2026-11-25, 09.1 dahil)
 - **Scope:** Gönderim (müşteri + müşteri adına), evrak inceleme (onay/düzeltme + gerekçe, `fileId` bağlı), karar değişikliği, müşteri yorumları, T2–T7, **T8–T12** (her iki hesap; gerekçeli, evrak seçimli), izin verilen aksiyonlar, müşteri panelinde düzeltme gösterimi, yeniden gönderim, statü geçmişi. **PHASE 08'den devredilen:** dosya kaldırma (BR-44, D2/D8).
 - **Deliverables:** Tam iş akışı.
 - **Dependencies:** PHASE 08; D-027, D-041.
@@ -113,6 +113,9 @@
 - **Test requirements:** Integration: istatistik doğruluğu, audit filtreleri, silmenin iki aşaması. E2E: iki hesapla audit görüntüleme, E5.
 - **Acceptance:** Audit ve silme her iki hesapla çalışır; audit kayıtları değiştirilemez.
 - **DoD:** Ortak DoD.
+- **Sonuç (2026-11-25, kullanıcı onayı bekliyor):** Şirket içi notlar (idempotent, append-only, müşteriye sızmaz — D-115), `/dashboard/audit-logs` (filtre, keyset sayfalama, allowlist sunum — D-119), başvuruya özel işlem geçmişi bağlantısı, kalıcı başvuru silme (kalıcı durumlu sınırlı adımlar, bekleme kapısı, envanter + listeleme doğrulaması, kira, sürdürme, silme kuyruğu — D-116; DB koruma trigger'ı — D-117; onay — D-118), teknik temizlik kapsam ayrımı (D-120). Migration 0007; yeni bağımlılık yok. Dashboard sayaçları PHASE 04'te mevcuttu (silme sürecindeki başvurular hariç — değişmedi). **Yapılmayan (ürün kuralı gereği):** tekil dosya/eski versiyon kalıcı silme (BR-47), toplu silme, audit dışa aktarma, silme CLI'ı, zamanlanmış bakım.
+- **PHASE 10.1 kapanışı (2026-11-26):** gecikmiş storage yazımı riski giderildi — kalıcı yazım girişimi takibi, yazım çiti, tek girişimli PUT, kesin/belirsiz sonuç, zamandan bağımsız sonlandırma, DB koruması v2, eski kayıt politikası, kanıt tabanlı temizlik, eski not sayfalaması (D-121…D-128; migration 0008); gecikmeli yazım testleri A–K ve eşzamanlılık matrisi.
+- **PHASE 10.2 kapanışı (2026-11-26):** test izolasyonu korumaları (D-129), mutabakat muhasebe nesli (D-130, migration 0009; R1–R7), WebKit konsol hatası kök nedeni ve dar test istisnası (D-131), `NOT_SENT` sıkılaştırması (D-132).
 
 ## PHASE 11 — UI/UX & Performance Optimization
 - **Scope:** WCAG 2.2 AA denetimi, 9 genişlikte görsel regresyon, Lighthouse, sorgu planları (10k seed), bundle analizi, loading/empty/error durumları, metin/ton.
@@ -121,6 +124,7 @@
 - **Test requirements:** axe, Lighthouse, ekran okuyucu, görsel regresyon.
 - **Acceptance:** axe kritik/ciddi yok; portal Lighthouse mobil Perf ≥ 90, A11y ≥ 95; sorgular index kullanır.
 - **DoD:** Ortak DoD.
+- **Durum (2026-11-27):** PHASE 11 + 11.1 geliştirmesi tamamlandı — kullanıcı onayı bekleniyor. 11.1: OD-26 (B2 yıllık ~10 USD, 100/90 GB hedef — D-140), görüntüleyici sayfaya git/klavye, evrak statü özeti, PDF dizi benchmark'ları. PHASE 12'de açık: gerçek B2 Range/fatura/cap/listeleme tutarlılığı/silme akışı doğrulaması, hesap hazırlığı sonrası 100 GB etkinleştirme doğrulaması. Uygulanan: ölçüm altyapısı (D-134), güvenli HTTP Range (D-135), tembel pdf.js görüntüleyici (D-136), ön-getirme politikası (D-137), audit bileşik indeksi (D-138, migration 0010), UI polish (yükleme aşamaları, mobil filtre katlama, taşma/kesilme düzeltmeleri). **Ölçülmedi:** axe ve Lighthouse (yeni bağımlılık/araç indirmesi gerektirir — PHASE 12'ye önerildi); gerçek B2 ve gerçek cihaz ölçümleri (PHASE 12).
 
 ## PHASE 12 — Quality Assurance & Security Audit
 - **Scope:** Tam regresyon, personel/müşteri erişim izolasyonu %100 (oturumsuz ve kapsam dışı erişim reddi), iki hesap modeli, S01–S24, tehdit modeli gözden geçirme, manuel sızma testi (ASVS L2 seçkisi), bağımlılık denetimi, log/payload sızıntı incelemesi, production blocker durumu.

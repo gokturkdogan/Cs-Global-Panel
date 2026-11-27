@@ -25,6 +25,12 @@ await runCli("storage:reconcile", async () => {
     const report = await reconcileStorage(client, await createAdapter(config), { apply });
     console.log(JSON.stringify(report, null, 2));
     if (report.truncated) console.log("Liste sayfa sınırında kesildi: değer yazılmadı.");
+    if (report.stale) {
+      console.log(
+        "Envanter sırasında silme/temizlik/başka mutabakat oldu (muhasebe nesli değişti): değer yazılmadı. Komutu yeniden çalıştırın.",
+      );
+      process.exitCode = 3;
+    }
     if (report.missingRecordedObjects > 0) {
       console.log(
         "UYARI: Kayıtlı bazı dosyaların fiziksel versiyonu bulunamadı (bütünlük incelemesi gerekli).",

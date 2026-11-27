@@ -302,3 +302,13 @@ Kaynak: backblaze.com/apidocs ve /docs (FILE_STORAGE başlığı).
 
 ## 9. PHASE 08 Notu
 Yeni bağımlılıklar: `@aws-sdk/client-s3` 3.1176.0, `pdfjs-dist` 6.5.438 (gerekçeler D-096, D-099). `pnpm audit --audit-level=high`: yüksek/kritik yok; önceki 1 orta seviye bulgu (drizzle-kit → esbuild, yalnızca geliştirme) sürüyor. Next.js 16.4.6: `proxyClientMaxBodySize` (proxy gövde tamponu, varsayılan 10 MB, aşımda kesme) kurulu dokümandan doğrulandı → dosya yolları proxy kapsamı dışında; `serverExternalPackages: ["pdfjs-dist"]`; Turbopack `new Worker(...)` girişini paketler (pdf.js worker modülü açıkça yüklenir).
+
+## PHASE 11 Notları (uygulandı)
+- **Yeni bağımlılık yok.** `pdfjs-dist` 6.5.438 artık istemcide de kullanılır (tembel görüntüleyici; D-136): `import("pdfjs-dist")` (build/pdf.mjs) yalnızca görüntüleyici açılınca; worker `pdfjs-dist/build/pdf.worker.min.mjs` yerel bir worker giriş dosyasından Turbopack worker chunk'ı olarak paketlenir (`new Worker(new URL("./pdf.worker.ts", import.meta.url), { type: "module" })` — kurulu Next.js Turbopack belgesi `new Worker()` desteğini doğrular; build çıktısında aynı kökenli `turbopack-worker-*.js` bootstrap'ı yabancı kökenli betikleri reddeder). Ölçülen chunk boyutları (sıkıştırmasız): pdf.js ~470 KB, worker ~1,19 MB, görüntüleyici ~7,5 KB — ilk sayfa yüklerinde yoktur. pdf.js 6.5.438 kaynağında `eval`/`new Function` kullanımı bulunmadı; `useWasm: false` (WASM görüntü çözücüleri `wasm-unsafe-eval` gerektirirdi). `PDFDataRangeTransport`, `PDFWorker.create({ port })`, `getDocument` seçenekleri kurulu `types/src/display/api.d.ts`'ten doğrulandı.
+- Next.js 16.4.6 Route Handler'da HEAD tanımlı değilse GET işleyicisi çağrılır (`auto-implement-methods.js` doğrulandı) → dosya route'larında HEAD açıkça tanımlandı (sağlayıcı isteği yok).
+- `Link` `prefetch={false}` App Router'da görünüm alanı ve hover ön-getirmesini kapatır (kurulu `link.md`).
+- Ölçüm: geçici PostgreSQL container'ında `pg_stat_statements` (resmî `postgres:18-alpine` imajındaki contrib; yalnızca izole ortam).
+
+## PHASE 11.1 Notları
+- Backblaze B2 fiyatlandırması 2026-11-27 resmî sayfadan yeniden doğrulandı: ilk 10 GB ücretsiz, $6,95/TB/ay, 3× ortalama depolamaya kadar egress ücretsiz ($0,01/GB fazlası), Class A/B/C ücretsiz (pay-as-you-go), minimum ücret yok; cap'ler günlük dolar sınırıdır, 00:00 GMT sıfırlanır, %75/%100 uyarı. Cap aşımında S3 API davranışı ve ödeme yöntemi koşulu belgelerde açık değil. Yıllık ~10 USD bütçe kararı: OD-26.
+- Yeni bağımlılık yok.

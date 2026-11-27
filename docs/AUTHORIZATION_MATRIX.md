@@ -23,8 +23,8 @@ Her iki hesap aşağıdakilerin **tamamını** yapabilir. Hesap türüne göre f
 - Müşteri adına PDF yükleme ve değiştirme (BR-44; `UNDER_REVIEW` dahil — OD-17), aktif ve önceki geçerli dosya versiyonlarını görüntüleme/indirme, dosya geçmişi (**PHASE 08 — uygulandı**: `POST /api/documents/[requirementId]/file`, `GET /api/files/[fileId]`; her istek `getCurrentStaff()`, aktör oturumdan; E2E'de ADMIN ve EMPLOYEE aynı sonucu alır); evrak inceleme, onay, düzeltme talebi, müşteri adına gönderim, izinli dosya kaldırma, müşteriye görünür yorum ve T2–T12 statü geçişleri (**PHASE 09 — uygulandı**: `src/features/workflow/actions.ts`; her action `requireStaff()`, aktör oturumdan, Zod `.strict()`; E2E'de ADMIN ve EMPLOYEE aynı aksiyonları kullanır).
 - Statü geçişleri T1–T12 (iptal, iptal edilmişi/tamamlanmışı yeniden açma, izin verilen önceki statülere dönme dahil).
 - Müşteri bağlantısını görüntüleme, kopyalama, WhatsApp ile paylaşma, iptal etme, yenileme (PHASE 06 — uygulandı; açığa çıkarma ve paylaşım hazırlığı audit'lenir).
-- Şirket içi notlar; yorumlar; başvurunun işlem geçmişi; genel audit log görüntüleme.
-- Başvurunun ve ilgili müşteri verilerinin/PDF'lerinin manuel kalıcı silinmesi (BR-150…BR-155).
+- Şirket içi notlar; yorumlar; başvurunun işlem geçmişi; genel audit log görüntüleme (**PHASE 10 — uygulandı**: `addInternalNoteAction`, `/dashboard/audit-logs`, `resolveAuditApplicationAction`; her giriş noktası `requireStaff()`; iki hesap aynı menü/ekran; E2E'de ADMIN ve EMPLOYEE aynı kayıtları görür).
+- Başvurunun ve ilgili müşteri verilerinin/PDF'lerinin manuel kalıcı silinmesi (BR-150…BR-155) ve yarım kalan silmenin sürdürülmesi (**PHASE 10 — uygulandı**: `requestDeletionAction`, `resumeDeletionAction`; `requireAdmin` yok; E5 E2E'de EMPLOYEE siler). Silme sürecindeki başvuruda yalnızca ilerleme görüntüleme ve sürdürme vardır; diğer tüm işlemler kapalıdır. Tekil dosya/eski versiyon kalıcı silme hiçbir hesapta yoktur (BR-47).
 
 Eşit ve tam yetki şu anlama **gelmez**:
 - Keyfî statü değişikliği: her iki hesap da yalnızca [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) matrisindeki geçişleri, guard'larıyla yapar.
@@ -42,7 +42,7 @@ Eşit ve tam yetki şu anlama **gelmez**:
 - PHASE 08 kapsamındaki müşteri yetkisi: görüntülemeye ek olarak kendi başvurusunda izinli statülerde PDF **yükleme/değiştirme** (`POST /api/portal/[context]/documents/[requirementId]/file`) ve yalnızca kendi `ACTIVE` dosyalarını **görüntüleme/indirme** (`GET /api/portal/[context]/files/[fileId]`). **PHASE 09:** incelemeye gönder/yeniden gönder ve izinli dosya kaldırma (`src/features/customer-portal/actions.ts` → `workflow/customer-entry.ts`; `requireCustomerAccess(contextId)` + kilit altında token/süre); yorumlar salt okunur (yazamaz — BR-122); evrak kararı ve statü geçişi yapamaz. (Önceki not: Yükleme, kaldırma, dosya görüntüleme ve gönderim PHASE 08/09'da (D-095 sözleşmesiyle).
 - Müşteri oturumu personel paneline, personel action'larına veya Better Auth oturumuna erişim sağlamaz; personel oturumu müşteri kapsamını belirlemez (E2E).
 - Müşteri yalnızca kendi başvurusunda: bilgileri ve statüyü görme, izinli durumlarda yükleme/değiştirme/kaldırma (BR-44), gönderme (BR-50), kendi `ACTIVE` dosyalarını görüntüleme/indirme, kendisine yazılan yorumları okuma.
-- Müşteri dosya isteği: dosyanın `application_id`'si oturumla eşleşmiyorsa veya dosya `ACTIVE` değilse **404**.
+- Müşteri dosya isteği: dosyanın `application_id`'si oturumla eşleşmiyorsa veya dosya `ACTIVE` değilse **404**. **PHASE 11 (D-135):** aynı kural `Range` (206/416) ve `HEAD` istekleri için de geçerlidir; yetkisiz/kapsam dışı istekte sağlayıcıya istek yapılmaz. Personel dosya route'u da `GET` + `HEAD` (aynı `getCurrentStaff()` kontrolü; iki hesap eşit).
 - Müşteri DTO'ları whitelist alanlardan oluşur; iç notlar, personel adları, aktörler, gerekçeler, `rejection_reason` kodu, eski versiyonlar, audit verisi **hiçbir zaman** dahil edilmez (BR-121).
 
 ## 4. Uygulama Kuralları (kod)
@@ -53,3 +53,6 @@ Eşit ve tam yetki şu anlama **gelmez**:
 4. İstemciden gelen kullanıcı ID'si, rol, `status`, `version`, `created_by` kabul edilmez (Zod `.strict()`); audit ve kayıtlardaki aktör kimliği yalnızca doğrulanmış oturumdan alınır.
 5. Oturumu olmayan istek: sayfada `/login`'e yönlendirme, Route Handler'da 401. Müşteri için kapsam dışı kaynak = 404.
 6. Testler: her korumalı giriş noktası için oturumsuz erişim reddi; her iki hesabın aynı kontrolden geçtiği; manipüle edilmiş rol/aktör bilgisinin etkisiz olduğu ([TESTING_STRATEGY.md](TESTING_STRATEGY.md)).
+
+## 5. PHASE 12 Denetimi
+Giriş noktası envanteri ve aktör × işlem sonuçları [SECURITY_AUDIT.md](SECURITY_AUDIT.md) §3–§4'tedir. Dosya uç noktalarının (GET/HEAD/Range) anonim, çapraz müşteri, çapraz oturum türü ve iptal senaryoları `security-audit.spec.ts` ile 4 tarayıcı projesinde doğrulandı; yetkisiz isteklerde sağlayıcıya istek yapılmadığı `file-delivery.test.ts` ile kanıtlandı. Matris değişmedi (eşit iki hesap, RBAC yok).

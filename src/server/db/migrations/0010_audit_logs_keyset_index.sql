@@ -1,0 +1,1 @@
+CREATE INDEX "audit_logs_occurred_at_id_idx" ON "audit_logs" USING btree ("occurred_at" DESC NULLS FIRST,"id" DESC NULLS FIRST);

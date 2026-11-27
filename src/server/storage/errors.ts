@@ -8,6 +8,8 @@
  * - FORBIDDEN: yetkisiz anahtar / yanlış bucket.
  * - INTEGRITY: boyut/sağlama uyuşmazlığı (yazılan veya okunan nesne beklenenle aynı değil).
  * - AMBIGUOUS: yazma sonucu bilinmiyor (yanıt kayboldu) — kör yeniden yazma yapılmaz, mutabakat gerekir.
+ * - NOT_SENT: istek sağlayıcıya hiç ulaşmadı (bağlantı kurulamadı/ad çözülemedi) — yazma kesin olarak
+ *   gerçekleşmedi (PHASE 10.1, D-123). Diğer tüm PUT hataları yazma açısından belirsiz sayılır.
  */
 export type StorageErrorKind =
   | "NOT_CONFIGURED"
@@ -16,7 +18,8 @@ export type StorageErrorKind =
   | "UNAVAILABLE"
   | "FORBIDDEN"
   | "INTEGRITY"
-  | "AMBIGUOUS";
+  | "AMBIGUOUS"
+  | "NOT_SENT";
 
 export class StorageError extends Error {
   readonly kind: StorageErrorKind;

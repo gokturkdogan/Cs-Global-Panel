@@ -112,13 +112,31 @@ describe("depolama yapılandırması (fail-closed)", () => {
     }
   };
 
-  it("geçerli B2 yapılandırması + varsayılan kota (9 GB / 8 GB)", () => {
+  it("geçerli B2 yapılandırması + varsayılan (hedef) kota 100 GB / 90 GB (OD-26)", () => {
     const config = parseStorageConfig(b2, "/app");
     expect(config).toMatchObject({
       provider: "b2",
       bucket: "cs-global-documents",
-      quota: { maxTotalBytes: 9e9, warningBytes: 8e9 },
+      quota: { maxTotalBytes: 100e9, warningBytes: 90e9 },
     });
+  });
+
+  it("güvenli aktif yapılandırma (9 GB / 8 GB) hâlâ geçerli; uyarı tanımsızsa sınırın %90'ı", () => {
+    expect(
+      parseStorageConfig(
+        { ...b2, STORAGE_MAX_TOTAL_BYTES: "9000000000", STORAGE_WARNING_BYTES: "8000000000" },
+        "/app",
+      ).quota,
+    ).toEqual({ maxTotalBytes: 9e9, warningBytes: 8e9 });
+    expect(
+      parseStorageConfig({ ...b2, STORAGE_MAX_TOTAL_BYTES: "9000000000" }, "/app").quota,
+    ).toEqual({ maxTotalBytes: 9e9, warningBytes: 8.1e9 });
+    expect(
+      parseStorageConfig(
+        { ...b2, STORAGE_MAX_TOTAL_BYTES: "100000000000", STORAGE_WARNING_BYTES: "90000000000" },
+        "/app",
+      ).quota,
+    ).toEqual({ maxTotalBytes: 100e9, warningBytes: 90e9 });
   });
 
   it("hata mesajı değer içermez", () => {
@@ -169,10 +187,19 @@ describe("depolama yapılandırması (fail-closed)", () => {
     );
   });
 
-  it("kota: üst sınır kodda 9 GB; uyarı < üst sınır; PDF limiti dinamik değil", () => {
-    expect(invalid({ ...b2, STORAGE_MAX_TOTAL_BYTES: "9000000001" })).toContain(
+  it("kota: kod tavanı 100 GB; uyarı < üst sınır; PDF limiti dinamik değil", () => {
+    expect(invalid({ ...b2, STORAGE_MAX_TOTAL_BYTES: "100000000001" })).toContain(
       "STORAGE_MAX_TOTAL_BYTES",
     );
+    expect(
+      invalid({
+        ...b2,
+        STORAGE_MAX_TOTAL_BYTES: "100000000000",
+        STORAGE_WARNING_BYTES: "100000000000",
+      }),
+    ).toContain("STORAGE_WARNING_BYTES");
+    expect(invalid({ ...b2, STORAGE_MAX_TOTAL_BYTES: "0" })).toContain("STORAGE_MAX_TOTAL_BYTES");
+    expect(invalid({ ...b2, STORAGE_MAX_TOTAL_BYTES: "-1" })).toContain("STORAGE_MAX_TOTAL_BYTES");
     expect(
       invalid({ ...b2, STORAGE_MAX_TOTAL_BYTES: "1000", STORAGE_WARNING_BYTES: "1000" }),
     ).toContain("STORAGE_WARNING_BYTES");
@@ -182,7 +209,52 @@ describe("depolama yapılandırması (fail-closed)", () => {
   });
 });
 
-describe("kota hesabı", () => {
+describe("kota hesabı (hedef 100 GB / 90 GB — OD-26)", () => {
+  const quota = { maxTotalBytes: 100_000_000_000, warningBytes: 90_000_000_000 };
+  const usage = (
+    total: number,
+    parts: Partial<Record<"active" | "history" | "pending" | "cleanup" | "untracked", number>> = {},
+  ) => ({
+    active: total,
+    history: 0,
+    pending: 0,
+    cleanup: 0,
+    untracked: 0,
+    ...parts,
+    total,
+    reconciledAt: null,
+  });
+  it("100 GB sınırın bir bayt altı/üstü; 10 MiB PDF tam sınıra sığar, bir bayt fazlası sığmaz", () => {
+    expect(fitsQuota(99_999_999_000, 1_000, quota)).toBe(true);
+    expect(fitsQuota(99_999_999_000, 1_001, quota)).toBe(false);
+    expect(fitsQuota(100_000_000_000 - 10_485_760, 10_485_760, quota)).toBe(true);
+    expect(fitsQuota(100_000_000_000 - 10_485_759, 10_485_760, quota)).toBe(false);
+    expect(fitsQuota(100_000_000_000, 0, quota)).toBe(true);
+    expect(fitsQuota(100_000_000_001, 0, quota)).toBe(false);
+  });
+  it("90 GB uyarı sınırı, 100 GB dolu; kalan kapasite negatif olmaz", () => {
+    expect(capacityOf(usage(89_999_999_999), quota).state).toBe("ok");
+    expect(capacityOf(usage(90_000_000_000), quota).state).toBe("warning");
+    expect(capacityOf(usage(99_999_999_999), quota)).toMatchObject({
+      state: "warning",
+      remainingBytes: 1,
+    });
+    expect(capacityOf(usage(100_000_000_000), quota)).toMatchObject({
+      state: "full",
+      remainingBytes: 0,
+    });
+    expect(capacityOf(usage(120_000_000_000), quota)).toMatchObject({
+      state: "full",
+      remainingBytes: 0,
+    });
+  });
+  it("tamsayı güvenliği: hedef sınır ve toplamlar güvenli tamsayı aralığında", () => {
+    expect(Number.isSafeInteger(quota.maxTotalBytes * 10)).toBe(true);
+    expect(Number.isSafeInteger(100_000_000_000 + 10_485_760)).toBe(true);
+  });
+});
+
+describe("kota hesabı (güvenli aktif 9 GB / 8 GB)", () => {
   const quota = { maxTotalBytes: 9_000_000_000, warningBytes: 8_000_000_000 };
   it("sınırın bir bayt altı/üstü", () => {
     expect(fitsQuota(8_999_999_000, 1_000, quota)).toBe(true);

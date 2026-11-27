@@ -7,7 +7,7 @@ CS Global (vize danışmanlığı) için evrak toplama, inceleme ve süreç taki
 - **Şirket paneli** (`/dashboard`) — **yalnızca iki sabit hesap** (bir ADMIN, bir EMPLOYEE), **birebir eşit yetki** (OD-24); kullanıcı adı + şifre; hesaplar ve şifre sıfırlama yalnızca yerel CLI.
 - **Müşteri paneli** (`/portal`, giriş `/b/<token>`) — hesapsız; **yalnızca bağlantı** ile doğrudan erişim (bearer, süresiz). **Mobile-first.**
 
-Ürün yaklaşımı: basit, düşük maliyetli (**aylık 0 hedefi**), harici servis yok, mevcut WhatsApp operasyonunu kolaylaştırır. Resmî vize sistemi değildir. → `docs/PROJECT_OVERVIEW.md`
+Ürün yaklaşımı: basit, düşük maliyetli (**aylık 0 hedefi**; tek istisna Backblaze B2 için yıllık ~10 USD bütçe — OD-26), harici servis yok, mevcut WhatsApp operasyonunu kolaylaştırır. Resmî vize sistemi değildir. → `docs/PROJECT_OVERVIEW.md`
 
 ## Mevcut fazı tespit etme
 1. `docs/PROJECT_STATE.md` → "Current Phase", "Technical Decisions", "Next Phase".
@@ -33,6 +33,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - Transaction içinde ağ çağrısı yok; kilit sırası (services → service_document_requirements →) applications → requirements → files → storage_quota_state; güncellemeler `expectedVersion` ile (D-074).
 - Veritabanı: uygulama yalnızca `getDb()` (`cs_app_runtime`, en az yetki) ile; şema değişikliği = `pnpm db:generate` + SQL incelemesi + yeni migration (uygulanmış migration değiştirilmez, `push` yok); yeni tablo GRANT'ı aynı migration'da; statü değerleri `src/config/statuses.ts`; ayrıntı `docs/DATABASE_SCHEMA.md` §9.
 - `cacheComponents` kapalı; hassas veride `use cache` / `force-static` / `revalidate` yasak; korumalı yanıtlar `no-store`.
+- Ön-getirme: `Link` yalnızca ana gezinme/breadcrumb'da ön-getirir; liste/tablo/sayfalama/aksiyon bağlantıları `prefetch={false}`; `/b/…` ve dosya uç noktaları asla `Link` değildir (D-137, statik test). Performans iddiası ölçümle (`pnpm perf:isolated`, `pnpm perf:db:isolated`); indeks yalnızca EXPLAIN ölçümüyle gerekçelenirse.
 - Sabit yapılandırma: dosya limitleri (PDF, `MAX_PDF_SIZE_BYTES = 10 485 760`, evrak başına 1 aktif PDF), şifre min 8, oturumlar 7 gün sabit, rate limitler, şirket iletişim bilgileri. Ayarlar sayfası/tablosu yok.
 - Gelecek ihtimaller için kod, tablo, endpoint, servis, konfigürasyon oluşturma.
 
@@ -44,7 +45,7 @@ Temel stack kullanıcı onayı olmadan değiştirilmez. Yeni bağımlılık içi
 - İç notlar müşteri yolunda hiçbir şekilde sorgulanmaz/serileştirilmez.
 - IP, hash'lenmiş IP, user-agent, cihaz bilgisi uygulama DB'sinde saklanmaz (yalnızca kısa ömürlü HMAC'li rate limit anahtarları).
 - Better Auth mekanizmalarını yeniden yazma; kapalı uç noktalar (`sign-up`, `change-password`, `update-user`, reset, `admin/*` HTTP) testle doğrulanır.
-- Dosyalar: private B2 bucket (CORS kapalı, public URL yok), yalnızca `/api/files/[id]` (personel) ve `/api/portal/[context]/files/[id]` (müşteri, yalnızca ACTIVE), yalnızca doğrulanmış dosyalar. Yükleme yalnızca sunucu üzerinden (ham PDF → doğrulama → rezervasyon → B2 → aktivasyon; proxy bu yolları kapsamaz — D-100, D-103); storage çağrısı transaction içinde yok; silme yalnızca versiyona özgü; kayıtlı geçerli versiyonlar otomatik silinmez. Kota 9 GB (D-101). Otomatik testler gerçek B2 kullanmaz; canlı test yalnızca `pnpm storage:verify`. B2 anahtarı yalnızca `pnpm env:b2` ile (sohbette istenmez). Yapısal doğrulama antivirüs değildir — "virüssüz/güvenli" etiketi kullanma.
+- Dosyalar: private B2 bucket (CORS kapalı, public URL yok), yalnızca `/api/files/[id]` (personel) ve `/api/portal/[context]/files/[id]` (müşteri, yalnızca ACTIVE), yalnızca doğrulanmış dosyalar. Yükleme yalnızca sunucu üzerinden (ham PDF → doğrulama → rezervasyon → B2 → aktivasyon; proxy bu yolları kapsamaz — D-100, D-103); storage çağrısı transaction içinde yok; silme yalnızca versiyona özgü; kayıtlı geçerli versiyonlar otomatik silinmez. Kota hedefi 100 GB / uyarı 90 GB (OD-26, D-140; kod tavanı `src/config/constants.ts`, aktif değer env'de — sağlayıcı hesabı hazır olana kadar 9 / 8 GB); kullanım hesabı aktif + önceki versiyon + devam eden + belirsiz + kayıt dışı (D-101). Otomatik testler gerçek B2 kullanmaz; canlı test yalnızca `pnpm storage:verify` (mutasyon — ayrı onay); salt okunur denetim `pnpm storage:inspect`. Operasyon prosedürleri `docs/OPERATIONS_RUNBOOK.md`, denetim `docs/SECURITY_AUDIT.md`. B2 anahtarı yalnızca `pnpm env:b2` ile (sohbette istenmez). Yapısal doğrulama antivirüs değildir — "virüssüz/güvenli" etiketi kullanma. Dosya route'ları GET + HEAD; tek aralıklı Range (206/416, If-Range) sağlayıcıya `Range`+`VersionId` olarak iletilir — tam indirip uygulamada kesmek, istemciden anahtar/versiyon almak yasak (D-135). Görüntüleyici tembel pdf.js + yerel worker; CSP yalnızca `worker-src 'self'` (eval/wasm/joker yok); PDF kalıcı tarayıcı depolamasına yazılmaz (D-136).
 - Silme personel tarafından (iki hesap eşit), onaylı, iki aşamalı ve gerçek (storage + DB); soft delete'i gerçek silme sayma.
 - `dangerouslySetInnerHTML`, ham SQL birleştirme, `.env*` commit yasak.
 

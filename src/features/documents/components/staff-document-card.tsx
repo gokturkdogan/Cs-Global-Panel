@@ -1,4 +1,4 @@
-import { Download, Eye, FileText, History } from "lucide-react";
+import { Download, FileText, History } from "lucide-react";
 
 import type { ApplicationStatus, DocumentStatus } from "@/config/statuses";
 import { DocumentStatusBadge } from "@/features/applications/components/document-status-badge";
@@ -14,10 +14,12 @@ import { formatFileSize } from "../domain/filename";
 import { canUploadDocument } from "../domain/upload-rules";
 import type { StaffFileVersion } from "../queries";
 import { PdfUpload } from "./pdf-upload";
+import { PdfViewerDialog } from "./pdf-viewer/pdf-viewer-dialog";
 
 /**
  * Personel evrak kartı (PHASE 08 §25). İki hesap aynı arayüzü görür (OD-24). Dosya listesi ve geçmiş
- * DB metadata'sından gelir; PDF yalnızca "Görüntüle/İndir" tıklandığında `/api/files/<id>` ile okunur.
+ * DB metadata'sından gelir; PDF yalnızca "Görüntüle/İndir" tıklandığında `/api/files/<id>` ile okunur
+ * (PHASE 11: görüntüleme uygulama içi aralıklı görüntüleyiciyle — D-136).
  * Kalıcı silme, onay/ret/düzeltme ve yorum aksiyonları bu fazda yoktur (PHASE 09/10).
  */
 export function StaffDocumentCard({
@@ -99,7 +101,12 @@ export function StaffDocumentCard({
           </dl>
           <p className="text-xs text-muted-foreground">{messages.files.structuralNote}</p>
           <div className="flex flex-wrap gap-2">
-            <FileLink href={`/api/files/${active.id}?disposition=inline`} kind="view" />
+            <PdfViewerDialog
+              url={`/api/files/${active.id}?disposition=inline`}
+              downloadUrl={`/api/files/${active.id}?disposition=attachment`}
+              sizeBytes={active.sizeBytes}
+              title={`${requirement.title} — v${active.versionNumber}`}
+            />
             <FileLink href={`/api/files/${active.id}?disposition=attachment`} kind="download" />
           </div>
         </div>
@@ -218,10 +225,12 @@ export function StaffDocumentCard({
                   {version.filename} · {formatFileSize(version.sizeBytes)}
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  <FileLink
-                    href={`/api/files/${version.id}?disposition=inline`}
-                    kind="view"
-                    compact
+                  <PdfViewerDialog
+                    url={`/api/files/${version.id}?disposition=inline`}
+                    downloadUrl={`/api/files/${version.id}?disposition=attachment`}
+                    sizeBytes={version.sizeBytes}
+                    title={`${requirement.title} — v${version.versionNumber}`}
+                    size="compact"
                   />
                   <FileLink
                     href={`/api/files/${version.id}?disposition=attachment`}
@@ -238,25 +247,24 @@ export function StaffDocumentCard({
   );
 }
 
+/** İndirme bağlantısı (ön-getirme yok: düz `<a download>`; Next.js `Link` değil). */
 function FileLink({
   href,
-  kind,
   compact,
 }: {
   readonly href: string;
-  readonly kind: "view" | "download";
+  readonly kind: "download";
   readonly compact?: boolean;
 }) {
-  const Icon = kind === "view" ? Eye : Download;
   return (
     <a
       href={href}
-      {...(kind === "view" ? { target: "_blank" } : { download: "" })}
+      download=""
       rel="noopener noreferrer"
       className={`inline-flex items-center gap-1.5 rounded-lg border px-3 font-medium text-primary hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${compact ? "min-h-9 text-xs" : "min-h-10 text-sm"}`}
     >
-      <Icon aria-hidden="true" className="size-4" />
-      {kind === "view" ? messages.files.view : messages.files.download}
+      <Download aria-hidden="true" className="size-4" />
+      {messages.files.download}
     </a>
   );
 }

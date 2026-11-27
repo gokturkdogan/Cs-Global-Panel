@@ -2,7 +2,11 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 
-import { FILE_DOWNLOAD_RATE_LIMIT, FILE_UPLOAD_RATE_LIMIT } from "@/config/constants";
+import {
+  FILE_DOWNLOAD_RATE_LIMIT,
+  FILE_RANGE_RATE_LIMIT,
+  FILE_UPLOAD_RATE_LIMIT,
+} from "@/config/constants";
 import { messages } from "@/lib/messages";
 import { getDb } from "@/server/db/client";
 import { pgErrorCode } from "@/server/db/errors";
@@ -27,7 +31,13 @@ import {
   uploadQuerySchema,
   uuidSchema,
 } from "./http";
-import { openDocumentFile, precheckUpload, uploadDocumentFile, type FileActor } from "./service";
+import {
+  openDocumentFile,
+  precheckUpload,
+  uploadDocumentFile,
+  type FileActor,
+  type FileRequestClass,
+} from "./service";
 
 /**
  * Personel ve müşteri dosya route'larının ortak akışı (PHASE 08). Kimlik ÇAĞIRAN route'ta çözülür
@@ -35,15 +45,15 @@ import { openDocumentFile, precheckUpload, uploadDocumentFile, type FileActor } 
  * istemciden aktör, rol veya başvuru kimliği alınmaz.
  */
 
-function actorKey(actor: FileActor, kind: "upload" | "download") {
+function actorKey(actor: FileActor, kind: "upload" | "download" | "range") {
   return actor.kind === "STAFF"
     ? `files:${kind}:user:${actor.userId}`
     : `files:${kind}:token:${actor.tokenId}`;
 }
 
-async function withinRateLimit(actor: FileActor, kind: "upload" | "download"): Promise<boolean> {
-  const limit = kind === "upload" ? FILE_UPLOAD_RATE_LIMIT : FILE_DOWNLOAD_RATE_LIMIT;
-  const count = await hitRateLimitCounter(getDb(), actorKey(actor, kind), limit.windowSeconds);
+async function withinUploadRateLimit(actor: FileActor): Promise<boolean> {
+  const limit = FILE_UPLOAD_RATE_LIMIT;
+  const count = await hitRateLimitCounter(getDb(), actorKey(actor, "upload"), limit.windowSeconds);
   return count <= limit.max;
 }
 
@@ -65,7 +75,7 @@ export async function handleUpload(
   let release: (() => void) | null = null;
   try {
     const db = getDb();
-    if (!(await withinRateLimit(actor, "upload"))) {
+    if (!(await withinUploadRateLimit(actor))) {
       return errorJson(429, "RATE_LIMITED", messages.files.rateLimited);
     }
     const storage = await getStorage();
@@ -117,6 +127,23 @@ export async function handleUpload(
   }
 }
 
+/** İstek sınıfına göre aktör başına rate limit (PHASE 11, D-135). */
+function fileRateLimiter(actor: FileActor) {
+  return async (requestClass: FileRequestClass) => {
+    const [kind, limit] =
+      requestClass === "transfer"
+        ? (["download", FILE_DOWNLOAD_RATE_LIMIT] as const)
+        : (["range", FILE_RANGE_RATE_LIMIT] as const);
+    const count = await hitRateLimitCounter(getDb(), actorKey(actor, kind), limit.windowSeconds);
+    return count <= limit.max;
+  };
+}
+
+/**
+ * Dosya okuma (GET/HEAD). Kimlik ÇAĞIRAN route'ta çözülmüştür; burada yalnızca kimlik/sorgu biçimi,
+ * Range/If-Range başlıkları (sözdizimi) ve iptal sinyali servise geçer. Bulunamayan, yetkisiz ve kapsam
+ * dışı istekler ayırt edilmez (404) ve sağlayıcıya hiç gidilmez.
+ */
 export async function handleOpen(
   request: NextRequest,
   actor: FileActor,
@@ -126,17 +153,21 @@ export async function handleOpen(
   if (!fileId.success) return openFailureResponse("NOT_FOUND");
   const query = fileQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!query.success) return openFailureResponse("NOT_FOUND");
+  const method = request.method === "HEAD" ? "HEAD" : "GET";
   try {
-    if (!(await withinRateLimit(actor, "download"))) {
-      return errorJson(429, "RATE_LIMITED", messages.files.rateLimited);
-    }
     const result = await openDocumentFile(
-      { db: getDb(), storage: getStorage },
+      { db: getDb(), storage: getStorage, allow: fileRateLimiter(actor) },
       actor,
-      fileId.data,
-      query.data.disposition,
+      {
+        fileId: fileId.data,
+        disposition: query.data.disposition,
+        method,
+        rangeHeader: request.headers.get("range"),
+        ifRange: request.headers.get("if-range"),
+        signal: request.signal,
+      },
     );
-    if (!result.ok) return openFailureResponse(result.code);
+    if (!result.ok) return openFailureResponse(result.code, result.sizeBytes);
     return pdfResponse(result.file, query.data.disposition);
   } catch (error) {
     if (isStorageError(error, "NOT_CONFIGURED")) return openFailureResponse("STORAGE_UNAVAILABLE");

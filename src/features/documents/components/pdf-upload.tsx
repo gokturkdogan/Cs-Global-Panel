@@ -12,7 +12,7 @@ import { messages } from "@/lib/messages";
 /**
  * PDF yükleme bileşeni (PHASE 08; müşteri paneli ve personel paneli ortak). Gerçek ilerleme:
  * tarayıcı → sunucu bayt aktarımı `XMLHttpRequest.upload.onprogress` ile; aktarım %100 olduğunda
- * "Sunucuda doğrulanıyor ve kaydediliyor" gösterilir — "Yüklendi" YALNIZCA sunucu aktivasyonu commit
+ * "Kontrol ediliyor ve kaydediliyor" gösterilir — "Yüklendi" YALNIZCA sunucu aktivasyonu commit
  * edip başarı döndürdükten sonra. Sahte zamanlayıcı ilerlemesi yok. İstemci ön kontrolü (uzantı, boyut,
  * `%PDF-` imzası) yalnızca kullanıcı deneyimidir; güvenlik sınırı sunucudadır. Yükleme sırasında buton
  * pasiftir (çift gönderim yok). Başarıda sayfa sunucudan yenilenir (gerçek DB durumu).
@@ -196,7 +196,13 @@ export function PdfUpload({
               className="h-2 w-full accent-primary"
               aria-label={messages.files.stateProcessing}
             />
+            <span className="text-xs text-muted-foreground">
+              {messages.files.stateProcessingHint}
+            </span>
           </>
+        ) : null}
+        {phase.kind === "uploading" || phase.kind === "processing" ? (
+          <UploadSteps current={phase.kind === "uploading" ? 0 : 1} />
         ) : null}
         {phase.kind === "done" ? (
           <span className="flex items-center gap-1.5 font-medium text-success-strong">
@@ -215,5 +221,35 @@ export function PdfUpload({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Yükleme aşamaları (PHASE 11, 11.C): Gönderiliyor → Kontrol ediliyor ve kaydediliyor → Yüklendi.
+ * Yalnızca gerçek olaylarla ilerler (aktarım bitti / sunucu yanıtı); süre tahmini veya sahte yüzde yok.
+ */
+function UploadSteps({ current }: { readonly current: 0 | 1 }) {
+  const steps = [
+    messages.files.stateUploading,
+    messages.files.stateProcessing,
+    messages.files.stateDone,
+  ];
+  return (
+    <ol className="flex flex-wrap gap-x-3 gap-y-1 text-xs" aria-hidden="true">
+      {steps.map((label, index) => (
+        <li
+          key={label}
+          className={
+            index < current
+              ? "text-success-strong"
+              : index === current
+                ? "font-medium text-foreground"
+                : "text-muted-foreground"
+          }
+        >
+          {index + 1}. {label.replace("…", "")}
+        </li>
+      ))}
+    </ol>
   );
 }

@@ -43,6 +43,7 @@ export function StatCard({
       <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       {href ? (
         <Link
+          prefetch={false}
           href={href}
           className="mt-2 inline-block rounded-sm text-xs font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           aria-label={`${label}: başvuruları listele`}

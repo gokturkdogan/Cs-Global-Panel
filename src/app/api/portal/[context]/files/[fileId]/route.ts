@@ -12,12 +12,14 @@ import { resolveCustomerActor } from "../../customer-actor";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ context: string; fileId: string }> },
-) {
+type Context = { params: Promise<{ context: string; fileId: string }> };
+
+/** GET: tam (200) veya tek aralık (206/416 — D-135). HEAD: aynı yetki, gövdesiz, sağlayıcıya gidilmez. */
+export async function GET(request: NextRequest, { params }: Context) {
   const { context, fileId } = await params;
   const resolved = await resolveCustomerActor(context);
   if (!resolved.ok) return resolved.response;
   return handleOpen(request, resolved.actor, fileId);
 }
+
+export const HEAD = GET;

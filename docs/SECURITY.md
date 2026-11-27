@@ -107,6 +107,8 @@ Tek aktif bağlantı: DB partial unique index + `applications FOR UPDATE` (OD-18
 
 `next.config.ts` `headers()` + `src/proxy.ts` (nonce'lu CSP — **PHASE 03'te uygulandı**, D-064).
 
+> **PHASE 11 durumu (D-136):** sayfa CSP'sine yalnızca `worker-src 'self'` eklendi (pdf.js worker'ı aynı kökenden, Turbopack worker chunk'ı; joker, `blob:`, `data:`, `unsafe-eval`, `wasm-unsafe-eval` yok — statik test + E2E). Müşteri düzenine de Radix kaydırma kilidi için belge nonce'u verilir (D-071 deseni). PDF yanıtları: `Accept-Ranges: bytes`, opak `ETag`, 206/416 (D-135); CORS yok; `no-store`. Görüntüleyici PDF baytlarını kalıcı depolamaya yazmaz; annotation/form/betik/XFA/WASM kapalı.
+>
 > **PHASE 03 durumu (D-064):** CSP her istekte yeni nonce ile `src/proxy.ts`'ten gelir: `default-src 'self'; script-src 'self' 'nonce-…' 'strict-dynamic'` (+ yalnızca development'ta `'unsafe-eval'`); `style-src 'self' 'nonce-…'`; `img-src 'self' blob: data:`; `font-src 'self'`; `connect-src 'self'`; `object-src 'none'`; `base-uri 'none'`; `form-action 'self'`; `frame-ancestors 'none'`; `upgrade-insecure-requests` yalnızca https APP_URL'de. Tüm sayfalar dinamik render edilir (root layout `connection()`); `Cache-Control` dinamik sayfalarda `no-store` (E2E). `unsafe-inline` yok; CSP ihlali konsol hatası olarak E2E'de yakalanır.
 >
 > **PHASE 01 durumu (D-048):** Tüm yanıtlarda `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Strict-Transport-Security`, `X-Robots-Tag` ve script çalıştırmayı etkilemeyen temel CSP (`base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'`) gönderilir; `X-Powered-By` kapalı. E2E ile doğrulandı. Henüz uygulanmayanlar: nonce'lu `script-src`/`style-src` CSP (PHASE 03, `proxy.ts`), rota bazlı `no-referrer` (PHASE 07/08), `Cache-Control: no-store` (korumalı rotalarla birlikte), PDF yanıtı CSP'si (PHASE 08).
@@ -170,7 +172,8 @@ Genel Bakış (PHASE 04) okumaları audit'e yazılmaz. PHASE 03'te uygulanan: `U
 | `APPLICATION_UPDATED` | USER | `{ changedFields }` |
 | `APPLICATION_STATUS_CHANGED` (PHASE 09 — T2, T3, T5–T12) | USER | `{ from, to, transitionCode, count? }` (gerekçe metni yok; gerekçe statü geçmişinde) |
 | `APPLICATION_SUBMITTED` / `APPLICATION_RESUBMITTED` (PHASE 09) | CUSTOMER / USER | `{ from, to, transitionCode, count, onBehalfOfCustomer }` |
-| `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETED` | USER | `{ fileCount }` (başvuru ID'si `application_id` kolonunda; PII yok) |
+| `APPLICATION_DELETION_REQUESTED` / `APPLICATION_DELETED` (PHASE 10) | USER | `{ fileCount }` / `{ fileCount, count }` (başvuru ID'si `application_id` kolonunda; gerekçe metni, PII, dosya adı, nesne anahtarı yok) |
+| `APPLICATION_DELETION_FAILED` (PHASE 10, D-116) | USER | `{ reason, count }` — `reason` güvenli hata kodu (`STORAGE_UNAVAILABLE`, `STORAGE_FORBIDDEN`, `UNKNOWN_OBJECT` …), `count` = bekleyen versiyon sayısı; yalnızca hata kategorisi değişince |
 | `ACCESS_LINK_CREATED` / `ACCESS_LINK_ROTATED` / `ACCESS_LINK_REVOKED` / `ACCESS_LINK_VIEWED` | USER | `{ accessTokenId }` |
 | `ACCESS_LINK_SHARE_PREPARED` (PHASE 06, D-084) | USER | `{ accessTokenId }` — WhatsApp paylaşım mesajı hazırlandı; gönderim/teslim anlamına gelmez |
 | `DOCUMENT_UPLOADED` / `DOCUMENT_REPLACED` (PHASE 08) | CUSTOMER / USER | `{ fileId, requirementId, versionNumber, from, to, onBehalfOfCustomer? }` (personelde `onBehalfOfCustomer: true`) |
@@ -181,7 +184,7 @@ Genel Bakış (PHASE 04) okumaları audit'e yazılmaz. PHASE 03'te uygulanan: `U
 | `DOCUMENT_VIEWED` / `DOCUMENT_DOWNLOADED` (PHASE 08) | USER / CUSTOMER | `{ fileId, requirementId }` — storage okumasından önce |
 | `STORAGE_RECONCILED` (PHASE 08) | SYSTEM | `{ counts }` — `pnpm storage:reconcile --apply` |
 | `DOCUMENT_APPROVED` / `DOCUMENT_REVISION_REQUESTED` (PHASE 09) | USER | `{ requirementId, fileId, reviewId, from, to, transitionCode? }` (açıklama metni yok) |
-| `DOCUMENT_COMMENT_ADDED` / `INTERNAL_NOTE_ADDED` | USER | `{ id }` |
+| `DOCUMENT_COMMENT_ADDED` / `INTERNAL_NOTE_ADDED` (PHASE 09 / PHASE 10) | USER | `{ id, requirementId? }` (metin yok) |
 | `SERVICE_CREATED` / `SERVICE_UPDATED` / `SERVICE_ACTIVATED` / `SERVICE_DEACTIVATED` | USER | `{ changedFields }` |
 | `DOCUMENT_TEMPLATE_CREATED` / `DOCUMENT_TEMPLATE_UPDATED` | USER | `{ serviceId, changedFields }` (sıralama: `["sortOrder"]`) |
 | `DOCUMENT_TEMPLATE_ACTIVATED` / `DOCUMENT_TEMPLATE_DEACTIVATED` (PHASE 05, D-076) | USER | `{ serviceId, changedFields }` |
@@ -222,7 +225,7 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 | # | Blocker | Not |
 |---|---|---|
 | PB-01 | Ticari kullanıma uygun, ücretsiz (veya kullanıcının onayladığı) hosting / DB / storage seçimi | Vercel Hobby ticari kullanıma izin vermez (OD-12) |
-| PB-02 | Storage kapasitesi yeterliliği | Backblaze B2 ücretsiz 10 GB; uygulama kotası 9 GB ≈ 450 başvuru; otomatik silme yok → birikimli (DEPLOYMENT §6, D-101). Açık. |
+| PB-02 | Storage kapasitesi yeterliliği | Backblaze B2 kotası hedefi 100 GB ≈ 5 000 başvuru (OD-26; yıllık ~10 USD bütçe; aktif değer hesap hazırlığına kadar 9 GB); otomatik silme yok → birikimli (DEPLOYMENT §6, D-101, D-140). Açık. |
 | PB-03 | KVKK hukuki değerlendirmesi (aydınlatma, yurt dışı aktarım, saklama/imha, VERBİS, ihlal prosedürü) | DATA_PRIVACY §9 |
 | PB-04 | Bearer link + OTP yok + süresiz bağlantı + belge indirme birleşik riskinin **yazılı risk kabulü** | THREAT_MODEL TM-13–TM-15 |
 | PB-05 | Antivirüs taraması olmadan PDF kabulünün **yazılı risk kabulü** ve personel cihaz önlemleri | THREAT_MODEL TM-16 |
@@ -232,6 +235,10 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 | PB-09 | Bağımlılık taraması temiz | |
 | PB-10 | Better Auth IP/UA saklamama ve kapalı uç noktaların testle doğrulanması — **PHASE 03'te testle doğrulandı** (IP header güvenilirliği hosting'de, TD-04) | TD-04 |
 | PB-11 | Gerçek şirket iletişim bilgileri ve hizmet/evrak kataloğu | Pending input |
+| PB-12 (Proposed, PHASE 12) | Geri yükleme sonrası silinmiş veri / iptal edilmiş erişimin geri dönmesinin önlenmesi (SEC-03, TM-60) | OPERATIONS_RUNBOOK §2.4 |
+| PB-13 (Proposed, PHASE 12) | En az yetkili B2 anahtarı (SEC-01) + gerçek sağlayıcı doğrulaması (Range, versiyon silme, listeleme/mutabakat, cap davranışı) | VERIFICATION_PLANS §1 |
+
+> **PHASE 12 durumları (2026-11-27):** PB-01 OPEN; PB-02 BLOCKED BY EXTERNAL ACTION; PB-03 OPEN; PB-04, PB-05 RISK ACCEPTANCE REQUIRED; PB-06 OPEN; PB-07, PB-09, PB-10 VERIFIED — ACCEPTANCE PENDING; PB-08 PARTIALLY VERIFIED; PB-11 BLOCKED BY EXTERNAL ACTION; PB-12 OPEN; PB-13 BLOCKED BY EXTERNAL ACTION. Ayrıntı ve kanıt: [SECURITY_AUDIT.md](SECURITY_AUDIT.md) §5. Hiçbiri kapatılmadı.
 
 ## 12. PHASE 04 Güvenlik Notları
 - **Panel veri erişimi:** Genel Bakış yalnızca runtime rolüyle, salt okunur transaction'da, izinli kolonlarla okunur (telefon, e-posta, arama metni, token, iç not okunmaz — unit testle kolon listesi sabitlenmiş; integration ile DTO doğrulanmış). Silme talepli başvurular gösterilmez (BR-153). Hata mesajı Türkçe ve geneldir; log'da yalnızca hata türü/kodu.
@@ -287,3 +294,16 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 - Serbest metinler (düzeltme açıklaması, gerekçe, yorum) düz metin: satır sonu normalizasyonu, kontrol/yön karakteri reddi, uzunluk sınırı (sunucu); React metni olarak render (HTML çalışmaz — E2E).
 - Gizlilik: iptal/geçiş gerekçesi ve personel adları müşteriye gönderilmez; müşteri zaman çizelgesi yalnızca statü + tarih; yorumlarda yazar yok. Audit metadata'sına yorum/gerekçe/açıklama metni yazılmaz (yalnızca kimlikler, statüler, geçiş kodu).
 - Yorum idempotency (PHASE 09.1, D-113): istemci işlem anahtarı + veritabanı UNIQUE + içerik özeti; ağ tekrarı/eşzamanlı tekrar tek yorum ve tek audit üretir; anahtarın başka kapsamda kullanımı genel çakışma döner (sonuç ifşa edilmez).
+
+## 18. PHASE 10 Güvenlik Notları (iç notlar, işlem geçmişi, kalıcı silme)
+- **Yetki:** her yeni Server Action/sayfa kendi içinde `requireStaff()` (unit testle statik doğrulanır); iki hesap aynı menü, ekran ve aksiyonlar (E2E: ADMIN ve EMPLOYEE). `requireAdmin`, rol bazlı menü, hesap yönetimi yok.
+- **İç not izolasyonu:** ayrı tablo; müşteri modülleri (`src/features/customer-portal`, `src/app/(customer)`, `src/app/api/portal`) `@/features/internal-notes|audit-logs|deletion` ve `applicationInternalNotes`/`applicationDeletion*` tablolarını içe aktaramaz (ESLint + unit statik test). Müşteri DTO'su (`getCustomerPortalView`) notları okumaz; sentinel testleri: integration (DTO JSON) ve E2E S16 (tüm projelerde müşteri HTML + RSC/fetch/script yanıt gövdeleri). Not metni audit/log/hata mesajına yazılmaz; Server Action yanıtı yalnızca `{ noteId, created }`.
+- **Audit ekranı:** salt okunur; listeleme audit'e yazılmaz (özyineleme yok); ham metadata yerine allowlist sunumu; bilinmeyen anahtar/değer/eski event güvenli fallback; parametreli sorgu; PII araması yok; başvuru numarası URL'ye yazılmaz. Append-only korumalar (GRANT + trigger) değişmedi; integration testi runtime rolünün UPDATE/DELETE/TRUNCATE denemelerinin reddini doğrular. Tablo sahibi için mutlak değiştirilemezlik garantisi değildir (D-039).
+- **Kalıcı silme:** onay = gerekçe + başvuru numarası (sunucuda karşılaştırılır) + `expectedVersion`; istemci "onaylandı" bayrağı, storage anahtarı veya versiyon kimliği kabul edilmez (`.strict()`); fiziksel silme yalnızca sunucu envanterindeki tam anahtar + versiyonla, başvuru öneki sondaki ayraçla; sahipliği doğrulanmamış nesne silinmez. Talep anında bağlantı iptali + `deletion_requested_at` → müşteri erişimi, oturum değişimi, yükleme rezervasyonu/aktivasyonu, iş akışı, yorum/not, bağlantı yönetimi ve dosya erişimi kapanır (katmanlı savunma: müşteri görünüm sorgusu da silme sürecindeki başvuruyu okumaz). DB trigger'ı (D-117) storage doğrulanmadan başvuru satırının runtime rolüyle silinmesini engeller. Kira ile eşzamanlı adım tekilleştirilir; storage çağrıları transaction/kilit içinde değildir; sınırlı toplu iş + sınırlı sayfa + sınırsız yeniden deneme yok. Sağlayıcı yetki/Object Lock reddi "nesne yok" sayılmaz; `NoSuchBucket` artık yapılandırma hatası.
+- **Kalan riskler / doğrulanmayanlar:** ~~çok gecikmiş sağlayıcı PUT'unun bekleme payı sonrası sonlandırmadan sonra yazılması~~ — PHASE 10.1'de giderildi (D-121…D-125: kalıcı yazım girişimi takibi, yazım çiti, zamandan bağımsız sonlandırma; belirsiz sonuçta silme süresiz bekletilebilir); gerçek B2'de uygulama silme akışı, cap/rate limit ve Object Lock davranışı doğrulanmadı; kalan audit kayıtlarındaki dolaylı tanımlayıcılar (DATA_PRIVACY §12c); yedek/PITR kopyaları. PB-01…PB-11 açık.
+
+## 19. PHASE 10.1 Güvenlik Notları (silme ↔ gecikmiş yazım)
+- **Kök neden (PHASE 10):** silme, talepten önce başlamış bir PUT'un bittiğini "rezervasyon süresi + 5 dk" bekleyerek varsayıyordu; zaman aşımı/kira bitişi uzak sağlayıcıdaki yazımın bittiğini kanıtlamaz ve B2 belgeleri böyle bir süre sınırı vermez. SDK'nin gizli yeniden denemesi ayrıca takip edilmeyen ek versiyon üretebilirdi.
+- **Düzeltme:** her PUT girişimi kalıcı kayıt (D-121); PUT öncesi commit edilen çit, silme talebiyle sıraya konur (D-122); kesin/belirsiz sonuç ayrımı, belirsiz yalnızca gözlemle çözülür (D-123); sonlandırma süreden bağımsız ve tüm girişimler son boş listelemeden önce çözülmüşse (D-124); DB koruması v2 + durum makinesi trigger'ları + geri alınamaz silme işareti (D-125); takipsiz eski kayıtlar kanıtsız (D-126).
+- **Bypass yok:** "Zorla Sil", "Kontrolü Atla", "işlem çözüldü" düğmesi/uç noktası yok; runtime rolü `UNKNOWN`'ı `FAILED`/`FENCED` yapamaz (trigger), silme işaretini geri alamaz, girişim/işlem/envanter satırı silemez (yetki yok).
+- **Sınır:** DB, sağlayıcının fiziksel durumunu doğrulayamaz; kanıtlar uygulama tarafından üretilir. Runtime kimlik bilgisi ele geçirilirse izinli geçişlerle kanıt taklit edilebilir (TM-41/42). B2 tutarlılık modeli belgelenmemiştir (varsayım; PHASE 12 gerçek sağlayıcı doğrulaması).

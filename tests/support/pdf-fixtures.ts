@@ -77,6 +77,52 @@ export function validPdfOfSize(size: number): Buffer {
   throw new Error("İstenen boyutta PDF üretilemedi");
 }
 
+/**
+ * Çok sayfalı sentetik PDF (PHASE 11 benchmark'ları). Her sayfa kendi içerik akışına ve kendi
+ * sıkıştırılmamış gri tonlamalı görsel XObject'ine sahiptir → sayfa verisi dosya boyunca dağılır.
+ * Xref sonda (doğrusallaştırılmamış). Düzen:
+ * - `clustered` (varsayılan; yaygın ofis/tarayıcı çıktısı): sayfa sözlükleri baştadır, içerik ve görseller
+ *   sonra gelir → ilk sayfa için dosyanın tamamı gerekmez.
+ * - `interleaved` (en kötü durum): her sayfa sözlüğü kendi büyük görselinin yanında → sayfa ağacını yürümek
+ *   dosyanın neredeyse tüm parçalarını gerektirir.
+ * Görsel verisi deterministik sözde rastgele (sıkıştırılamaz) baytlardır. `targetBytes` yaklaşık boyuttur.
+ */
+export function multiPagePdf(
+  pages: number,
+  targetBytes: number,
+  layout: "clustered" | "interleaved" = "clustered",
+): Buffer {
+  const perPage = Math.max(64, Math.floor(targetBytes / pages) - 420);
+  const side = Math.max(8, Math.floor(Math.sqrt(perPage)));
+  // Nesne numaraları: 1 katalog, 2 pages; sayfa i için sayfa/içerik/görsel numaraları düzene göre.
+  const pageNo = (i: number) => (layout === "clustered" ? 3 + i : 3 + i * 3);
+  const contentNo = (i: number) => (layout === "clustered" ? 3 + pages + i * 2 : 4 + i * 3);
+  const imageNo = (i: number) => (layout === "clustered" ? 4 + pages + i * 2 : 5 + i * 3);
+  const slots: PdfObject[] = new Array<PdfObject>(2 + pages * 3);
+  slots[0] = CATALOG;
+  slots[1] = `<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, i) => `${pageNo(i)} 0 R`).join(" ")}] /Count ${pages} >>`;
+  let seed = 0x9e3779b9;
+  for (let i = 0; i < pages; i += 1) {
+    slots[pageNo(i) - 1] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents ${contentNo(i)} 0 R ` +
+      `/Resources << /XObject << /Im${i} ${imageNo(i)} 0 R >> >> >>`;
+    const text = `q 400 0 0 400 97 300 cm /Im${i} Do Q BT /F1 18 Tf 72 760 Td (Sayfa ${i + 1}) Tj ET`;
+    slots[contentNo(i) - 1] = { dict: `<< /Length ${text.length} >>`, stream: encoder(text) };
+    const data = new Uint8Array(side * side);
+    for (let b = 0; b < data.length; b += 1) {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      data[b] = seed & 0xff;
+    }
+    slots[imageNo(i) - 1] = {
+      dict: `<< /Type /XObject /Subtype /Image /Width ${side} /Height ${side} /ColorSpace /DeviceGray /BitsPerComponent 8 /Length ${data.length} >>`,
+      stream: data,
+    };
+  }
+  return buildPdf(slots);
+}
+
 /** Xref stream + sıkıştırılmış nesne akışı (ObjStm) içeren PDF; `hidden` nesnesi ObjStm içindedir. */
 export function objectStreamPdf(
   hidden: string,
@@ -251,6 +297,19 @@ export const fixtures = {
   textFile: () => encoder("Bu bir PDF degildir.\n"),
   /** PDF başlığından önce başka içerik (polyglot girişimi). */
   polyglotPrefix: () => Buffer.concat([encoder("GIF89a"), validPdf()]),
+  /**
+   * PHASE 12 (D-136): harici `/URI` bağlantı açıklaması (tüm sayfayı kaplar) + AcroForm metin alanı.
+   * Doğrulama bunları reddetmez (aktif içerik değildir); görüntüleyici tetiklememelidir.
+   */
+  externalLinkAndForm: () =>
+    buildPdf([
+      "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R] >> >>",
+      PAGES,
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Annots [5 0 R 6 0 R] >>",
+      contentObject("BT /F1 24 Tf 72 720 Td (Harici baglanti testi) Tj ET"),
+      "<< /Type /Annot /Subtype /Link /Rect [0 0 595 842] /Border [0 0 0] /A << /S /URI /URI (https://phase12-leak.example.invalid/pdf-link) >> >>",
+      "<< /Type /Annot /Subtype /Widget /FT /Tx /T (ad) /Rect [72 600 300 630] /P 3 0 R /V (form) >>",
+    ]),
   deepNesting: () =>
     buildPdf([CATALOG, PAGES, PAGE, contentObject(), `${"[".repeat(200)}${"]".repeat(200)}`]),
 } as const;

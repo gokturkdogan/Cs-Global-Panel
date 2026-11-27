@@ -179,3 +179,22 @@ Domain modülü `(actor, application, requirements)` için izin verilen aksiyon 
 - Kaldırma: dosya `ACTIVE → REMOVED` (fiziksel silme yok); D2/D8 statü kuralları; `UNDER_REVIEW` ve sonrasında kaldırma yok.
 - T7 iptal: `UPLOAD_PENDING`/`VALIDATING` → `EXPIRED`; evrak statüleri, dosyalar, kararlar, bağlantı değişmez.
 - No-op geçiş yok: her geçiş statü değiştirir ve tek geçmiş kaydı yazar; tekrar istekleri sürüm/statü kontrolünde reddedilir.
+
+**PHASE 10 uygulama notu (D-116):** Kalıcı silme durumu (`deletion_requested_at` + `application_deletions`) T1–T12 başvuru statülerinden **ayrı bir eksendir**; yeni statü değeri eklenmedi ve silme `CANCELLED` ile eşdeğer değildir. Silme her statüde başlatılabilir; silme talebinden sonra hiçbir T1–T12 geçişi (T8/T9 yeniden açma dahil), evrak kararı, yükleme, kaldırma veya yorum/not yapılamaz (`NOT_FOUND`) ve başvuru normal kullanıma geri döndürülemez. Silme sırasında `UPLOAD_PENDING` kayıtları yalnızca bekleme kapısı dolduktan sonra `EXPIRED` yapılır; aktivasyon silme işaretini görerek `REJECTED (STATE_CHANGED)` üretir. Dosya kayıtları silinmeden önce `blob_deleted_at` alır (yalnızca fiziksel yokluk doğrulandıktan sonra) ve başvuruyla birlikte CASCADE silinir.
+
+**PHASE 10.1 — storage yazım girişimi durum makinesi (D-121…D-123, DB trigger ile zorunlu):**
+
+| Mevcut | Hedef | Kim / ne zaman | Kanıt |
+|---|---|---|---|
+| — | `ADMITTED` | Yükleme rezervasyonu (aynı TX, başvuru kilidi) | Silme işaretli değil |
+| `ADMITTED` | `IN_PROGRESS` | PUT'tan hemen önce (`beginStorageWrite`) | Koşullu güncelleme; silme işaretli değil |
+| `ADMITTED` | `FENCED` | Silme talebi (`FENCED_BY_DELETION`) / süresi dolmuş rezervasyon temizliği (`RESERVATION_EXPIRED`) / silme adımı (savunma) | PUT hiç başlatılmadı ve artık başlatılamaz |
+| `IN_PROGRESS` | `CONFIRMED` | Sağlayıcı başarı + versiyon kimliği (`PROVIDER_CONFIRMED`) veya HEAD/gözlem (`OBSERVED`) | Versiyon kimliği |
+| `IN_PROGRESS` | `FAILED` | Bağlantı kurulamadı (`NOT_SENT`) | İstek sağlayıcıya ulaşmadı |
+| `IN_PROGRESS` | `UNKNOWN` | Zaman aşımı, yanıt kaybı, sağlayıcı hatası, versiyon kimliği yok, bütünlük | — |
+| `UNKNOWN` | `CONFIRMED` | Anahtarda sahiplenilmemiş versiyon gözlendi (silme envanteri / temizlik / HEAD) | Gözlenen versiyon |
+
+Diğer tüm geçişler reddedilir (`UNKNOWN→FAILED/FENCED` dahil); çözülmüş kayıtlar değişmez. Süreç çökmesi girişimi `IN_PROGRESS`'te bırakır (= çözülmemiş). Çözülmemiş girişim varken kalıcı silme sonlandırılamaz (D-124).
+
+## 6. PHASE 11 Notu
+Statü makinelerinde değişiklik yok. Dosya görüntüleme/indirme (Range, HEAD, görüntüleyici) hiçbir statü geçişi tetiklemez; müşteri yalnızca `ACTIVE` dosyaya, personel `ACTIVE`/`SUPERSEDED`/`REMOVED` dosyaya erişir (§3).

@@ -16,7 +16,8 @@ import {
  *   testler gerçek bucket'a bağlanamaz.
  * - `APP_ENV=production` geliştirme bucket'ını kullanamaz (ayrı bucket + bağımsız anahtar zorunlu).
  *   Next.js `NODE_ENV=production` (build/start) ile `APP_ENV=production` aynı şey değildir.
- * - Kota: `STORAGE_MAX_TOTAL_BYTES` ≤ 9 000 000 000 (kod sabiti); `STORAGE_WARNING_BYTES` < üst sınır.
+ * - Kota: `STORAGE_MAX_TOTAL_BYTES` ≤ 100 000 000 000 (kod tavanı, OD-26); `STORAGE_WARNING_BYTES` < üst sınır;
+ *   uyarı tanımsızsa üst sınırın %90'ı (en fazla 90 GB).
  * - `MAX_PDF_SIZE_BYTES` sabittir (OD-16, dinamik limit yok); tanımlıysa koddaki değerle aynı olmalıdır.
  */
 
@@ -94,7 +95,7 @@ export function parseStorageConfig(source: Source, cwd: string = process.cwd()):
   const warning = parseByteCount(source.STORAGE_WARNING_BYTES);
   const warningBytes =
     warning === undefined
-      ? Math.min(STORAGE_DEFAULT_WARNING_BYTES, Math.floor(((maxTotalBytes ?? 0) * 8) / 9))
+      ? Math.min(STORAGE_DEFAULT_WARNING_BYTES, Math.floor(((maxTotalBytes ?? 0) * 9) / 10))
       : warning;
   if (warningBytes === null || warningBytes < 1 || warningBytes >= (maxTotalBytes ?? 0)) {
     invalid.push("STORAGE_WARNING_BYTES");

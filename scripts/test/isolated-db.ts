@@ -104,6 +104,10 @@ try {
       "-p",
       "127.0.0.1::5432",
       IMAGE,
+      // PHASE 11 (D-134): sorgu sayısı/SQL süresi ölçümü için yalnızca geçici container'da istatistik
+      // eklentisi yüklenir (uzantı yalnızca ölçüm betiklerinde oluşturulur; uygulama davranışı değişmez).
+      "-c",
+      "shared_preload_libraries=pg_stat_statements",
     ],
     { quiet: true },
   );
@@ -128,6 +132,10 @@ try {
     // Dosya depolama: yalnızca geçici yerel private kök (gerçek B2 yok).
     STORAGE_PROVIDER: "local",
     STORAGE_LOCAL_ROOT: storageRoot,
+    // PHASE 12: kota açıkça verilir (geliştiricinin .env.local'ından veya kod varsayılanından bağımsız,
+    // CI'da da aynı). Güvenli aktif değer (D-140); hedef 100 / 90 GB sınırları ayrıca test edilir.
+    STORAGE_MAX_TOTAL_BYTES: "9000000000",
+    STORAGE_WARNING_BYTES: "8000000000",
   };
   // Boş değer (silme değil): Next.js `.env.local`'ı yalnızca TANIMSIZ değişkenler için yükler.
   for (const name of [
@@ -149,7 +157,11 @@ try {
   }
   exitCode = await run(command[0]!, command.slice(1), env);
 } catch (error) {
-  console.error(`[isolated-db] ${error instanceof Error ? error.message : "hata"}`);
+  // `execFileSync` hata mesajı tam komut satırını (geçici şifreler dahil) içerir → yazdırılmaz.
+  const status = (error as { status?: unknown }).status;
+  console.error(
+    `[isolated-db] ${error instanceof Error && !("cmd" in error) ? error.message : `komut başarısız (çıkış kodu ${typeof status === "number" ? status : "bilinmiyor"})`}`,
+  );
   exitCode = 1;
 } finally {
   removeContainer();

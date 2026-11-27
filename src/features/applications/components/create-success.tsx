@@ -54,7 +54,7 @@ export function CreateSuccess({
         ].map(([label, value]) => (
           <div key={label} className="grid gap-0.5">
             <dt className="text-xs text-muted-foreground">{label}</dt>
-            <dd className="font-medium break-words text-foreground tabular-nums">{value}</dd>
+            <dd className="font-medium wrap-anywhere text-foreground tabular-nums">{value}</dd>
           </div>
         ))}
       </dl>
@@ -108,7 +108,9 @@ export function CreateSuccess({
           </>
         ) : null}
         <Button asChild variant="outline" className="h-11">
-          <Link href={`/dashboard/applications/${result.applicationId}`}>Başvuru Detayına Git</Link>
+          <Link prefetch={false} href={`/dashboard/applications/${result.applicationId}`}>
+            Başvuru Detayına Git
+          </Link>
         </Button>
         <Button variant="ghost" className="h-11" onClick={onNew}>
           <Plus aria-hidden="true" />

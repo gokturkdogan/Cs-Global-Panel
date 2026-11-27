@@ -33,6 +33,8 @@ const DEFAULTS: readonly (readonly [string, string])[] = [
   ["B2_BUCKET_NAME", "cs-global-documents"],
   ["B2_ENDPOINT", "https://s3.eu-central-003.backblazeb2.com"],
   ["B2_REGION", "eu-central-003"],
+  // Güvenli başlangıç kotası (yalnızca tanımsızsa eklenir). Hedef 100 GB / 90 GB (OD-26) sağlayıcı hesabı
+  // hazırlığı (ödeme yöntemi, cap'ler, uyarılar) doğrulandıktan sonra elle etkinleştirilir — FILE_STORAGE §7.2.
   ["STORAGE_MAX_TOTAL_BYTES", "9000000000"],
   ["STORAGE_WARNING_BYTES", "8000000000"],
 ];

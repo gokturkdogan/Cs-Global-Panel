@@ -8,7 +8,7 @@ CS Global, vize danışmanlık müşterilerinden evrakları bugün büyük ölç
 
 ## 2. Ürün Yaklaşımı (2026-11-24 kararları)
 
-- Mümkün olduğunca **basit, anlaşılır, düşük maliyetli** (hedef: aylık 0), güvenli ve sürdürülebilir.
+- Mümkün olduğunca **basit, anlaşılır, düşük maliyetli** (hedef: aylık 0; Backblaze B2 için yıllık ~10 USD bütçe — OD-26), güvenli ve sürdürülebilir.
 - Gereksiz özellik, soyutlama, tablo, bağımlılık ve harici servis yok.
 - Müşteri teknik bilgiye ihtiyaç duymadan, telefonundan kullanır (mobile-first).
 - Yönetim paneli sade; mavi-beyaz kurumsal tasarım.

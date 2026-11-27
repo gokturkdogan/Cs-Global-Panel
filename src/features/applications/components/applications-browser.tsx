@@ -28,7 +28,7 @@ type Props = {
 };
 
 const selectClass =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none";
+  "h-10 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none";
 
 /**
  * Başvuru listesi tarayıcısı. Kişisel veri içermeyen filtreler (durum, hizmet, sayfa, sayfa boyutu)
@@ -131,7 +131,7 @@ export function ApplicationsBrowser({ initial, filters, services }: Props) {
           Arama metni adres çubuğuna yazılmaz; sayfa yenilenince arama sıfırlanır.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="grid gap-1">
+          <div className="grid min-w-0 gap-1">
             <label htmlFor="filter-status" className="text-sm font-medium">
               Durum
             </label>
@@ -157,7 +157,7 @@ export function ApplicationsBrowser({ initial, filters, services }: Props) {
               ))}
             </select>
           </div>
-          <div className="grid gap-1">
+          <div className="grid min-w-0 gap-1">
             <label htmlFor="filter-service" className="text-sm font-medium">
               Hizmet
             </label>
@@ -176,7 +176,7 @@ export function ApplicationsBrowser({ initial, filters, services }: Props) {
               ))}
             </select>
           </div>
-          <div className="grid gap-1">
+          <div className="grid min-w-0 gap-1">
             <label htmlFor="filter-page-size" className="text-sm font-medium">
               Sayfa başına
             </label>
@@ -222,7 +222,9 @@ export function ApplicationsBrowser({ initial, filters, services }: Props) {
               description={messages.applications.emptyDescription}
               action={
                 <Button asChild>
-                  <Link href="/dashboard/applications/new">Yeni Başvuru</Link>
+                  <Link prefetch={false} href="/dashboard/applications/new">
+                    Yeni Başvuru
+                  </Link>
                 </Button>
               }
             />

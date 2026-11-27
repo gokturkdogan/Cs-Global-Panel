@@ -1,7 +1,5 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import type { ApplicationStatus, DocumentStatus } from "@/config/statuses";
@@ -26,6 +24,7 @@ import { messages } from "@/lib/messages";
 import { writeAuditLog } from "@/server/audit/log";
 import type { Database } from "@/server/db/client";
 import { CONCURRENCY_ERROR_CODES, pgErrorCode } from "@/server/db/errors";
+import { textPayloadHash } from "@/server/idempotency/payload-hash";
 import {
   applicationDocumentFiles as files,
   applicationDocumentRequirements as requirements,
@@ -636,18 +635,7 @@ export function removeDocumentFile(
 // ---------------------------------------------------------------- Müşteriye görünür yorum
 
 /** Yorum işleminin içerik özeti (kapsam + metin) — aynı anahtarın farklı istekte kullanımını yakalar. */
-export function commentPayloadHash(input: {
-  readonly applicationId: string;
-  readonly requirementId: string | null;
-  readonly authorUserId: string;
-  readonly body: string;
-}): string {
-  return createHash("sha256")
-    .update(
-      JSON.stringify([input.applicationId, input.requirementId, input.authorUserId, input.body]),
-    )
-    .digest("hex");
-}
+export const commentPayloadHash = textPayloadHash;
 
 /**
  * Müşteriye görünür yorum (BR-120…BR-123): yalnızca personel; düz metin; düzenleme/silme yok; statü

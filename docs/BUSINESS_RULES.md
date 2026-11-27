@@ -93,6 +93,8 @@
 
 - **BR-70** Dosya kayıtları değiştirilemez; yalnızca statü/yaşam döngüsü alanları kontrollü güncellenir.
 - **BR-71** `version_number`, dosya **aktif olduğunda** evrak başına artan tam sayı olarak atanır (geçerli versiyonlar boşluksuz: v1, v2, …).
+- **BR-72b** (PHASE 11.1, OD-26) Depolama kapasitesi hedefi 100 GB (uyarı 90 GB); sınıra ulaşıldığında yeni yükleme durur, mevcut dosyalar erişilebilir kalır. Daha fazla kapasite eski başarılı versiyonların otomatik silinmesini getirmez (BR-47, OD-06 aynen).
+- **BR-72a** (PHASE 11, D-135/D-136) Görüntüleme uygulama içi görüntüleyiciyle ve dosyanın yalnızca gereken bölümleri okunarak yapılır; indirme tam dosyadır. Görüntüleme kaydı (audit) aynı kişi ve dosya için 10 dakikada bir; indirme her seferinde kaydedilir. Kurallar (kim neyi görebilir) değişmedi.
 - **BR-72** Bir evrağın geçmişi: tüm geçerli dosya versiyonları + tüm inceleme kayıtları (karar, gerekçe, inceleyen, tarih, incelenen versiyon). Personel tüm geçerli versiyonları görebilir; müşteri yalnızca aktif dosyayı görür.
 - **BR-73** Versiyonlar süreye bağlı olarak silinmez (OD-06).
 
@@ -153,6 +155,7 @@ Gösterge vize onay olasılığı veya sonuç garantisi ifade etmez.
 - **BR-121** Müşteri tarafı veri erişim fonksiyonları `application_internal_notes` tablosunu hiçbir koşulda sorgulamaz; müşteri DTO'ları whitelist alanlardan oluşur ([ARCHITECTURE.md](ARCHITECTURE.md) §5).
 - **BR-122** Müşteri yorum yazamaz (MVP).
 - **BR-123** Yorum/not düzenleme ve silme yoktur (başvuru silinmesi hariç).
+- *Uygulama notları (PHASE 10 — ürün kuralı eklemez; D-115):* Şirket içi notlar başvuru detayındaki "Şirket İçi Notlar" bölümünden, her iki hesapça, başvurunun her statüsünde (COMPLETED/CANCELLED dahil — kural statü kısıtı koymaz) eklenir; silme sürecindeki başvuruya eklenemez. Düz metin 1–5000; idempotent (işlem anahtarı); statü değişmez; audit `INTERNAL_NOTE_ADDED { id }` (metin yok). Listeleme sınırlıdır (en yeni 50).
 - *Uygulama notu (PHASE 09, D-112):* Müşteriye görünür yorumlar uygulandı (personel ekler; müşteri panelinde salt okunur, yazar gösterilmez; düz metin 1–2000; statü değiştirmez). İç notlar PHASE 10.
 
 ## 13. Personel Hesapları (OD-24, OD-11, OD-22)
@@ -177,6 +180,7 @@ Gösterge vize onay olasılığı veya sonuç garantisi ifade etmez.
 - **BR-153** Silme iki aşamalıdır: (1) başvuru `deletion_requested_at` ile **anında erişilemez** yapılır (bağlantı ve tüm okumalar reddedilir); (2) blob'lar silinip doğrulandıktan sonra DB kayıtları silinir. Blob silme kısmen başarısız olursa başvuru erişilemez durumda kalır; ADMIN "Silmeyi tamamla" ile veya günlük temizlik işiyle güvenli şekilde yeniden denenir (idempotent).
 - **BR-154** Minimum audit: `APPLICATION_DELETION_REQUESTED` ve `APPLICATION_DELETED` — yalnızca başvuru ID'si, silen kullanıcı, silinen dosya sayısı. Müşteri adı, telefon, e-posta, dosya adı **yazılmaz**. Önceki audit kayıtları PII içermediği için korunur.
 - **BR-155** KVKK kapsamındaki saklama ve imha yükümlülüklerini **şirket** takip eder; manuel silme tercihi, verilerin süresiz saklanması için hukuki dayanak oluşturmaz ([DATA_PRIVACY.md](DATA_PRIVACY.md) §4).
+- *Uygulama notları (PHASE 10 — ürün kuralı eklemez; D-116…D-118):* Silme her iki hesapça başlatılır ve sürdürülür (OD-24; BR-153'teki "ADMIN 'Silmeyi tamamla'" → iki hesapta "Silme İşlemini Sürdür"). Ücretli/zamanlanmış iş olmadığından (D-105) "günlük temizlik işi" ile otomatik yeniden deneme yoktur; yarım kalan silme personel isteğiyle, güvenli ve idempotent olarak devam eder. Silme başvuru statüsünden bağımsızdır (her statüde başlatılabilir; T1–T12'ye yeni statü eklenmedi; silme sürecindeki başvuru yeniden açılamaz). Talepten önce başlamış yüklemelerin storage yazımları sonuçlanana kadar fiziksel silme bekler. Kalıcı silme iptal, tamamlama, bağlantı iptali, dosya kaldırma veya versiyon değiştirmeyle aynı şey değildir. Tekil dosya/eski versiyon kalıcı silme yoktur (BR-47). Toplu silme yoktur; aynı müşteri bilgilerine sahip başka başvurular etkilenmez. Silinen başvurunun numarası tekrar kullanılmaz. BR-154 audit'ine `APPLICATION_DELETION_FAILED { reason (kod), count }` eklendi (yalnızca hata kategorisi değişince; PII yok). **PHASE 10.1 (D-124):** silme talebinden önce başlamış bir yüklemenin sonucu kanıtlanamazsa silme güvenle bekletilir ve süre geçse de tamamlanmaz; sonuç hiç kanıtlanamazsa başvuru (müşteri erişimi kapalı, kayıtlar korunur) teknik incelemeye kadar silme sürecinde kalabilir. Personel için atlama/zorla silme yoktur.
 
 ## 16. WhatsApp Paylaşımı (OD-21)
 

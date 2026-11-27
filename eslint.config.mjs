@@ -81,8 +81,11 @@ export default defineConfig([
                 "sessions",
                 "verifications",
                 "applicationAccessTokens",
+                "applicationDeletions",
+                "applicationDeletionObjects",
               ],
-              message: "Müşteri yolunda iç not, audit, personel veya token tablosu kullanılamaz.",
+              message:
+                "Müşteri yolunda iç not, audit, personel, token veya silme işlemi tablosu kullanılamaz.",
             },
           ],
           patterns: [
@@ -97,6 +100,14 @@ export default defineConfig([
                 "@/features/applications/queries",
                 "@/features/services/queries",
                 "@/features/dashboard/*",
+                // PHASE 10: iç notlar, işlem geçmişi ve kalıcı silme yalnızca personel modülleridir.
+                "@/features/internal-notes",
+                "@/features/internal-notes/*",
+                "@/features/audit-logs",
+                "@/features/audit-logs/*",
+                "@/features/deletion",
+                "@/features/deletion/*",
+                "@/server/idempotency/*",
               ],
               message: "Müşteri portalı personel modüllerini kullanamaz (ayrı güvenlik bağlamı).",
             },
@@ -124,8 +135,11 @@ export default defineConfig([
                 "accounts",
                 "sessions",
                 "verifications",
+                "applicationDeletions",
+                "applicationDeletionObjects",
               ],
-              message: "Müşteri dosya route'larında iç not veya personel tablosu kullanılamaz.",
+              message:
+                "Müşteri dosya route'larında iç not, personel veya silme işlemi tablosu kullanılamaz.",
             },
           ],
           patterns: [
@@ -138,6 +152,12 @@ export default defineConfig([
                 "@/features/services/*",
                 "@/features/dashboard/*",
                 "@/features/documents/queries",
+                "@/features/internal-notes",
+                "@/features/internal-notes/*",
+                "@/features/audit-logs",
+                "@/features/audit-logs/*",
+                "@/features/deletion",
+                "@/features/deletion/*",
               ],
               message:
                 "Müşteri dosya route'ları personel modüllerini kullanamaz (ayrı güvenlik bağlamı).",

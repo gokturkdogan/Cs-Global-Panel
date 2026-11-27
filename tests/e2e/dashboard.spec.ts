@@ -5,6 +5,7 @@ import type { Page } from "@playwright/test";
 
 import { isIsolatedTestDatabase, ISOLATION_SKIP_REASON } from "../support/isolation";
 import { expect, sessionsAvailable, sessionsSkipReason, test } from "./fixtures";
+import { collectErrors } from "./console-errors";
 
 /**
  * Şirket paneli (PHASE 04). Kimlik doğrulama: test başına kısa ömürlü oturum (D-067). İki hesap
@@ -14,15 +15,6 @@ import { expect, sessionsAvailable, sessionsSkipReason, test } from "./fixtures"
 test.skip(!sessionsAvailable, sessionsSkipReason);
 
 const NAV = ["Genel Bakış", "Başvurular", "Hizmetler", "İşlem Geçmişi"] as const;
-
-function collectErrors(page: Page) {
-  const errors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => errors.push(error.message));
-  return errors;
-}
 
 const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1024;
 
@@ -133,10 +125,8 @@ test.describe("panel iskeleti", () => {
       await expect(active.locator('[aria-current="page"]')).toHaveText(label);
       if (!isDesktop(page)) await page.keyboard.press("Escape");
       if (path !== "/dashboard") {
-        // Hizmetler PHASE 05'te gerçek modül; diğerleri bilgilendirme sayfası.
-        await expect(page.getByText("Henüz kullanıma hazır değil")).toHaveCount(
-          path === "/dashboard/audit-logs" ? 1 : 0, // Hizmetler (PHASE 05) ve Başvurular (PHASE 06) gerçek modül
-        );
+        // Tüm menü modülleri gerçek (Hizmetler PHASE 05, Başvurular PHASE 06, İşlem Geçmişi PHASE 10).
+        await expect(page.getByText("Henüz kullanıma hazır değil")).toHaveCount(0);
         await expect(page.getByRole("navigation", { name: "Konum" })).toHaveText(
           new RegExp(`Panel\\s*${label}`),
         );
@@ -431,11 +421,12 @@ test.describe("veri (Desktop Chrome, sıralı)", () => {
       expect(html).not.toContain("+905550000098");
       expect(html).not.toContain("e2e+dash@example.invalid");
     } finally {
-      await runtimeDb.query("DELETE FROM applications WHERE id = $1", [application.rows[0]!.id]);
-      // Hizmet silme yetkisi runtime rolünde yok (OD-12: hizmet silinmez) → sahip bağlantısıyla.
+      // Başvuru satırı runtime rolüyle yalnızca kalıcı silme iş akışı üzerinden silinebilir (D-117);
+      // test temizliği ve hizmet silme (OD-12) sahip bağlantısıyla.
       const { connect, resolveDatabaseUrls } = await import("../../scripts/db/lib");
       const owner = await connect(resolveDatabaseUrls().owner, "cs-global-e2e-cleanup");
       try {
+        await owner.query("DELETE FROM applications WHERE id = $1", [application.rows[0]!.id]);
         await owner.query("DELETE FROM service_document_requirements WHERE service_id = $1", [
           service.rows[0]!.id,
         ]);

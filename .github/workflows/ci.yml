@@ -92,3 +92,22 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm test:e2e
+
+  # PHASE 12 (D-145): commit eden integration ve E2E paketleri yalnızca geçici Docker PostgreSQL + geçici
+  # yerel depolama ile (scripts/test/isolated-db.ts). Gerçek Neon/B2 secret'ı kullanılmaz; tüm secret'lar
+  # her koşuda rastgele üretilir. Untrusted PR'lar da secret almaz (workflow secret kullanmaz).
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm test:integration:isolated
+      - run: pnpm test:e2e:isolated

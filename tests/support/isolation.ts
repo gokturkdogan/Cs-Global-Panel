@@ -17,3 +17,16 @@ export function isIsolatedTestDatabase(): boolean {
 
 export const ISOLATION_SKIP_REASON =
   "commit eden mutasyon testi — yalnızca izole geçici veritabanında (pnpm test:*:isolated)";
+
+/**
+ * Fail-closed hedef kontrolü (PHASE 10.2, D-129): izolasyon işareti (`ISOLATED_TEST_DB=1`) verilmiş ama
+ * bağlantılar izole geçici veritabanını göstermiyorsa (yanlış/uzak veritabanı), commit eden testler
+ * başlamadan çalıştırma durdurulur. (İşaret yoksa yalnızca Neon-güvenli dosyalar çalışır.)
+ */
+export function assertIsolationTargetConsistent(): void {
+  if (process.env.ISOLATED_TEST_DB === "1" && !isIsolatedTestDatabase()) {
+    throw new Error(
+      "ISOLATED_TEST_DB=1 ancak bağlantılar izole geçici veritabanını (yerel cs_isolated_test) göstermiyor — mutasyon testleri başlatılmadı.",
+    );
+  }
+}

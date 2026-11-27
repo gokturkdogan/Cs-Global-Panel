@@ -25,7 +25,7 @@ async function shot(page: Page, testInfo: TestInfo, name: string) {
 
 /**
  * Dosya seçimi: hydration/akış sırasında düğüm yer değiştirirse `change` olayı kaybolabilir; durum
- * alanı dolana kadar (olay ulaştığında durum eşzamanlı "kontrol ediliyor" olur → çift yükleme yok)
+ * alanı dolana kadar (olay ulaştığında durum eşzamanlı "hazırlanıyor" olur → çift yükleme yok)
  * yeniden denenir.
  */
 async function choose(card: Locator, file: Parameters<Locator["setInputFiles"]>[0]) {
@@ -75,7 +75,7 @@ test.describe("PDF yükleme (izole veritabanı)", () => {
       timeout: 20_000,
     });
     clearInterval(observer);
-    expect(seen.join("|")).toMatch(/Yükleniyor|doğrulanıyor|Yüklendi/);
+    expect(seen.join("|")).toMatch(/Gönderiliyor|Kontrol ediliyor|Yüklendi/);
     await expect(page.getByTestId("document-progress")).toContainText(
       "1 / 2 zorunlu evrak yüklendi · %50",
     );
@@ -84,11 +84,21 @@ test.describe("PDF yükleme (izole veritabanı)", () => {
     await shot(page, testInfo, "customer-uploaded");
 
     // Görüntüleme: yetkili route, no-store/no-referrer/nosniff, güvenli Content-Disposition, storage bilgisi yok.
-    const href = await card.getByRole("link", { name: "Görüntüle" }).getAttribute("href");
+    // PHASE 11 (D-136): "Görüntüle" artık bağlantı değil görüntüleyici düğmesidir (sayfada dosya adresi yok);
+    // uç nokta oturum bağlamı + dosya kimliğiyle doğrudan çağrılır.
+    await expect(card.getByTestId("pdf-view-button")).toBeVisible();
+    const context = new URL(page.url()).pathname.split("/portal/")[1]!;
+    const activeId = (
+      await runtimeDb.query<{ id: string }>(
+        "SELECT id FROM application_document_files WHERE application_id = $1 AND status = 'ACTIVE'",
+        [app.applicationId],
+      )
+    ).rows[0]!.id;
+    const href = `/api/portal/${context}/files/${activeId}?disposition=inline`;
     expect(href).toMatch(
       /^\/api\/portal\/[A-Za-z0-9_-]{22}\/files\/[0-9a-f-]{36}\?disposition=inline$/,
     );
-    const response = await page.request.get(href!);
+    const response = await page.request.get(href);
     expect(response.status()).toBe(200);
     const headers = response.headers();
     expect(headers["content-type"]).toBe("application/pdf");

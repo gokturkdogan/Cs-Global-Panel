@@ -8,7 +8,15 @@ import { getDashboardOverview, queryDashboardOverview } from "@/features/dashboa
 import { createDatabase } from "@/server/db/client";
 import * as schema from "@/server/db/schema";
 
-import { connectRuntime, createService, createUser, newCreated, randomHex, urls } from "./helpers";
+import {
+  connectRuntime,
+  createService,
+  createTestDatabase,
+  createUser,
+  newCreated,
+  randomHex,
+  urls,
+} from "./helpers";
 
 /**
  * Genel Bakış sorguları (D-070). Runtime rolüyle, REPEATABLE READ bir transaction içinde: önce mevcut
@@ -147,7 +155,7 @@ describe("dashboard genel bakış sorguları", () => {
   });
 
   it("gerçek veritabanında salt okunur transaction ile çalışır", async () => {
-    const database = createDatabase(urls.runtime.connectionString);
+    const database = createTestDatabase();
     try {
       const result = await getDashboardOverview(database.db);
       expect(result.ok).toBe(true);

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 
 import type { ApplicationStatus, DocumentStatus } from "@/config/statuses";
 import type { Database } from "@/server/db/client";
@@ -85,7 +85,8 @@ export async function getCustomerPortalView(
       version: applications.version,
     })
     .from(applications)
-    .where(eq(applications.id, access.applicationId))
+    // Katmanlı savunma (PHASE 10): erişim kontrolü zaten reddeder; sorgu da silme sürecindeki başvuruyu okumaz.
+    .where(and(eq(applications.id, access.applicationId), isNull(applications.deletionRequestedAt)))
     .limit(1);
   if (application === undefined) return null;
 

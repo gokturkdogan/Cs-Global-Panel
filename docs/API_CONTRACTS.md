@@ -48,14 +48,19 @@ Aşağıdaki tablo ilk plandır (kalan satırlar sonraki fazlarda):
 | `revealAccessLinkAction` | `{ applicationId }` | `{ accessLink, whatsappUrl, customerFullName, customerPhone } \| { accessLink: null }` | Personel | `ACCESS_LINK_VIEWED` |
 | `rotateAccessLinkAction` | `{ applicationId, expectedVersion }` (yenileme ve iptal edilmişin yerine yeni oluşturma) | `{ accessLink, whatsappUrl }` | Personel | `ACCESS_LINK_ROTATED` / `ACCESS_LINK_CREATED` |
 | `revokeAccessLinkAction` | `{ applicationId, expectedVersion }` | `void` | Personel | `ACCESS_LINK_REVOKED` |
-| `addInternalNoteAction` | `{ applicationId, requirementId?, body }` | `{ noteId }` | Personel | `INTERNAL_NOTE_ADDED` |
-| `deleteApplicationAction` (personel; idempotent — "Silmeyi tamamla" için de kullanılır) | `{ applicationId, confirmApplicationNumber }` | `{ status: 'DELETED' \| 'PENDING_RETRY' }` | Personel | `APPLICATION_DELETION_REQUESTED`, `APPLICATION_DELETED` |
+| `addInternalNoteAction` (PHASE 10 — `src/features/internal-notes/actions.ts`) | `{ applicationId, requirementId?, body (1–5000 düz metin), idempotencyKey (uuid) }` | `{ noteId, created }` (not metni dönmez; aynı anahtar + aynı içerik → `created:false`; farklı içerik/kapsam → `CONFLICT`) | Personel | `INTERNAL_NOTE_ADDED { id }` |
+| `requestDeletionAction` (PHASE 10 — `src/features/deletion/actions.ts`; önceki taslak adı `deleteApplicationAction`) | `{ applicationId, expectedVersion, reason (1–1000), confirmationNumber }` (storage anahtarı/versiyon/onay bayrağı kabul edilmez) | `{ state: 'DELETED' } \| { state: 'IN_PROGRESS', error } \| { state: 'BLOCKED', error }` (PHASE 10.1: `SETTLING` kaldırıldı; belirsiz yazım → `IN_PROGRESS` + `UPLOAD_OUTCOME_UNKNOWN`, takipsiz kayıt → `BLOCKED` + `LEGACY_UNVERIFIED`) (talep kaydedilir; ilk sınırlı adım hemen denenir; tekrar talep idempotent) | Personel | `APPLICATION_DELETION_REQUESTED { fileCount }`, gerekirse `APPLICATION_DELETION_FAILED { reason, count }`, `APPLICATION_DELETED { fileCount, count }` |
+| `resumeDeletionAction` (PHASE 10) | `{ applicationId }` | Aynı durum birleşimi; eşzamanlı adım → `CONFLICT` (meşgul); tamamlanmış silme → `DELETED` (yan etkisiz) | Personel | `APPLICATION_DELETION_FAILED` (kategori değişince), `APPLICATION_DELETED` |
+| `listOlderInternalNotesAction` (PHASE 10.1) | `{ applicationId, before (not uuid) }` | `{ items, nextCursor }` (en fazla 50; keyset) | Personel | — (okuma) |
+| `resolveAuditApplicationAction` (PHASE 10 — `src/features/audit-logs/actions.ts`) | `{ applicationNumber }` | `{ applicationId }` (yalnızca mevcut başvuru; numara URL'ye yazılmaz) | Personel | — (okuma audit'lenmez) |
 
 `TransitionCode` (sunucudaki domain modülü doğrular): `REQUEST_REVISION`, `APPROVE_DOCUMENTS`, `START_PROCESSING`, `COMPLETE`, `CANCEL` (reason zorunlu), `REOPEN_CANCELLED`, `REOPEN_COMPLETED`, `REVERT_TO_DOCUMENTS_APPROVED`, `REVERT_TO_REVIEW`, `REVERT_FOR_REVISION` (reason + `revisionItems` zorunlu) — [STATE_TRANSITIONS.md](STATE_TRANSITIONS.md) T2–T12. `REOPEN_CANCELLED` hedef statü almaz; sunucu geçmişten belirler.
 
 `whatsappUrl` sunucuda üretilir: `https://wa.me/<telefon rakamları>?text=<encodeURIComponent(BR-161 şablonu)>`. UI, açmadan önce onay penceresinde ad-soyad ve telefonu gösterir (BR-162).
 
-Okuma (RSC'den çağrılan server-only fonksiyonlar): `listApplications(actor, filters)`, `getStaffApplicationDetail(actor, id)`, `getApplicationActivity(actor, id)`, `getDashboardStats(actor)`.
+Okuma (RSC'den çağrılan server-only fonksiyonlar): `listApplications(actor, filters)`, `getStaffApplicationDetail(actor, id)`, `getApplicationActivity(actor, id)`, `getDashboardStats(actor)`. **PHASE 10:** `listInternalNotes(db, applicationId)` (en yeni 50 + toplam), `listAuditLogs(db, filters)`, `getDeletionProgress(db, applicationId)`, `listDeletionQueue(db)`.
+
+**`/dashboard/audit-logs` (PHASE 10, D-119):** `searchParams` (geçersiz değerler yok sayılır): `from`, `to` (`YYYY-MM-DD`, Europe/Istanbul günü, bitiş dahil), `action` (bilinen event kodu), `actorType` (`USER`/`CUSTOMER`/`SYSTEM`/`ANONYMOUS`), `staffId`, `resourceType`, `applicationId` (UUID), `after`/`before` (audit kimliği imleci — `(occurred_at, id)` keyset), `pageSize` (10/20/50; varsayılan 20). DTO: tarih, Türkçe işlem etiketi, aktör türü, personel kullanıcı adı + hesap türü, kayıt türü, başvuru numarası (silinmişse "Başvuru artık mevcut değil"), allowlist ayrıntılar. Ham metadata, kimlikler ve serbest metin dönmez. Değiştirme/silme/dışa aktarma uç noktası yoktur.
 
 Liste filtreleri (`searchParams`, Zod): `q` (2–100), `status` (`ALL` \| 7 statü), `serviceId`, `createdFrom`, `createdTo` (Europe/Istanbul günü → UTC), `page`, `pageSize`, `sort` (`created_desc`). Arşiv filtresi yok.
 
@@ -152,8 +157,11 @@ Better Auth HTTP route'u yoktur; tüm `/api/auth/*` istekleri 404 döner. Person
 - Başlıklar: `no-store`, `no-referrer`, `nosniff`, `X-Frame-Options: DENY`, CSP `default-src 'none'`.
 - **Superseded:** önceki `POST /api/uploads` (Vercel Blob `handleUpload` token + callback) — OD-25.
 
-### 4.3 PDF görüntüleme/indirme — `GET /api/files/[fileId]` (personel) · `GET /api/portal/[context]/files/[fileId]` (müşteri) — **PHASE 08'de uygulandı (D-104)**
-`?disposition=inline|attachment` (varsayılan attachment). [FILE_STORAGE.md](FILE_STORAGE.md) §3. `200` akış · `401` · `404` (yetkisiz/kapsam dışı/aktif değil/eski versiyon (müşteri) — ayırt edilmez) · `409 CONTEXT_MISMATCH` (müşteri) · `429` · `502 INTEGRITY` · `503`.
+### 4.3 PDF görüntüleme/indirme — `GET|HEAD /api/files/[fileId]` (personel) · `GET|HEAD /api/portal/[context]/files/[fileId]` (müşteri) — **PHASE 08'de uygulandı (D-104); PHASE 11'de Range (D-135)**
+`?disposition=inline|attachment` (varsayılan attachment). İstek başlıkları: isteğe bağlı `Range: bytes=a-b | a- | -n` (tek aralık), `If-Range: "<etag>"`. [FILE_STORAGE.md](FILE_STORAGE.md) §3.
+- `200` tam akış (Range yok, bilinmeyen birim veya If-Range uyuşmazlığı) · `206` aralık (`Content-Range: bytes a-b/boyut`) · `416 RANGE_NOT_SATISFIABLE` (`Content-Range: bytes */boyut`; çoklu/bozuk/karşılanamaz aralık) · `401` · `404` (yetkisiz/kapsam dışı/aktif değil/eski versiyon (müşteri) — ayırt edilmez) · `409 CONTEXT_MISMATCH` (müşteri) · `429 RATE_LIMITED` · `502 INTEGRITY` (sağlayıcı yanıtı kayıtla eşleşmedi) · `503 STORAGE_LIMIT | STORAGE_UNAVAILABLE`.
+- Yanıt başlıkları: `Accept-Ranges: bytes`, `ETag` (opak güçlü doğrulayıcı), `Content-Length`, `Cache-Control: private, no-store, max-age=0`, `nosniff`, `no-referrer`, CORP `same-origin`; CORS başlığı yok.
+- `HEAD`: aynı yetki ve başlıklar, gövde yok; sağlayıcıya istek ve audit yok.
 
 ### 4.4 `GET /b/[token]`
 | Durum | Yanıt |
@@ -171,7 +179,7 @@ Her yanıt: `Cache-Control: private, no-store, max-age=0`, `Referrer-Policy: no-
 | `/portal` | Bağlamsız eski adres: oturum açmaz, "Oturumunuz sona erdi / bağlantıyı yeniden açın" bilgisi |
 | `/link-invalid`, `/link-unavailable` | Genel bilgi + iletişim kartı; kişisel veri yok |
 
-### 4.5 `GET /api/cron/cleanup` — **uygulanmadı** (PHASE 08: teknik temizlik CLI — `pnpm storage:cleanup`, D-105; zamanlama PHASE 10/13)
+### 4.5 `GET /api/cron/cleanup` — **uygulanmadı** (PHASE 08: teknik temizlik CLI — `pnpm storage:cleanup`, D-105; zamanlama PHASE 13. PHASE 10: yarım kalan başvuru silmeleri cron ile değil personelin "Silme İşlemini Sürdür" isteğiyle tamamlanır — D-116, D-120)
 `Authorization: Bearer ${CRON_SECRET}`. Görevler (teknik): süresi dolan `UPLOAD_PENDING` → `EXPIRED` + blob sil; takılı `VALIDATING` → `REJECTED`; reddedilmiş blob kalıntıları; orphan blob mutabakatı; yarım kalan başvuru silmelerini tamamlama; süresi dolmuş personel oturumları; süresi dolmuş rate limit anahtarları. Batch sınırlı; yanıt `{ tasks: { name, processed }[] }`; audit `TECHNICAL_CLEANUP_EXECUTED`. **Müşteri verisi saklama süresi işlemi içermez.**
 
 ## 5. Mutasyon Envanteri

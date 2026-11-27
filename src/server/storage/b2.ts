@@ -11,6 +11,8 @@ import {
 import { StorageError } from "./errors.ts";
 import {
   isAllowedObjectKey,
+  parseContentRange,
+  type GetObjectOptions,
   type ListVersionsResult,
   type ObjectHead,
   type ObjectStream,
@@ -44,7 +46,40 @@ export type B2Config = {
   readonly region: string;
 };
 
-const NOT_FOUND_NAMES = new Set(["NoSuchKey", "NoSuchVersion", "NotFound", "NoSuchBucket"]);
+const NOT_FOUND_NAMES = new Set(["NoSuchKey", "NoSuchVersion", "NotFound"]);
+
+/**
+ * İsteğin sağlayıcıya hiç ulaşmadığını kanıtlayan ağ hataları (TCP bağlantısı kurulamadı / ad çözülemedi).
+ * Bağlantı kurulduktan sonraki her hata (zaman aşımı, sıfırlama, 4xx/5xx yanıtı) yazma açısından
+ * BELİRSİZDİR: B2 belgeleri hata yanıtının nesne oluşmadığını veya geç tamamlanmanın süre sınırını
+ * garanti etmez (PHASE 10.1, D-123).
+ */
+const NOT_SENT_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"]);
+
+/**
+ * PHASE 10.2 (D-123 sıkılaştırma): kesin "gönderilmedi" yalnızca (a) sağlayıcı yanıtı yok (S3ServiceException
+ * değil), (b) üst hata kodu listede, (c) `AggregateError` ise (çoklu adres denemesi) TÜM iç hatalar da
+ * listede, (d) SDK meta verisi varsa en fazla 1 deneme gösteriyor. Aksi her durum belirsizdir.
+ */
+export function isDefinitelyNotSent(error: unknown): boolean {
+  if (error instanceof S3ServiceException || typeof error !== "object" || error === null) {
+    return false;
+  }
+  const code = (error as { code?: unknown }).code;
+  if (typeof code !== "string" || !NOT_SENT_CODES.has(code)) return false;
+  const attempts = (error as { $metadata?: { attempts?: unknown } }).$metadata?.attempts;
+  if (attempts !== undefined && (typeof attempts !== "number" || attempts > 1)) return false;
+  if (error instanceof AggregateError) {
+    return (
+      error.errors.length > 0 &&
+      error.errors.every((inner: unknown) => {
+        const innerCode = (inner as { code?: unknown } | null)?.code;
+        return typeof innerCode === "string" && NOT_SENT_CODES.has(innerCode);
+      })
+    );
+  }
+  return true;
+}
 
 /** Sağlayıcı hatasını sınıflandırır; mesaj/gövde dışarı taşınmaz (yalnızca durum kodu / hata adı). */
 export function classifyB2Error(error: unknown): StorageError {
@@ -52,6 +87,8 @@ export function classifyB2Error(error: unknown): StorageError {
   if (error instanceof S3ServiceException) {
     const status = error.$metadata.httpStatusCode ?? 0;
     const code = `${status}:${error.name}`.slice(0, 80);
+    // PHASE 10 (D-116): bucket yoksa nesne "yok" sayılmaz (silme doğrulamasını yanıltır) → yapılandırma hatası.
+    if (error.name === "NoSuchBucket") return new StorageError("NOT_CONFIGURED", code);
     if (status === 404 || NOT_FOUND_NAMES.has(error.name))
       return new StorageError("NOT_FOUND", code);
     // B2 cap'leri 403 ile döner (native API belgesi: "reached a storage cap limit"); metin sınıflandırma
@@ -87,6 +124,18 @@ export function createB2Adapter(config: B2Config): StorageAdapter {
     responseChecksumValidation: "WHEN_REQUIRED",
     requestHandler: { connectionTimeout: 5_000, requestTimeout: 60_000 },
   });
+  // PUT için SDK yeniden denemesi KAPALI (D-121): her mantıksal yazım tam olarak bir fiziksel girişimdir;
+  // gizli yeniden deneme, takip edilmeyen ek bir versiyon üretebilirdi. Okuma/listeleme/silme idempotenttir.
+  const putClient = new S3Client({
+    endpoint: config.endpoint,
+    region: config.region,
+    credentials: { accessKeyId: config.keyId, secretAccessKey: config.applicationKey },
+    forcePathStyle: true,
+    maxAttempts: 1,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+    requestHandler: { connectionTimeout: 5_000, requestTimeout: 60_000 },
+  });
   const Bucket = config.bucket;
 
   return {
@@ -96,7 +145,7 @@ export function createB2Adapter(config: B2Config): StorageAdapter {
       assertKey(input.key);
       let response;
       try {
-        response = await client.send(
+        response = await putClient.send(
           new PutObjectCommand({
             Bucket,
             Key: input.key,
@@ -107,6 +156,9 @@ export function createB2Adapter(config: B2Config): StorageAdapter {
           }),
         );
       } catch (error) {
+        if (isDefinitelyNotSent(error)) {
+          throw new StorageError("NOT_SENT", String((error as { code: string }).code));
+        }
         const classified = classifyB2Error(error);
         // Yanıt alınamadıysa yazma gerçekleşmiş olabilir → belirsiz (mutabakat gerekir).
         throw classified.kind === "UNAVAILABLE"
@@ -124,26 +176,45 @@ export function createB2Adapter(config: B2Config): StorageAdapter {
       return { versionId: response.VersionId ?? null };
     },
 
-    async getObject(key: string, versionId: string | null): Promise<ObjectStream> {
+    async getObject(
+      key: string,
+      versionId: string | null,
+      options: GetObjectOptions = {},
+    ): Promise<ObjectStream> {
       assertKey(key);
+      const { range, signal } = options;
+      let response;
       try {
-        const response = await client.send(
+        // PHASE 11 (D-135): aralık sağlayıcıya iletilir (S3 GetObject `Range`); tam nesne indirilip
+        // uygulamada kesilmez. Versiyon her zaman kayıtlı fiziksel versiyondur.
+        response = await client.send(
           new GetObjectCommand({
             Bucket,
             Key: key,
             ...(versionId ? { VersionId: versionId } : {}),
+            ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
           }),
+          signal ? { abortSignal: signal } : {},
         );
-        if (response.Body === undefined || response.ContentLength === undefined) {
-          throw new StorageError("INTEGRITY", "empty-body");
-        }
-        return {
-          body: response.Body.transformToWebStream() as ReadableStream<Uint8Array>,
-          contentLength: response.ContentLength,
-        };
       } catch (error) {
         throw classifyB2Error(error);
       }
+      if (response.Body === undefined || response.ContentLength === undefined) {
+        throw new StorageError("INTEGRITY", "empty-body");
+      }
+      const body = response.Body.transformToWebStream() as ReadableStream<Uint8Array>;
+      const contentRange = parseContentRange(response.ContentRange);
+      // Aralık istendi ama sağlayıcı uygulamadı (200 + tam gövde) veya bozuk Content-Range → aktarma.
+      if (range !== undefined && contentRange === null) {
+        await body.cancel().catch(() => undefined);
+        throw new StorageError("INTEGRITY", "range-ignored");
+      }
+      return {
+        body,
+        contentLength: response.ContentLength,
+        versionId: response.VersionId ?? null,
+        contentRange: range === undefined ? null : contentRange,
+      };
     },
 
     async headObject(key: string, versionId: string | null): Promise<ObjectHead | null> {

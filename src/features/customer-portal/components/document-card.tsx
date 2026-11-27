@@ -1,8 +1,9 @@
-import { Download, Eye, FileText, TriangleAlert } from "lucide-react";
+import { Download, FileText, TriangleAlert } from "lucide-react";
 
 import { MAX_PDF_SIZE_BYTES } from "@/config/constants";
 import { DocumentStatusBadge } from "@/features/applications/components/document-status-badge";
 import { PdfUpload } from "@/features/documents/components/pdf-upload";
+import { PdfViewerDialog } from "@/features/documents/components/pdf-viewer/pdf-viewer-dialog";
 import { formatFileSize } from "@/features/documents/domain/filename";
 import { RequiredBadge } from "@/features/services/components/status-badges";
 import { formatDateTime } from "@/lib/format";
@@ -95,15 +96,14 @@ export function DocumentCard({
             <time dateTime={file.uploadedAt}>{formatDateTime(file.uploadedAt)}</time>
           </p>
           <div className="flex flex-wrap gap-2">
-            <a
-              href={`${fileUrl}?disposition=inline`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border bg-background px-4 text-base font-medium text-primary hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <Eye aria-hidden="true" className="size-5" />
-              Görüntüle
-            </a>
+            <PdfViewerDialog
+              url={`${fileUrl}?disposition=inline`}
+              downloadUrl={`${fileUrl}?disposition=attachment`}
+              sizeBytes={file.sizeBytes}
+              title={document.title}
+              label="Görüntüle"
+              size="large"
+            />
             <a
               href={`${fileUrl}?disposition=attachment`}
               download=""

@@ -99,6 +99,26 @@ export const messages = {
       "Bu gösterge danışmanlık sürecinin aşamasını gösterir; vize sonucu veya süre hakkında bilgi vermez.",
     completedNote: "Resmî vize sonucu değildir.",
   },
+  viewer: {
+    toolbar: "Belge görüntüleyici araçları",
+    loading: "Belge yükleniyor…",
+    loadFailed:
+      "Belge görüntülenemedi. Bağlantınızı kontrol edip tekrar deneyin veya dosyayı indirin.",
+    renderFailed: "Bu sayfa görüntülenemedi. Dosyayı indirerek açabilirsiniz.",
+    notAvailable: "Bu dosya artık görüntülenemiyor. Sayfayı yenileyin.",
+    previous: "Önceki sayfa",
+    next: "Sonraki sayfa",
+    zoomIn: "Yakınlaştır",
+    zoomOut: "Uzaklaştır",
+    close: "Görüntüleyiciyi kapat",
+    pageOf: (page: number, total: number) => `Sayfa ${page} / ${total}`,
+    pageInput: "Gidilecek sayfa numarası",
+    pagePlaceholder: "Sayfa",
+    go: "Git",
+    keyboardHint:
+      "Klavye: sol ve sağ ok tuşlarıyla sayfa değiştirin; Home ilk, End son sayfaya gider.",
+    pageImage: (title: string, page: number) => `${title} — sayfa ${page}`,
+  },
   files: {
     uploadButton: "PDF Yükle",
     uploadOnBehalf: "Müşteri Adına PDF Yükle",
@@ -106,9 +126,13 @@ export const messages = {
     view: "Dosyayı Görüntüle",
     download: "Dosyayı İndir",
     history: "Dosya Geçmişi",
-    stateChecking: "Dosya kontrol ediliyor…",
-    stateUploading: "Yükleniyor",
-    stateProcessing: "Sunucuda doğrulanıyor ve kaydediliyor…",
+    // PHASE 11 (11.C): aşamalar gerçek olaylara bağlıdır; sahte yüzde yoktur. "Gönderiliyor" yüzdesi
+    // tarayıcının gerçek aktarım ilerlemesidir; sunucudaki kontrol + kayıt süresi belirsiz gösterilir.
+    stateChecking: "Dosya hazırlanıyor…",
+    stateUploading: "Gönderiliyor",
+    stateProcessing: "Kontrol ediliyor ve kaydediliyor…",
+    stateProcessingHint:
+      "Bu adım dosya boyutuna göre birkaç saniye sürebilir. Sayfadan ayrılmayın.",
     stateDone: "Yüklendi",
     stateFailed: "Yükleme başarısız",
     keptPrevious: "Önceki dosyanız korunuyor.",
@@ -138,6 +162,7 @@ export const messages = {
     unavailable: "Dosya şu anda işlenemiyor. Lütfen biraz sonra tekrar deneyiniz.",
     busy: "Sistem şu anda yoğun. Lütfen biraz sonra tekrar deneyiniz.",
     rateLimited: "Çok sayıda dosya isteği yapıldı. Lütfen bir süre sonra tekrar deneyiniz.",
+    rangeNotSatisfiable: "İstenen dosya bölümü geçersiz.",
     accessEnded:
       "Oturumunuz sona erdi veya bağlantınız artık geçerli değil. Lütfen size gönderilen bağlantıyı yeniden açınız.",
     contextChanged:
@@ -210,6 +235,107 @@ export const messages = {
     commentsTitle: "Müşteriye görünen yorumlar",
     noComments: "Henüz yorum yok.",
     transitionDone: "Başvuru durumu güncellendi.",
+  },
+  internalNotes: {
+    title: "Şirket İçi Notlar",
+    description:
+      "Bu notlar yalnızca şirket personeli tarafından görülebilir. Müşteri panelinde gösterilmez.",
+    sensitiveHint:
+      "Notlara şifre, kart bilgisi veya gereksiz hassas kişisel veri yazmayınız. Notlar düzenlenemez ve silinemez.",
+    empty: "Bu başvuruya henüz şirket içi not eklenmemiş.",
+    label: "Yeni not",
+    add: "Not Ekle",
+    adding: "Ekleniyor…",
+    added: "Not eklendi.",
+    length: "Not 1–5000 karakter olmalıdır.",
+    limited: (count: number) => `En yeni ${count} not gösteriliyor.`,
+    loadOlder: "Daha eski notları göster",
+    loadingOlder: "Yükleniyor…",
+    idempotencyConflict:
+      "Bu işlem başka bir istekle çakıştı. Lütfen sayfayı yenileyip notu yeniden gönderiniz.",
+    unavailable: "Not şu anda kaydedilemiyor. Metniniz korunuyor; lütfen tekrar deneyiniz.",
+  },
+  auditLogs: {
+    title: "İşlem Geçmişi",
+    description:
+      "Sistemde yapılan işlemlerin değiştirilemez kayıtları. Kayıtlar kişisel veri, belge içeriği veya gizli değer içermez.",
+    empty: "Seçilen ölçütlere uygun işlem kaydı bulunamadı.",
+    invalidRange: "Başlangıç tarihi bitiş tarihinden sonra olamaz.",
+    invalidDate: "Geçerli bir tarih giriniz.",
+    invalidNumber: "Başvuru numarası CS-YYYY-000001 biçiminde olmalıdır.",
+    unknownApplication: "Bu numarayla mevcut bir başvuru bulunamadı.",
+    applicationGone: "Başvuru artık mevcut değil",
+    unknownAction: "Diğer işlem",
+    unavailable: "İşlem geçmişi şu anda yüklenemiyor. Lütfen daha sonra tekrar deneyiniz.",
+    applicationHistoryLink: "Bu Başvurunun İşlem Geçmişi",
+  },
+  deletion: {
+    sectionTitle: "Tehlikeli İşlemler",
+    sectionDescription:
+      "Kalıcı silme; iptal, tamamlama veya dosya kaldırmadan farklıdır ve geri alınamaz.",
+    button: "Başvuruyu Kalıcı Olarak Sil",
+    dialogTitle: "Başvuruyu kalıcı olarak silmek üzeresiniz",
+    dialogScope:
+      "Bu işlem başvuruya ait kişisel bilgileri, yüklenen PDF dosyalarını, önceki dosya versiyonlarını, yorumları, şirket içi notları, statü geçmişini ve müşteri bağlantısını mevcut silme politikası kapsamında kaldıracaktır.",
+    dialogIrreversible: "Bu işlem geri alınamaz.",
+    dialogRetention:
+      "Bu işlemi yalnızca ilgili verilerin saklanmasına ilişkin yükümlülükleriniz sona erdiğinde gerçekleştiriniz. Saklama yükümlülüklerinizi kontrol ediniz.",
+    dialogBackups:
+      "Canlı kayıtlar ve depolama nesneleri silinir; sağlayıcı yedekleri ve kayıtları hemen silinmeyebilir. İşlem geçmişinde kişisel veri içermeyen kayıtlar kalır.",
+    reasonLabel: "Silme gerekçesi (personel içi)",
+    reasonRequired: "Silme gerekçesi zorunludur.",
+    reasonLength: "Silme gerekçesi 1–1000 karakter olmalıdır.",
+    confirmLabel: (number: string) => `Onaylamak için başvuru numarasını yazınız: ${number}`,
+    confirmMismatch: "Yazılan başvuru numarası bu başvuruyla eşleşmiyor.",
+    cancel: "Vazgeç",
+    start: "Kalıcı Silmeyi Başlat",
+    starting: "Başlatılıyor…",
+    requested: "Kalıcı silme başlatıldı. Müşteri erişimi kapatıldı.",
+    progressTitle: "Kalıcı Silme Devam Ediyor",
+    accessClosed: "Bu başvurunun müşteri erişimi ve tüm işlemleri kapatılmıştır.",
+    resume: "Silme İşlemini Sürdür",
+    resuming: "Sürdürülüyor…",
+    noBackground:
+      "Silme arka planda kendiliğinden ilerlemez; kalan adımlar bu düğmeyle sürdürülür. Sayfayı kapatmanız işlemi iptal etmez.",
+    inventoryPending: "Hazırlanıyor",
+    inventoryReady: "Hazır",
+    physicalProgress: (done: number, total: number) => `${done} / ${total} doğrulandı`,
+    databasePending: "Bekliyor",
+    busy: "Bu silme işleminin bir adımı şu anda başka bir istekle yürütülüyor. Lütfen biraz sonra tekrar deneyiniz.",
+    deleted: "Başvuru kalıcı olarak silindi.",
+    stepDone: "Silme adımı tamamlandı. Kalan işlemler için sürdürünüz.",
+    errors: {
+      STORAGE_UNAVAILABLE:
+        "Depolama hizmetine şu anda erişilemiyor. Silme işlemi güvenli şekilde durduruldu. Daha sonra yeniden deneyebilirsiniz.",
+      STORAGE_LIMIT:
+        "Depolama sağlayıcısının işlem sınırına ulaşıldı. Silme işlemi güvenli şekilde durduruldu. Daha sonra yeniden deneyebilirsiniz.",
+      STORAGE_FORBIDDEN:
+        "Depolama sağlayıcısı silme işlemini reddetti (yetki veya saklama politikası). Dosyalar silinmedi; teknik inceleme gerekiyor.",
+      STORAGE_NOT_CONFIGURED:
+        "Depolama yapılandırması kullanılamıyor. Dosyalar silinmedi; teknik inceleme gerekiyor.",
+      LISTING_INCOMPLETE: "Dosya envanteri tek adımda tamamlanamadı. Silme işlemini sürdürünüz.",
+      UNKNOWN_OBJECT:
+        "Bu başvurunun depolama alanında sahipliği doğrulanamayan bir nesne bulundu. Hiçbir şey silinmeden durduruldu; teknik inceleme gerekiyor.",
+      OWNERSHIP_CONFLICT:
+        "Depolama envanterinde başka bir kayda ait nesne bulundu. Hiçbir şey silinmeden durduruldu; teknik inceleme gerekiyor.",
+      VERIFICATION_PENDING:
+        "Bazı dosya versiyonlarının silindiği henüz doğrulanamadı. Silme işlemini sürdürünüz.",
+      FINALIZATION_FAILED:
+        "Dosyalar silindi ancak veritabanı temizliği tamamlanamadı. Silme işlemini sürdürünüz.",
+      UPLOAD_OUTCOME_UNKNOWN:
+        "Silme işlemi güvenli şekilde bekletiliyor. Daha önce başlatılmış bir dosya yüklemesinin sonucu henüz kesin olarak doğrulanamadı. Müşteri erişimi kapalıdır; başvuru kayıtları güvenlik amacıyla korunmaktadır.",
+      LEGACY_UNVERIFIED:
+        "Bu başvuruda yazım takibi bulunmayan eski bir dosya kaydı var. Kayıtlar güvenlik amacıyla korunuyor; teknik inceleme gerekiyor.",
+    },
+    unresolvedWrites: (count: number) =>
+      `Sonucu doğrulanamayan dosya yüklemesi: ${count}. Bu yüklemelerin dosyası depolamada görülünce silinir; görülmedikçe silme tamamlanmaz (süre geçmesi kanıt sayılmaz).`,
+    manualReview: "Teknik inceleme gerekiyor",
+    retryable: "Yeniden denenebilir",
+    queueTitle: "Silme İşlemleri",
+    queueDescription:
+      "Kalıcı silme süreci tamamlanmamış başvurular. Bu başvurular normal listelerde ve sayaçlarda yer almaz.",
+    queueEmpty: "Devam eden silme işlemi yok.",
+    unavailable: "Silme işlemi şu anda gerçekleştirilemiyor. Lütfen daha sonra tekrar deneyiniz.",
   },
   validation: {
     nameRequired: "Hizmet adı zorunludur.",
