@@ -33,6 +33,8 @@ Sonlu sayıda başarılı test, sağlayıcının gelecekteki tüm davranışlar�
 
 **Checkpoint A — yeni en az yetkili runtime anahtarı (2026-11-27, salt okunur, `storage:inspect` v4):** yetkiler tam olarak `deleteFiles, listFiles, readFiles, writeFiles`; tek bucket `cs-global-documents`; önek yok; süresiz; S3 uç noktası eşleşiyor; riskli/beklenmeyen yetki yok; nesne listesi (listFiles) başarılı — 0 versiyon / 0 silme işareti; anonim liste 403. Bucket yapılandırma okumaları (HeadBucket, versiyonlama, şifreleme, CORS, lifecycle) yetki olmadığı için **beklenen 403** (önceki anahtarla 2026-11-27'de: versiyonlama Enabled, SSE-B2, CORS/lifecycle yok). Gerçek dosya işlemleri (PUT/GET/DELETE) bu anahtarla henüz doğrulanmadı — OPERATIONS_RUNBOOK §3.1 adım E (ayrı onay). Eski anahtar iptal edilmedi.
 
+**Runtime anahtar doğrulaması — OPERATIONS_RUNBOOK §3.1 adım E (2026-11-28, kullanıcı onayıyla, `pnpm storage:verify`, tek çalıştırma):** mevcut bucket'ta tek sentetik nesne (`_verification/<rastgele>.pdf`, 400 bayt). PutObject (SSE-B2 + `x-amz-version-id`) PASS; HEAD (VersionId'li, boyut) PASS; GET (VersionId'li, SHA-256) PASS — adapter yanıtın aynı `VersionId`'yi döndürmesini zorunlu tuttuğundan (D-147) gerçek B2'nin tam GET yanıtında başlığı döndürdüğü de doğrulandı (aralıklı GET Checkpoint B'de); imzasız erişim path-style ve virtual-host HTTP 401 (friendly URL: bağlantı kurulamadı — kesin ret kanıtı değil); versiyona özgü silme (1 versiyon) + tam yokluk PASS. Başlangıç envanteri 0 nesne; kalan test nesnesi 0. İstek: 7 imzalı B2 isteği + 3 imzasız deneme (2'si sağlayıcıya ulaştı). Aktarım: 400 bayt yükleme + 400 bayt indirme (+ küçük liste/HEAD yanıtları). Neon'a erişim yok. Eski anahtar iptali için hazır (kullanıcı işlemi).
+
 ### 1.3 Checkpoint B — canlı mutasyon için TEK onay talebi (BEKLİYOR — PHASE 12.1 güncel)
 
 Aşağıdaki plan **kullanıcının açık onayı olmadan çalıştırılmaz.** D-143 onayı canlı mutasyon yetkisi değildir. Önkoşul (önerilen): §3.1'e göre oluşturulmuş en az yetkili yeni anahtar.
@@ -101,7 +103,9 @@ Kart bilgisi veya kimlik bilgisi asistanla paylaşılmaz; tüm adımlar kullanı
 4. **Uygulama anahtarları:** SEC-01 için yeni, en az yetkili anahtar (OPERATIONS_RUNBOOK §3.1).
 5. **Bütçe kontrolü:** 100 GB ortalama depolamada ~7,51 USD/yıl (vergi hariç) + fazla egress $0,01/GB. Yıllık 10 USD hedeftir, garanti değildir.
 
-### 1.5 100 GB etkinleştirme kapısı (D-140)
+### 1.5 100 GB etkinleştirme kapısı (D-140) — OD-28 ile LANSMAN SONRASINA ERTELENDİ
+
+İlk lansman ücretsiz planla 9 GB / 8 GB yapılır; ödeme yöntemi eklenmez, ücretli plan etkinleştirilmez, otomatik geçiş yoktur. Aşağıdaki kapı yalnızca lansman sonrası, ayrı kullanıcı onayıyla kapasite artışı için geçerlidir.
 
 Sıra şöyledir; tamamlanmazsa aktif değer **9 GB / 8 GB** kalır.
 
@@ -113,7 +117,7 @@ Sıra şöyledir; tamamlanmazsa aktif değer **9 GB / 8 GB** kalır.
 6. Env değeri `STORAGE_MAX_TOTAL_BYTES=100000000000` ve `STORAGE_WARNING_BYTES=90000000000` yapılır.
 7. Uygulama yeniden başlatılır; panel kartında `/ 100 GB` görülür; `pnpm storage:inspect` temiz olur.
 
-**Durum:** TARGET READY = EVET (kod + izole testler). ACTIVE CAPACITY VERIFIED = HAYIR.
+**Durum:** TARGET READY = EVET (kod + izole testler). ACTIVE CAPACITY VERIFIED = HAYIR — **lansman gereksinimi değil (OD-28)**. Lansman için gerekli olan: ücretsiz hesap limitlerinin ve cap'lerin 9 GB / 8 GB kullanımını karşıladığının panelde doğrulanması (§1.4).
 
 ## 2. Gerçek cihaz ve WhatsApp in-app tarayıcı kontrol listesi
 

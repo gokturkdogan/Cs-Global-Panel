@@ -224,3 +224,7 @@ Elle çalıştırılır, otomatik testlerde yoktur: bucket erişimi + sınırlı
 - **Belirsiz yazım gözlemi:** HEAD (versiyon + boyut) + o TEK versiyonun sınırlı SHA-256 okuması eşleşirse CONFIRMED (OBSERVED); aksi, okuma hatası veya kaydedilemeyen onay (benzersizlik) → UNKNOWN. Normal görüntüleme/indirme trafiğine ek GET eklenmez.
 - **Kapasite (D-151):** production/preview'da `STORAGE_MAX_TOTAL_BYTES` ve `STORAGE_WARNING_BYTES` zorunlu; development'ta eksikse 9 GB / 8 GB. Hedef 100 / 90 GB yalnızca etkinleştirme kapısından sonra (VERIFICATION_PLANS §1.5). Aktif değer: 9 / 8 GB (değişmedi).
 - **En az yetkili anahtar (D-143):** `listFiles, readFiles, writeFiles, deleteFiles` (+ isteğe bağlı `listBuckets` yalnızca denetim için).
+
+## OD-28 — Ücretsiz plan ile lansman (2026-11-28)
+
+İlk production lansmanı: `STORAGE_MAX_TOTAL_BYTES=9000000000`, `STORAGE_WARNING_BYTES=8000000000`, `MAX_PDF_SIZE_BYTES=10485760` (production'da açıkça — D-151). 100 GB / 90 GB hedefi ve yıllık ~10 USD bütçe (OD-26) lansman sonrası kapasite artışı için geçerlidir; artış ayrı kullanıcı onayıyla, ödeme yöntemi eklenmeden önce yapılamaz; otomatik geçiş yok. Runtime anahtarı en az yetkili (`listFiles, readFiles, writeFiles, deleteFiles`; 2026-11-28 yenilendi, eski anahtar iptal edildi).

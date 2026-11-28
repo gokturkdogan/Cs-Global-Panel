@@ -74,6 +74,8 @@ Beklenen çıktı yalnızca anahtar adı, `applicationKeyId` (gizli değil), `ca
 
 **E. Gerçek dosya işlemleri doğrulaması (ayrı kullanıcı onayı — "runtime anahtar doğrulaması"):** yeni anahtarla mevcut bucket'ta `pnpm storage:verify` — tek sentetik nesne (`_verification/<rastgele>.pdf`, birkaç KB), yaklaşık 10 istek: listeleme, PUT, HEAD, GET (SHA-256), imzasız erişim reddi, yalnızca bu nesnenin versiyonlarının versiyona özgü silinmesi ve yokluk doğrulaması. Checkpoint B'den (ayrı test bucket'ı) BAĞIMSIZDIR.
 
+**Durum (2026-11-28):** A–F tamamlandı — yeni anahtar oluşturuldu, adım E PASS, eski anahtar kullanıcı tarafından iptal edildi, iptal sonrası `storage:inspect` beklenen kapsamı doğruladı. **Yönetim notu:** yeni anahtar Backblaze yönetim panelinde görünmedi. v4 `b2_create_key` (`bucketIds`) ile oluşturulan "Multi-Bucket Application Key"ler belgelere göre yalnızca v4 API ile yetkilendirilir; `b2_list_keys` ve `b2_delete_key`'in eski sürümleri bu anahtarları listelemez/silemez → listeleme ve iptal v4 API (`b2_list_keys` / `b2_delete_key` v4, ana anahtarla, §3.1 B'deki gizli girdi yöntemiyle) ile yapılabilir. Panelde görünmeme nedeni **kesin olarak doğrulanmadı**.
+
 **F. Eski anahtarın iptali (kullanıcı):** yalnızca E başarılı olduktan sonra Backblaze panelinden; ardından `pnpm storage:inspect`. Sorun olursa `.env.local.bak-b2` değerleri geri yüklenir (eski anahtar iptal edilmediyse çalışır). Başarı sonrası `.env.local.bak-b2` silinir.
 
 ### 3.2 Veritabanı runtime şifresi

@@ -225,7 +225,7 @@ Gerçek müşteri verisiyle production **açılmaz**, şunlar tamamlanana kadar:
 | # | Blocker | Not |
 |---|---|---|
 | PB-01 | Ticari kullanıma uygun, ücretsiz (veya kullanıcının onayladığı) hosting / DB / storage seçimi | Vercel Hobby ticari kullanıma izin vermez (OD-12) |
-| PB-02 | Storage kapasitesi yeterliliği | Backblaze B2 kotası hedefi 100 GB ≈ 5 000 başvuru (OD-26; yıllık ~10 USD bütçe; aktif değer hesap hazırlığına kadar 9 GB); otomatik silme yok → birikimli (DEPLOYMENT §6, D-101, D-140). Açık. |
+| PB-02 | Storage kapasitesi yeterliliği — **OD-28 (2026-11-28):** ilk lansman ücretsiz planla 9 GB / 8 GB (production'da açıkça yapılandırılır); ücretli 100 GB aktivasyonu lansman gereksinimi değil (OD-26 hedefi/bütçesi lansman sonrası kapasite artışı için geçerli); **korunan gereksinim:** ücretsiz hesap limitlerinin ve cap'lerin doğrulanması | FILE_STORAGE §7.2, VERIFICATION_PLANS §1.4 |
 | PB-03 | KVKK hukuki değerlendirmesi (aydınlatma, yurt dışı aktarım, saklama/imha, VERBİS, ihlal prosedürü) | DATA_PRIVACY §9 |
 | PB-04 | Bearer link + OTP yok + süresiz bağlantı + belge indirme birleşik riskinin **yazılı risk kabulü** | THREAT_MODEL TM-13–TM-15 |
 | PB-05 | Antivirüs taraması olmadan PDF kabulünün **yazılı risk kabulü** ve personel cihaz önlemleri | THREAT_MODEL TM-16 |

@@ -62,8 +62,8 @@ B2_APPLICATION_KEY=               # gizli; yerelde yalnızca pnpm env:b2 (yankı
 B2_BUCKET_NAME=                   # production'da geliştirme bucket'ı (cs-global-documents) reddedilir
 B2_ENDPOINT=                      # https://s3.<B2_REGION>.backblazeb2.com (birebir)
 B2_REGION=                        # ör. eu-central-003
-STORAGE_MAX_TOTAL_BYTES=9000000000   # ZORUNLU (production/preview — D-151); hedef 100000000000 yalnızca etkinleştirme kapısından sonra
-STORAGE_WARNING_BYTES=8000000000    # ZORUNLU (production/preview — D-151); hedef 90000000000 yalnızca etkinleştirme kapısından sonra
+STORAGE_MAX_TOTAL_BYTES=9000000000   # ZORUNLU (production/preview — D-151); OD-28: lansman ücretsiz 9 GB; 100 GB lansman sonrası, ayrı onayla
+STORAGE_WARNING_BYTES=8000000000    # ZORUNLU (production/preview — D-151); OD-28: lansman 8 GB; 90 GB lansman sonrası, ayrı onayla
 
 # --- Zamanlanmış iş ---
 CRON_SECRET=

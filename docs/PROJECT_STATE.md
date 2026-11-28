@@ -4,7 +4,7 @@
 
 ## Current Phase
 **PHASE 12.1 — Targeted Security Remediation & Final Verification**
-Phase Status: **PHASE 12.1 — kararlar onaylandı; migration 0011 `neondb`'ye uygulandı ve doğrulandı (2026-11-27). Nihai production doğrulamaları tamamlanmadı** (yeni B2 anahtarı, Checkpoint B, gerçek cihaz, hosting, KVKK, risk kabulleri). Rapor: [SECURITY_AUDIT.md](SECURITY_AUDIT.md) §8. Production: **NO-GO**. PHASE 12 değerlendirildi; nihai onay PHASE 12.1 sonrası. D-141, D-144 ACCEPTED; D-143, D-145 CONDITIONALLY ACCEPTED; PB-12, PB-13 kabul edilmiş blocker. **OD-27 ACCEPTED (2026-11-27):** uygulamaya özel yedek/geri yükleme altyapısı kapsam dışı — D-142 SUPERSEDED, D-148 WITHDRAWN, `test:restore-drill` ve `ops:post-restore` kaldırıldı; PB-08 ve PB-12 kalan risk / kullanıcı kabulü. PHASE 13 başlatılmadı.
+Phase Status: **PHASE 12.1 — kararlar onaylandı; migration 0011 `neondb`'ye uygulandı ve doğrulandı (2026-11-27). Nihai production doğrulamaları tamamlanmadı** (yeni B2 anahtarı, Checkpoint B, gerçek cihaz, hosting, KVKK, risk kabulleri). Rapor: [SECURITY_AUDIT.md](SECURITY_AUDIT.md) §8. Production: **NO-GO**. PHASE 12 değerlendirildi; nihai onay PHASE 12.1 sonrası. D-141, D-144 ACCEPTED; D-143, D-145 CONDITIONALLY ACCEPTED; PB-12, PB-13 kabul edilmiş blocker. **OD-28 ACCEPTED (2026-11-28):** ilk lansman ücretsiz plan, 9 GB / 8 GB; 100 / 90 GB lansman sonrası. **SEC-01 FIXED & VERIFIED** (B2 anahtar yenileme). **OD-27 ACCEPTED (2026-11-27):** uygulamaya özel yedek/geri yükleme altyapısı kapsam dışı — D-142 SUPERSEDED, D-148 WITHDRAWN, `test:restore-drill` ve `ops:post-restore` kaldırıldı; PB-08 ve PB-12 kalan risk / kullanıcı kabulü. PHASE 13 başlatılmadı.
 
 ## Completed Phases
 - PHASE 00 — Project Foundation & Architecture (+ revizyon) — Product Owner onayı 2026-11-24.
@@ -169,7 +169,10 @@ Ayrıntı: [SECURITY.md](SECURITY.md) §11.
 
 **Geliştirmeyi engelleyen:** yok (yalnızca faz onayları). PB-01…PB-11 açık; hiçbiri çözülmüş sayılmaz. PHASE 00/01 onayları production güvenliği veya KVKK uyumluluğu onayı değildir.
 
-## Latest Verification Results (2026-11-27, PHASE 12.1 — Neon migration 0011)
+## Latest Verification Results (2026-11-28, PHASE 12.1 — B2 anahtar yenileme)
+- `storage:inspect` v4 uyumu düzeltildi (v4 `b2_create_key` anahtarları yalnızca v4 ile yetkilendirilir); yeni anahtar: yalnızca 4 gerekli yetki, tek bucket, önek yok. Adım E (`storage:verify`, tek çalıştırma): yükleme/HEAD/GET/SHA-256/VersionId/imzasız 401/versiyona özgü silme PASS; kalan test nesnesi 0. Eski anahtar kullanıcı tarafından iptal edildi; iptal sonrası inspect PASS. **OD-28 ACCEPTED:** lansman ücretsiz 9 GB / 8 GB. Kod değişikliği yok (bu adım); sağlayıcıda asistan mutasyonu yalnızca onaylı adım E (oluşturulan ve silinen tek sentetik nesne).
+
+## Previous Verification Results (2026-11-27, PHASE 12.1 — Neon migration 0011)
 - **Hedef:** `neondb` (PostgreSQL 18.7), sahip/migration rolü `neondb_owner`, çalışma zamanı rolü `cs_app_runtime` (süper kullanıcı değil, rol/veritabanı oluşturamaz). Önce: 11 migration, bekleyen yalnızca 0011 (içerik: 3 `REVOKE`; snapshot yalnızca kimlik zinciri farkı).
 - **Uygulama:** `pnpm db:migrate` → "1 yeni, toplam 12 uygulanmış". `db:verify`: 21 tablo, 12 migration, TLS doğrulandı.
 - **Yetkiler (önce → sonra):** `users` INSERT,SELECT,UPDATE → SELECT; `accounts` INSERT,SELECT,UPDATE → SELECT; `verifications` DELETE,INSERT,SELECT,UPDATE → SELECT; `sessions` ve diğer tüm tablo yetkileri, şema/veritabanı yetkileri, fonksiyonlar, tetikleyiciler ve rol üyelikleri **aynı**.
@@ -206,9 +209,9 @@ Son kod hâli; ilk başarısızlıklar gizlenmeden (ayrıntı SECURITY_AUDIT §8
 
 ## Kullanıcı İşlemleri (PHASE 12.1 — tek sıralı liste)
 1. ~~**Neon migration 0011 onayı (D-144):**~~ **TAMAMLANDI (2026-11-27)** — önerilen manuel kontrol: her iki gerçek hesapla panele giriş/çıkış (şifreler sizde). değişiklik — `REVOKE INSERT, UPDATE ON users, accounts FROM cs_app_runtime; REVOKE INSERT, UPDATE, DELETE ON verifications FROM cs_app_runtime;` (veri/şema değişmez). Etki: uygulama girişi/oturum/çıkış etkilenmez (izole tam regresyon); `pnpm auth:bootstrap` / `auth:reset-password` sahip bağlantısını kullanır (zaten taşındı). Uygulama sırası (onay sonrası): parmak izi → `pnpm db:migrate` → `pnpm db:verify` (12) → `pnpm test:integration` (privileges matrisi) → `pnpm test:e2e` → parmak izi. Geri alma: `GRANT INSERT, UPDATE ON users, accounts TO cs_app_runtime; GRANT INSERT, UPDATE, DELETE ON verifications TO cs_app_runtime;` (yeni migration ile).
-2. **Yeni en az yetkili B2 anahtarı** (OPERATIONS_RUNBOOK §3.1; `b2_create_key` — panel özel yetki seçtirmez) → `pnpm env:b2` → `pnpm storage:inspect` temiz → eski anahtarı silme.
+2. ~~**Yeni en az yetkili B2 anahtarı**~~ **TAMAMLANDI (2026-11-28)** — yeni anahtar + adım E PASS; eski anahtar kullanıcı tarafından iptal edildi; iptal sonrası `storage:inspect` PASS. Yeni anahtar panelde görünmüyor (v4 API ile yönetilir; neden doğrulanmadı).
 3. **Checkpoint B onayı** (VERIFICATION_PLANS §1.3 — tek talep; ≤ 100 MB depolama, ≤ 100 MB egress, ≤ 500 istek, ~0 USD).
-4. **B2 ödeme/cap hazırlığı** (panel) ve ardından **100 GB etkinleştirme onayı** (VERIFICATION_PLANS §1.5).
+4. **Ücretsiz hesap limitlerinin doğrulanması** (OD-28 — panelde: depolama/indirme/işlem cap'leri 9 GB / 8 GB kullanımını karşılıyor mu). Ödeme yöntemi ve 100 GB etkinleştirme lansman gereksinimi DEĞİL (lansman sonrası, ayrı onay).
 5. **Gerçek cihaz + WhatsApp** kontrol listesi (VERIFICATION_PLANS §2; ara sayfa adımı dahil).
 6. **Hosting kararı** (PB-01).
 7. **Hukuk/gizlilik ve saklama kararları** (PB-03; yedek saklama dahil).

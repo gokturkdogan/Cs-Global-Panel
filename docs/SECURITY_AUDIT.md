@@ -92,7 +92,7 @@ Kod düzeyinde istismar edilebilir CRITICAL/HIGH açık bulunmadı. Production e
 | PB | Gereksinim | Durum | Kanıt | Kalan eksik | Gerekli işlem / sahibi | Kullanıcı onayı | PHASE 13 |
 |---|---|---|---|---|---|---|---|
 | PB-01 | Ticari kullanıma uygun ücretsiz (veya onaylı) hosting/DB/storage | **OPEN** | DEPLOYMENT §16: Vercel Hobby ticari değil + 4,5 MB gövde; Cloudflare Free 10 ms CPU; Render/Railway ticari koşul doğrulanmadı | 10 MiB yükleme + ticari ücretsiz hosting bulunamadı | Hosting kararı / Product Owner | Evet | Bağımlı |
-| PB-02 | Depolama kapasitesi | **BLOCKED BY EXTERNAL ACTION** | D-140 kod hazır; aktif 9 GB | Ödeme/cap hazırlığı | Kullanıcı (panel) | Evet | Bağımlı |
+| PB-02 | Depolama kapasitesi (OD-28: lansman 9 GB / 8 GB ücretsiz) | **OPEN — ücretsiz hesap limitlerinin doğrulanması** | Aktif ve production değeri 9/8 GB (D-151 zorunlu env); ücretli 100 GB aktivasyonu lansman gereksinimi DEĞİL (OD-28) | Ücretsiz katman limitleri ve hesap cap'lerinin 9 GB / günlük indirme / işlem kullanımını karşıladığının panelde doğrulanması | Kullanıcı (panel) | Evet | Bağımlı |
 | PB-03 | KVKK değerlendirmesi | **OPEN** | DATA_PRIVACY §13 kontrol listesi | Hukuki görüş, aydınlatma, yurt dışı aktarım, VERBİS | Hukuk / Product Owner | Evet | Bağımlı |
 | PB-04 | Bearer link yazılı risk kabulü | **RISK ACCEPTANCE REQUIRED** | SEC-02, TM-13, TM-14, TM-15, TM-59 | Yazılı kabul (veya D-141) | Product Owner | Evet | — |
 | PB-05 | Antivirüssüz PDF yazılı risk kabulü | **RISK ACCEPTANCE REQUIRED** | Yapısal doğrulama testleri | Yazılı kabul + personel cihaz önlemleri | Product Owner | Evet | — |
@@ -103,7 +103,7 @@ Kod düzeyinde istismar edilebilir CRITICAL/HIGH açık bulunmadı. Production e
 | PB-10 | Better Auth kapalı uç noktalar, IP/UA yok | **VERIFIED — ACCEPTANCE PENDING** | `auth.spec.ts`, kod | IP başlık güvenilirliği hosting'de (kullanılmıyor) | Product Owner kabulü | Evet | — |
 | PB-11 | Gerçek iletişim bilgileri + katalog | **BLOCKED BY EXTERNAL ACTION** | Bekleyen girdi | Bilgiler | Product Owner | Evet | Bağımlı |
 | PB-12 (**ACCEPTED** blocker, 2026-11-27) | Geri yükleme sonrası silinmiş veri/iptal edilmiş token geri dönüşü (OD-27 ile kapsam: sağlayıcı düzeyi geri yükleme kalan riski) | **RESIDUAL RISK / USER ACCEPTANCE REQUIRED** (OD-27 — özel araçlar kaldırıldı; manuel değerlendirme OPERATIONS_RUNBOOK §2) | SEC-03 | Prosedürün production'da uygulanması / otomasyon kararı | Product Owner | Evet | Bağımlı |
-| PB-13 (**ACCEPTED** blocker, 2026-11-27) | En az yetkili B2 anahtarı + gerçek sağlayıcı doğrulaması (Range, versiyon silme, listeleme/mutabakat, cap davranışı) | **BLOCKED BY EXTERNAL ACTION** | SEC-01; Checkpoint B onayı yok | Anahtar yenileme + B2-01…B2-18 | Kullanıcı | Evet | Bağımlı |
+| PB-13 (**ACCEPTED** blocker, 2026-11-27) | En az yetkili B2 anahtarı + gerçek sağlayıcı doğrulaması (Range, versiyon silme, listeleme/mutabakat, cap davranışı) | **PARTIALLY VERIFIED** (anahtar yenileme + adım E tamam, 2026-11-28; Checkpoint B onay bekliyor) | SEC-01; Checkpoint B onayı yok | Anahtar yenileme + B2-01…B2-18 | Kullanıcı | Evet | Bağımlı |
 
 ## 6. Production Hazırlık Kontrol Listesi
 
@@ -134,7 +134,7 @@ Kapsam: D-141…D-145 kullanıcı kararları, PB-12/PB-13 kabulü ve bağımsız
 
 | Bulgu | PHASE 12 | PHASE 12.1 | Kanıt | Kalan risk |
 |---|---|---|---|---|
-| SEC-01 (MEDIUM) B2 anahtarı fazla yetkili | OPEN | **EXTERNAL ACTION REQUIRED** | `storage:inspect` (2026-11-27, salt okunur): 7 riskli + 6 gereksiz okuma yetkisi; asgari küme resmî tabloyla doğrulandı (`listFiles, readFiles, writeFiles, deleteFiles`); yeni anahtar prosedürü OPERATIONS_RUNBOOK §3.1 | Yeni anahtar oluşturulana kadar sızıntı etkisi geniş |
+| SEC-01 (MEDIUM) B2 anahtarı fazla yetkili | OPEN | **FIXED & VERIFIED** (2026-11-28) | Yeni anahtar: `storage:inspect` v4 — yalnızca 4 gerekli yetki, tek bucket, önek yok, riskli/beklenmeyen yok; adım E (`storage:verify`) PASS; eski anahtar kullanıcı tarafından iptal edildi, iptal sonrası inspect PASS | Yeni anahtar panelde görünmüyor (v4 API ile yönetim; neden doğrulanmadı) |
 | SEC-02 (MEDIUM) bağlantı önizleme verisi | RISK ACCEPTANCE REQUIRED | **PARTIAL** (D-141 uygulandı) | GET/HEAD oturum 0, cookie 0, kişisel veri 0; cookie saklayan + yönlendirme izleyen istemci portal verisine ulaşamaz (`security-audit.spec.ts`, `customer-link.spec.ts` C1–C17) | Bilinçli POST yapan/bağlantıyı ele geçiren istemci (PB-04); gerçek WhatsApp doğrulanmadı |
 | SEC-03 (MEDIUM) geri yükleme sonrası geri dönüş | OPEN | **PARTIAL** | `pnpm test:restore-drill` R-A…R-I + `pnpm ops:post-restore` (kilitleme + GO/NO-GO) | Başlamış-ama-nesnesi-silinmemiş silme tespit edilemez; bucket değişiminde eşleme uygulanamaz (D-148) → PB-12 OPEN |
 | SEC-04 (LOW) runtime users/accounts yazma | OPEN | **FIXED & VERIFIED** (izole + `neondb`, 2026-11-27) | migration 0011; `privileges.test.ts` matris + 10 negatif test (Neon'da da PASS); auth yaşam döngüsü sahip rolüyle | — |
@@ -161,7 +161,7 @@ P14 (eşzamanlı gözlem/silme/temizlik) ve P15 (yetkisiz/HEAD sıfır GET) mevc
 |---|---|---|---|---|
 | CRITICAL | 0 | 0 | 0 | 0 |
 | HIGH | 1 (SEC-14) | 1 | 0 | 0 |
-| MEDIUM | 7 (SEC-01…03, SEC-15…18) | 4 (SEC-15…18) | 3: SEC-01 harici işlem; SEC-02, SEC-03 kısmi | SEC-02 kalanı (PB-04) |
+| MEDIUM | 7 (SEC-01…03, SEC-15…18) | 5 (SEC-01, SEC-15…18) | 2: SEC-02 kısmi; SEC-03 risk kabulü (OD-27) | SEC-02 kalanı (PB-04), SEC-03 |
 | LOW | 7 | 5 (SEC-04, 05, 08, 12, 13) + SEC-07 uzak doğrulanmadı | SEC-06 kısmi | 0 |
 | INFORMATIONAL | 3 | 1 | 0 | 0 |
 

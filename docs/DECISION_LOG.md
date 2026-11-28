@@ -292,6 +292,16 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 
 ---
 
+### OD-28 — Ücretsiz plan ile ilk production lansmanı (9 GB / 8 GB)
+- **Status:** **ACCEPTED** · **Approved By:** Product Owner (kullanıcı kararı) · **Approval Date:** 2026-11-28 (PHASE 12.1)
+- **Karar:** İlk production lansmanı tamamen ücretsiz altyapıyla yapılır. Backblaze aktif depolama kotası `STORAGE_MAX_TOTAL_BYTES=9000000000`, uyarı `STORAGE_WARNING_BYTES=8000000000`, PDF başına `MAX_PDF_SIZE_BYTES=10485760` (değişmedi). Production ortamında da bu değerler **açıkça** yapılandırılır (D-151).
+- **Ertelenen:** 100 GB kapasite / 90 GB uyarı hedefi lansman sonrasına ertelendi. OD-26'daki yıllık ~10 USD Backblaze bütçesi gelecekteki kapasite artışı için geçerli kalır.
+- **Kısıtlar:** şimdilik ödeme yöntemi eklenmez, ücretli plan etkinleştirilmez; ücretli altyapıya otomatik geçiş yoktur; kapasite artışı ayrı kullanıcı onayı gerektirir (VERIFICATION_PLANS §1.5 kapısı lansman sonrası).
+- **Güncellenen önceki hükümler:** OD-26 (hedef ve bütçe korunur, etkinleştirme zamanı lansman sonrası), D-140 (aktif değer lansmanda 9/8 GB), PB-02 (ücretli kapasite aktivasyonu lansman gereksinimi değil; ücretsiz hesap limitlerinin doğrulanması gereksinimi korunur).
+- **Faz:** PHASE 12.1 ve ilk lansman.
+
+---
+
 ## B. Teknik Kararlar
 
 ### D-001 — Modüler monolit, tek Next.js uygulaması
@@ -985,6 +995,7 @@ Tümü için: **Status: ACCEPTED · Approved By: Product Owner · Approval Date:
 
 ### D-143 — Salt okunur sağlayıcı denetimi ve en az yetkili B2 anahtarı
 - **Date:** 2026-11-27 (PHASE 12) · **Status:** **CONDITIONALLY ACCEPTED** (Product Owner, 2026-11-27 — gerçek anahtar oluşturma ve sağlayıcı doğrulaması açık) · SEC-01, TM-51, PB-13
+- **Anahtar yenileme (2026-11-28):** yeni en az yetkili runtime anahtarı (`listFiles, readFiles, writeFiles, deleteFiles`; tek bucket; v4 `b2_create_key`) kullanıcı tarafından oluşturuldu; gerçek dosya işlemleri (adım E) PASS; eski fazla yetkili anahtar kullanıcı tarafından iptal edildi ve iptal sonrası `storage:inspect` beklenen kapsamı doğruladı. Not: yeni anahtar Backblaze yönetim panelinde görünmedi — v4 ile oluşturulan "Multi-Bucket Application Key"lerin v4 API (`b2_list_keys` / `b2_delete_key` v4) ile yönetildiği belgelidir (eski API sürümleri bu anahtarları listelemez/silemez); panelde görünmeme nedeni **kesin olarak doğrulanmadı**.
 - **PHASE 12.1 düzeltmesi:** resmî "S3-Compatible App Key Capabilities" tablosuna göre uygulamanın asgari yetkileri `listFiles, readFiles, writeFiles, deleteFiles`'tır; uygulama ListBuckets/HeadBucket çağırmaz → `listBuckets` yalnızca `storage:inspect` HeadBucket kontrolü için isteğe bağlıdır. Panel yalnızca Read and Write / Read Only / Write Only sunar; özel yetki kümesi yalnızca `b2_create_key` API ile (OPERATIONS_RUNBOOK §3.1). D-143 onayı canlı mutasyon yetkisi değildir.
 - **Decision:** `pnpm storage:inspect` — yazma/silme/indirme yapmadan anahtar kapsamını (yetkiler, bucket/önek kısıtı, son kullanma), bucket ayarlarını (versiyonlama, şifreleme, CORS, lifecycle), nesne sayılarını ve kimliksiz erişim reddini raporlar; secret/token/nesne adı yazdırmaz. Uygulama yalnızca `listBuckets, listFiles, readFiles, writeFiles, deleteFiles` gerektirir; mevcut anahtardaki 7 fazla yetki (writeBuckets, writeBucket*, shareFiles) kaldırılmalıdır — yeni anahtarı kullanıcı oluşturur (OPERATIONS_RUNBOOK §3.1). Asistan sağlayıcı ayarı/anahtar değiştirmedi.
 

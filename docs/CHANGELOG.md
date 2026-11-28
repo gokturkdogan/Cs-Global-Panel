@@ -2,6 +2,18 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) esinli; fazlara göre gruplanır. Tarihler `YYYY-MM-DD`.
 
+## [PHASE 12.1 — OD-28 ve B2 anahtar yenilemesinin tamamlanması] — 2026-11-28
+
+### Changed
+- **OD-28 (ACCEPTED):** ilk production lansmanı ücretsiz planla — aktif ve production kota 9 GB / uyarı 8 GB (açık env), PDF 10 MiB; 100 / 90 GB hedefi lansman sonrası; ödeme yöntemi/ücretli plan yok; otomatik geçiş yok; artış ayrı onayla. PB-02: ücretli kapasite aktivasyonu lansman gereksinimi değil; ücretsiz hesap limitlerinin doğrulanması korunur.
+- **SEC-01 FIXED & VERIFIED:** eski fazla yetkili B2 anahtarı kullanıcı tarafından iptal edildi; yeni en az yetkili anahtar iptal sonrası doğrulandı. PB-13 PARTIALLY VERIFIED (Checkpoint B bekliyor). Yeni anahtarın panelde görünmemesi not edildi (v4 API ile yönetim; neden doğrulanmadı).
+- Yalnızca dokümantasyon; runtime kodu değişmedi.
+
+## [PHASE 12.1 — Yeni runtime B2 anahtarı canlı doğrulaması] — 2026-11-28
+
+### Verified
+- Kullanıcı onayıyla `pnpm storage:verify` (tek çalıştırma): yükleme, HEAD, GET + SHA-256, VersionId (gerçek B2 tam GET yanıtında `x-amz-version-id` döndü — D-147 kısmi kanıt), imzasız erişim 401, versiyona özgü silme ve yokluk PASS; kalan test nesnesi 0. Kod değişikliği yok.
+
 ## [PHASE 12.1 — storage:inspect v4 uyumu] — 2026-11-27
 
 ### Fixed
